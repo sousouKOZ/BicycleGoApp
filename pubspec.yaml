@@ -1,0 +1,29 @@
+name: bicycle_go
+description: A simple bicycle app scaffold
+version: 0.0.1
+environment:
+  sdk: ">=2.17.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_riverpod: ^2.5.1
+  google_maps_flutter: ^2.7.0
+  geolocator: ^10.1.0
+  nfc_manager: ^3.5.0
+
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/images/
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+dependency_overrides:
+  nfc_manager:
+    path: third_party/nfc_manager
