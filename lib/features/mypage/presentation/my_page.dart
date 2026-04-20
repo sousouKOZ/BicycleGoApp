@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../coupons/domain/coupon.dart';
+import '../../coupons/providers/coupon_providers.dart';
 import '../../points/providers/points_providers.dart';
 
 class MyPage extends ConsumerWidget {
@@ -9,11 +11,7 @@ class MyPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final points = ref.watch(pointsProvider);
-    final ownedCoupons = [
-      _OwnedCoupon(title: 'ドリンク無料（S）', expires: 'あと7日'),
-      _OwnedCoupon(title: 'カフェ 200円引き', expires: 'あと3日'),
-      _OwnedCoupon(title: 'コンビニ 50円引き', expires: 'あと12時間'),
-    ];
+    final asyncCoupons = ref.watch(userCouponsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('マイページ')),
@@ -22,33 +20,56 @@ class MyPage extends ConsumerWidget {
         children: [
           _PointsCard(points: points),
           const SizedBox(height: 12),
-          _SectionHeader(
-            title: '取得済みクーポン',
-            subtitle: '使用前のクーポンを表示（後でフィルタ可能）',
+          const _SectionHeader(
+            title: '利用可能クーポン',
+            subtitle: '15分駐輪で自動発行されたクーポン',
           ),
           const SizedBox(height: 8),
-          ...ownedCoupons.map((c) => _OwnedCouponTile(coupon: c)),
+          asyncCoupons.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, _) => Text('読み込み失敗: $e'),
+            data: (list) {
+              final usable =
+                  list.where((c) => c.status == CouponStatus.owned && !c.isExpired).toList();
+              if (usable.isEmpty) {
+                return Card(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('利用可能なクーポンはありません'),
+                  ),
+                );
+              }
+              return Column(
+                children: usable.map((c) => _OwnedCouponTile(coupon: c)).toList(),
+              );
+            },
+          ),
           const SizedBox(height: 18),
-          _SectionHeader(
+          const _SectionHeader(
             title: 'メニュー',
-            subtitle: '後で設定系を追加できます',
+            subtitle: '',
           ),
           const SizedBox(height: 8),
           Card(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.history),
-                  title: const Text('駐輪履歴（後で実装）'),
+                  title: const Text('駐輪履歴（準備中）'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {},
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.settings),
-                  title: const Text('設定（後で実装）'),
+                  title: const Text('設定（準備中）'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {},
                 ),
@@ -71,7 +92,8 @@ class _PointsCard extends StatelessWidget {
 
     return Card(
       elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -93,9 +115,7 @@ class _PointsCard extends StatelessWidget {
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                // TODO: ポイント交換画面へ
-              },
+              onPressed: () {},
               child: const Text('交換する'),
             ),
           ],
@@ -106,25 +126,24 @@ class _PointsCard extends StatelessWidget {
 }
 
 class _OwnedCouponTile extends StatelessWidget {
-  final _OwnedCoupon coupon;
+  final Coupon coupon;
   const _OwnedCouponTile({required this.coupon});
 
   @override
   Widget build(BuildContext context) {
+    final expires = coupon.expiresAt;
+    final expiresLabel =
+        '${expires.month}/${expires.day.toString().padLeft(2, '0')}まで';
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         leading: const Icon(Icons.confirmation_number_outlined),
-        title: Text(coupon.title),
-        subtitle: Text('期限：${coupon.expires}'),
-        trailing: ElevatedButton(
-          onPressed: () {
-            // TODO: クーポン使用
-          },
-          child: const Text('使う'),
-        ),
+        title: Text(coupon.benefit),
+        subtitle: Text('${coupon.storeName}・$expiresLabel'),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }
@@ -145,15 +164,11 @@ class _SectionHeader extends StatelessWidget {
             style: theme.textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 2),
-        Text(subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+        if (subtitle.isNotEmpty)
+          Text(subtitle,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.hintColor)),
       ],
     );
   }
-}
-
-class _OwnedCoupon {
-  final String title;
-  final String expires;
-  _OwnedCoupon({required this.title, required this.expires});
 }

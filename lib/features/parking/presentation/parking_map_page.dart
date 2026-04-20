@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../stores/domain/store.dart';
+import '../../stores/presentation/store_preview_sheet.dart';
+import '../../stores/providers/store_providers.dart';
 import '../providers/parking_providers.dart';
 import 'parking_detail_sheet.dart';
 
@@ -167,6 +170,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   @override
   Widget build(BuildContext context) {
     final asyncLots = ref.watch(parkingLotsProvider);
+    final asyncStores = ref.watch(storesProvider);
     final query = ref.watch(parkingSearchQueryProvider);
 
     return Scaffold(
@@ -192,15 +196,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                     (p) => p.name.toLowerCase().contains(normalizedQuery),
                   )
                   .toList();
-          final markers = visibleLots.map((p) {
+          final stores = asyncStores.asData?.value ?? const <Store>[];
+
+          final markers = <Marker>{};
+          for (final p in visibleLots) {
             final usageRate = p.usageRatePercent;
             final markerHue = usageRate >= 85
                 ? BitmapDescriptor.hueRed
                 : usageRate >= 60
                     ? BitmapDescriptor.hueOrange
                     : BitmapDescriptor.hueGreen;
-            return Marker(
-              markerId: MarkerId(p.id),
+            markers.add(Marker(
+              markerId: MarkerId('lot-${p.id}'),
               position: p.position,
               icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
               onTap: () {
@@ -214,10 +221,33 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
               },
               infoWindow: InfoWindow(
                 title: p.name,
-                snippet: '空き ${p.available}/${p.capacity}（稼働${p.usageRatePercent}%）',
+                snippet:
+                    '空き ${p.available}/${p.capacity}（稼働${p.usageRatePercent}%）',
               ),
-            );
-          }).toSet();
+            ));
+          }
+          for (final s in stores) {
+            markers.add(Marker(
+              markerId: MarkerId('store-${s.id}'),
+              position: s.position,
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueViolet,
+              ),
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  showDragHandle: true,
+                  builder: (_) => StorePreviewSheet(store: s),
+                );
+              },
+              infoWindow: InfoWindow(
+                title: s.name,
+                snippet: '🎁 ${s.benefit}',
+              ),
+            ));
+          }
+
           if (_currentLocation != null) {
             markers.add(
               Marker(
@@ -291,10 +321,111 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   ),
                 ),
               ),
+              if (stores.isNotEmpty)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 16,
+                  child: SizedBox(
+                    height: 112,
+                    child: _CouponPreviewStrip(stores: stores),
+                  ),
+                ),
             ],
           );
         },
       ),
+    );
+  }
+}
+
+class _CouponPreviewStrip extends StatelessWidget {
+  final List<Store> stores;
+  const _CouponPreviewStrip({required this.stores});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      itemCount: stores.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 10),
+      itemBuilder: (context, i) {
+        final s = stores[i];
+        final theme = Theme.of(context);
+        final scheme = theme.colorScheme;
+        return InkWell(
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            showDragHandle: true,
+            builder: (_) => StorePreviewSheet(store: s),
+          ),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 240,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: scheme.primary.withOpacity(0.25)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: scheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        s.category.label,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text('🎁',
+                        style: theme.textTheme.titleMedium),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  s.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  s.benefit,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
