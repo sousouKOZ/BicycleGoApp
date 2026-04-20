@@ -6,7 +6,10 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
+import '../../sessions/presentation/session_timer_page.dart';
+import '../data/parking_mock_data.dart';
 import '../domain/parking_lot.dart';
+import '../domain/parking_session.dart';
 import '../providers/parking_providers.dart';
 
 class ParkingDetailSheet extends ConsumerWidget {
@@ -161,21 +164,36 @@ class ParkingDetailSheet extends ConsumerWidget {
               Expanded(
                 child: FilledButton.tonal(
                   onPressed: () async {
-                    final isSuccess = await showModalBottomSheet<bool>(
+                    final device = mockDevices.firstWhere(
+                      (d) => d.parkingLotId == parking.id,
+                      orElse: () => mockDevices.first,
+                    );
+                    final navigator = Navigator.of(context);
+                    final session = await showModalBottomSheet<ParkingSession?>(
                       context: context,
                       isScrollControlled: true,
                       showDragHandle: true,
-                      builder: (_) => NfcLockSheet(parkingName: parking.name),
+                      builder: (_) => NfcLockSheet(
+                        parkingName: parking.name,
+                        deviceId: device.id,
+                      ),
                     );
-                    if (isSuccess == true) {
-                      ref.read(pointsProvider.notifier).state +=
-                          _nfcLockRewardPoints;
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('ポイントを獲得しました +10pt')),
-                      );
+                    if (session == null) {
+                      return;
                     }
+                    ref.read(pointsProvider.notifier).state +=
+                        _nfcLockRewardPoints;
+                    messenger.showSnackBar(
+                      const SnackBar(
+                          content: Text('認証完了！15分後にクーポンが届きます')),
+                    );
+                    navigator.pop();
+                    await navigator.push(
+                      MaterialPageRoute(
+                          builder: (_) => const SessionTimerPage()),
+                    );
                   },
-                  child: const Text('NFCでロック'),
+                  child: const Text('NFCスキャンして計測開始'),
                 ),
               ),
             ],
