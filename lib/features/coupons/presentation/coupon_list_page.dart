@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
+import '../../stores/domain/store.dart';
+import '../../stores/presentation/store_preview_sheet.dart';
+import '../../stores/providers/store_providers.dart';
 import '../../user/providers/user_providers.dart';
 import '../domain/coupon.dart';
 import '../providers/coupon_providers.dart';
@@ -12,14 +15,16 @@ class CouponListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(userCouponsProvider);
+    final asyncCoupons = ref.watch(userCouponsProvider);
+    final asyncStores = ref.watch(storesProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('クーポン')),
-      body: async.when(
+      body: asyncCoupons.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('読み込み失敗: $e')),
         data: (coupons) {
-          if (coupons.isEmpty) {
+          final stores = asyncStores.asData?.value ?? const <Store>[];
+          if (coupons.isEmpty && stores.isEmpty) {
             return const _EmptyState();
           }
           final owned =
@@ -32,10 +37,22 @@ class CouponListPage extends ConsumerWidget {
                   (c.status == CouponStatus.owned && c.isExpired))
               .toList();
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(userCouponsProvider),
+            onRefresh: () async {
+              ref.invalidate(userCouponsProvider);
+              ref.invalidate(storesProvider);
+            },
             child: ListView(
               padding: const EdgeInsets.all(12),
               children: [
+                if (stores.isNotEmpty) ...[
+                  const _SectionHeader(
+                    title: '配信中',
+                    subtitle: '近くの提携駐輪場に15分停めると獲得できます',
+                  ),
+                  const SizedBox(height: 8),
+                  ...stores.map((s) => _DistributingCouponCard(store: s)),
+                  const SizedBox(height: 18),
+                ],
                 if (owned.isNotEmpty) ...[
                   const _SectionHeader(
                     title: '利用可能',
@@ -67,6 +84,102 @@ class CouponListPage extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _DistributingCouponCard extends StatelessWidget {
+  final Store store;
+  const _DistributingCouponCard({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: scheme.surface,
+        border: Border.all(color: scheme.primary.withOpacity(0.25)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => StorePreviewSheet(store: store),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: scheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      store.category.label,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.local_offer,
+                            size: 12, color: scheme.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '配信中',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.chevron_right, color: scheme.outline),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                store.name,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                store.benefit,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: scheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

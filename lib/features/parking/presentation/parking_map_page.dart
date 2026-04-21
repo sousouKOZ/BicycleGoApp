@@ -29,6 +29,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   LatLng? _currentLocation;
   BitmapDescriptor? _currentLocationIcon;
   BitmapDescriptor? _couponIcon;
+  bool _showCouponStrip = true;
 
   @override
   void initState() {
@@ -410,14 +411,90 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   left: 0,
                   right: 0,
                   bottom: 16,
-                  child: SizedBox(
-                    height: 112,
-                    child: _CouponPreviewStrip(stores: stores),
-                  ),
+                  child: _showCouponStrip
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: _CouponStripToggle(
+                                  icon: Icons.close,
+                                  label: '配信中クーポンを隠す',
+                                  onTap: () => setState(
+                                    () => _showCouponStrip = false,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              height: 112,
+                              child: _CouponPreviewStrip(stores: stores),
+                            ),
+                          ],
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: _CouponStripToggle(
+                              icon: Icons.local_offer,
+                              label: '配信中クーポンを表示',
+                              onTap: () => setState(
+                                () => _showCouponStrip = true,
+                              ),
+                            ),
+                          ),
+                        ),
                 ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _CouponStripToggle extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _CouponStripToggle({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.surface,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
