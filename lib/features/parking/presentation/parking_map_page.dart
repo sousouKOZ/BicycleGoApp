@@ -28,6 +28,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   GoogleMapController? _mapController;
   LatLng? _currentLocation;
   BitmapDescriptor? _currentLocationIcon;
+  BitmapDescriptor? _couponIcon;
 
   @override
   void initState() {
@@ -41,21 +42,30 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
         ref.read(parkingSearchQueryProvider.notifier).state = value;
       }
     });
-    _loadCurrentLocationIcon();
+    _loadCustomMarkerIcons();
     _fetchCurrentLocation();
   }
 
-  Future<void> _loadCurrentLocationIcon() async {
-    final icon = await _createBikeMarker();
+  Future<void> _loadCustomMarkerIcons() async {
+    final bikeIcon = await _createCircleIconMarker(
+      icon: Icons.directions_bike,
+      backgroundColor: Colors.blue,
+    );
+    final couponIcon = await _createCouponMarker();
     if (!mounted) {
       return;
     }
     setState(() {
-      _currentLocationIcon = icon;
+      _currentLocationIcon = bikeIcon;
+      _couponIcon = couponIcon;
     });
   }
 
-  Future<BitmapDescriptor> _createBikeMarker() async {
+  Future<BitmapDescriptor> _createCircleIconMarker({
+    required IconData icon,
+    required Color backgroundColor,
+    Color iconColor = Colors.white,
+  }) async {
     const iconSize = 52.0;
     const padding = 14.0;
     final imageSize = (iconSize + padding * 2).ceil();
@@ -63,18 +73,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final canvas = Canvas(recorder);
     final center = Offset(imageSize / 2, imageSize / 2);
 
-    final background = Paint()..color = Colors.blue;
+    final background = Paint()..color = backgroundColor;
     canvas.drawCircle(center, imageSize / 2.0, background);
 
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
       text: TextSpan(
-        text: String.fromCharCode(Icons.directions_bike.codePoint),
+        text: String.fromCharCode(icon.codePoint),
         style: TextStyle(
           fontSize: iconSize,
-          fontFamily: Icons.directions_bike.fontFamily,
-          package: Icons.directions_bike.fontPackage,
-          color: Colors.white,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+          color: iconColor,
         ),
       ),
     )..layout();
@@ -84,6 +94,79 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
       center.dy - textPainter.height / 2,
     );
     textPainter.paint(canvas, iconOffset);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(imageSize, imageSize);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+  }
+
+  Future<BitmapDescriptor> _createCouponMarker() async {
+    const iconSize = 56.0;
+    const padding = 16.0;
+    final imageSize = (iconSize + padding * 2).ceil();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final width = imageSize.toDouble();
+    final height = imageSize.toDouble();
+
+    final tagPath = Path();
+    final bodyRect = Rect.fromLTWH(padding, padding * 0.6,
+        width - padding * 1.8, height - padding * 1.2);
+    const radius = Radius.circular(14);
+    tagPath.addRRect(RRect.fromRectAndCorners(
+      bodyRect,
+      topLeft: radius,
+      topRight: const Radius.circular(6),
+      bottomLeft: radius,
+      bottomRight: const Radius.circular(6),
+    ));
+
+    final tipStartY = bodyRect.top + bodyRect.height * 0.25;
+    final tipEndY = bodyRect.bottom - bodyRect.height * 0.25;
+    final tipPoint = Offset(width - padding * 0.2, height / 2);
+    final tipPath = Path()
+      ..moveTo(bodyRect.right, tipStartY)
+      ..lineTo(tipPoint.dx, tipPoint.dy)
+      ..lineTo(bodyRect.right, tipEndY)
+      ..close();
+
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.25)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    canvas.drawPath(tagPath.shift(const Offset(0, 2)), shadowPaint);
+    canvas.drawPath(tipPath.shift(const Offset(0, 2)), shadowPaint);
+
+    final tagPaint = Paint()..color = const Color(0xFFE53935);
+    canvas.drawPath(tagPath, tagPaint);
+    canvas.drawPath(tipPath, tagPaint);
+
+    final holePaint = Paint()..color = Colors.white;
+    canvas.drawCircle(
+      Offset(bodyRect.left + 10, bodyRect.center.dy),
+      4,
+      holePaint,
+    );
+
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(
+        text: String.fromCharCode(Icons.local_offer.codePoint),
+        style: TextStyle(
+          fontSize: 28,
+          fontFamily: Icons.local_offer.fontFamily,
+          package: Icons.local_offer.fontPackage,
+          color: Colors.white,
+        ),
+      ),
+    )..layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        bodyRect.center.dx - textPainter.width / 2 + 4,
+        bodyRect.center.dy - textPainter.height / 2,
+      ),
+    );
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(imageSize, imageSize);
@@ -230,9 +313,10 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
             markers.add(Marker(
               markerId: MarkerId('store-${s.id}'),
               position: s.position,
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueViolet,
-              ),
+              icon: _couponIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueRose,
+                  ),
               onTap: () {
                 showModalBottomSheet(
                   context: context,
