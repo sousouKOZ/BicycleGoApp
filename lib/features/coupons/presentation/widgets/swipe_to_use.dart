@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// 店舗スタッフの目視下でユーザ自身が操作する「スワイプto消込」バー。
-/// 仕様§3.3 ユーザースワイプ型クーポン消込機能に対応。
+import '../../../../core/theme/app_colors.dart';
+
 class SwipeToUse extends StatefulWidget {
   final String label;
   final String completedLabel;
@@ -29,7 +29,6 @@ class _SwipeToUseState extends State<SwipeToUse>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final isEnabled = widget.enabled && !_completed && !_running;
 
     return LayoutBuilder(
@@ -37,18 +36,33 @@ class _SwipeToUseState extends State<SwipeToUse>
         const thumbSize = 56.0;
         final maxDx = constraints.maxWidth - thumbSize - 8;
         final progress = maxDx <= 0 ? 0.0 : (_offset / maxDx).clamp(0.0, 1.0);
+        final trackColor = _completed
+            ? AppColors.accent
+            : Color.lerp(
+                AppColors.accent.withValues(alpha: 0.12),
+                AppColors.accent.withValues(alpha: 0.28),
+                progress,
+              )!;
 
         return Container(
           height: thumbSize + 8,
           decoration: BoxDecoration(
-            color: _completed
-                ? scheme.primary
-                : scheme.primary.withOpacity(0.12),
+            color: trackColor,
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
-              color: scheme.primary.withOpacity(_completed ? 1 : 0.5),
-              width: 1.5,
+              color: AppColors.accent
+                  .withValues(alpha: _completed ? 1 : 0.35 + 0.35 * progress),
+              width: 1.2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent
+                    .withValues(alpha: _completed ? 0.3 : 0.12),
+                blurRadius: 20,
+                spreadRadius: -6,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: Stack(
             alignment: Alignment.center,
@@ -56,12 +70,25 @@ class _SwipeToUseState extends State<SwipeToUse>
               AnimatedOpacity(
                 opacity: 1 - progress,
                 duration: const Duration(milliseconds: 120),
-                child: Text(
-                  _completed ? widget.completedLabel : widget.label,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: _completed ? scheme.onPrimary : scheme.primary,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (!_completed) ...[
+                      Icon(Icons.chevron_right_rounded,
+                          size: 18,
+                          color:
+                              AppColors.accent.withValues(alpha: 0.45)),
+                      const SizedBox(width: 2),
+                    ],
+                    Text(
+                      _completed ? widget.completedLabel : widget.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: _completed ? Colors.white : AppColors.accent,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Positioned(
@@ -101,28 +128,40 @@ class _SwipeToUseState extends State<SwipeToUse>
                           }
                         }
                       : null,
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
                     width: thumbSize,
                     height: thumbSize,
                     decoration: BoxDecoration(
-                      color: _completed ? scheme.onPrimary : scheme.primary,
+                      gradient: _completed
+                          ? null
+                          : const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF2E7CF6),
+                                Color(0xFF7C5CFF),
+                              ],
+                            ),
+                      color: _completed ? Colors.white : null,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          color: AppColors.accent.withValues(alpha: 0.35),
+                          blurRadius: 14,
+                          spreadRadius: -2,
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Icon(
                       _completed
-                          ? Icons.check
+                          ? Icons.check_rounded
                           : _running
-                              ? Icons.hourglass_top
-                              : Icons.arrow_forward,
-                      color: _completed ? scheme.primary : scheme.onPrimary,
-                      size: 28,
+                              ? Icons.hourglass_top_rounded
+                              : Icons.arrow_forward_rounded,
+                      color: _completed ? AppColors.accent : Colors.white,
+                      size: 26,
                     ),
                   ),
                 ),

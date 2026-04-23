@@ -5,6 +5,8 @@ import 'package:nfc_manager/nfc_manager.dart';
 
 import '../../../core/api/api_exceptions.dart';
 import '../../../core/api/api_providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
@@ -40,8 +42,6 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     final isAvailable = await NfcManager.instance.isAvailable();
     if (!isAvailable) {
       if (!mounted) return;
-      // NFC未対応端末：仕様§非機能要件（プロトはAndroidのみNFC）を踏まえ、
-      // デモ目的でスキャン成功とみなしてGPS照合・認証フローに進む。
       setState(() {
         _stage = _Stage.verifying;
         _message = 'NFC未対応端末：デモモードで認証を実行します';
@@ -86,7 +86,6 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       final api = ref.read(apiClientProvider);
       final userId = ref.read(currentUserIdProvider);
 
-      // §7.2 正常系：検知 → 認証。プロトでは認証直前に検知イベントを発火。
       await api.postParkingDetect(
         deviceId: widget.deviceId,
         detectedAt: DateTime.now(),
@@ -134,47 +133,131 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     super.dispose();
   }
 
+  Color get _accent {
+    switch (_stage) {
+      case _Stage.success:
+        return AppColors.success;
+      case _Stage.error:
+        return AppColors.danger;
+      case _Stage.waitingTag:
+      case _Stage.verifying:
+        return AppColors.accent;
+    }
+  }
+
+  String get _statusLabel {
+    switch (_stage) {
+      case _Stage.waitingTag:
+        return 'スキャン待機中';
+      case _Stage.verifying:
+        return '認証中';
+      case _Stage.success:
+        return '認証完了';
+      case _Stage.error:
+        return 'エラー';
+    }
+  }
+
+  IconData get _statusIcon {
+    switch (_stage) {
+      case _Stage.waitingTag:
+        return Icons.nfc_rounded;
+      case _Stage.verifying:
+        return Icons.radar_rounded;
+      case _Stage.success:
+        return Icons.check_circle_rounded;
+      case _Stage.error:
+        return Icons.error_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    Widget icon;
-    switch (_stage) {
-      case _Stage.success:
-        icon = const Icon(Icons.check_circle, color: Colors.green, size: 48);
-        break;
-      case _Stage.error:
-        icon = Icon(Icons.error, color: theme.colorScheme.error, size: 48);
-        break;
-      case _Stage.waitingTag:
-      case _Stage.verifying:
-        icon = const SizedBox(
-          width: 40,
-          height: 40,
-          child: CircularProgressIndicator(),
-        );
-        break;
-    }
+    final accent = _accent;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(widget.parkingName, style: theme.textTheme.titleMedium),
-          const SizedBox(height: 16),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: KeyedSubtree(key: ValueKey(_stage), child: icon),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+                border:
+                    Border.all(color: accent.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _statusLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Text(
-            _message,
-            style: theme.textTheme.titleMedium,
-            textAlign: TextAlign.center,
+            widget.parkingName,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            decoration: GlassDecoration.accentCard(radius: 24),
+            child: Column(
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: _StageIcon(
+                    key: ValueKey(_stage),
+                    stage: _stage,
+                    icon: _statusIcon,
+                    accent: accent,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    _message,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurfacePrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           if (_stage == _Stage.error)
-            FilledButton.tonal(
+            ElevatedButton.icon(
               onPressed: () {
                 setState(() {
                   _stage = _Stage.waitingTag;
@@ -182,17 +265,76 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
                 });
                 _startNfc();
               },
-              child: const Text('もう一度'),
+              icon: const Icon(Icons.refresh_rounded, size: 20),
+              label: const Text('もう一度'),
             ),
-          if (_stage != _Stage.success)
+          if (_stage != _Stage.success) ...[
+            if (_stage == _Stage.error) const SizedBox(height: 8),
             TextButton(
               onPressed: () {
                 _isCancelled = true;
                 NfcManager.instance.stopSession();
                 Navigator.of(context).pop<ParkingSession?>(null);
               },
-              child: const Text('キャンセル'),
+              child: Text(
+                'キャンセル',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: AppColors.onSurfaceSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StageIcon extends StatelessWidget {
+  final _Stage stage;
+  final IconData icon;
+  final Color accent;
+  const _StageIcon({
+    super.key,
+    required this.stage,
+    required this.icon,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading =
+        stage == _Stage.waitingTag || stage == _Stage.verifying;
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (isLoading)
+            SizedBox(
+              width: 96,
+              height: 96,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: accent,
+                backgroundColor: accent.withValues(alpha: 0.12),
+              ),
+            ),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: accent.withValues(alpha: 0.3),
+                width: 1.2,
+              ),
+            ),
+            child: Icon(icon, color: accent, size: 34),
+          ),
         ],
       ),
     );
