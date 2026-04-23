@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/glass_decoration.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
@@ -18,72 +20,118 @@ class CouponListPage extends ConsumerWidget {
     final asyncCoupons = ref.watch(userCouponsProvider);
     final asyncStores = ref.watch(storesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('クーポン')),
-      body: asyncCoupons.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('読み込み失敗: $e')),
-        data: (coupons) {
-          final stores = asyncStores.asData?.value ?? const <Store>[];
-          if (coupons.isEmpty && stores.isEmpty) {
-            return const _EmptyState();
-          }
-          final owned =
-              coupons.where((c) => c.status == CouponStatus.owned).toList();
-          final used =
-              coupons.where((c) => c.status == CouponStatus.used).toList();
-          final expired = coupons
-              .where((c) =>
-                  c.status == CouponStatus.expired ||
-                  (c.status == CouponStatus.owned && c.isExpired))
-              .toList();
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(userCouponsProvider);
-              ref.invalidate(storesProvider);
-            },
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: [
-                if (stores.isNotEmpty) ...[
-                  const _SectionHeader(
-                    title: '配信中',
-                    subtitle: '近くの提携駐輪場に15分停めると獲得できます',
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: asyncCoupons.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('読み込み失敗: $e')),
+          data: (coupons) {
+            final stores = asyncStores.asData?.value ?? const <Store>[];
+            final owned =
+                coupons.where((c) => c.status == CouponStatus.owned).toList();
+            final used =
+                coupons.where((c) => c.status == CouponStatus.used).toList();
+            final expired = coupons
+                .where((c) =>
+                    c.status == CouponStatus.expired ||
+                    (c.status == CouponStatus.owned && c.isExpired))
+                .toList();
+
+            if (coupons.isEmpty && stores.isEmpty) {
+              return const _EmptyState();
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(userCouponsProvider);
+                ref.invalidate(storesProvider);
+              },
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                children: [
+                  _PageHeader(
+                    totalOwned: owned.length,
+                    totalDistributing: stores.length,
                   ),
-                  const SizedBox(height: 8),
-                  ...stores.map((s) => _DistributingCouponCard(store: s)),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
+                  if (stores.isNotEmpty) ...[
+                    const _SectionHeader(
+                      title: '配信中',
+                      subtitle: '近くの提携駐輪場に15分停めると獲得できます',
+                      accent: AppColors.accent,
+                    ),
+                    const SizedBox(height: 12),
+                    ...stores.map((s) => _DistributingCouponCard(store: s)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (owned.isNotEmpty) ...[
+                    const _SectionHeader(
+                      title: '利用可能',
+                      subtitle: '会計時にスワイプで消込',
+                      accent: AppColors.success,
+                    ),
+                    const SizedBox(height: 12),
+                    ...owned.map((c) => _CouponCard(coupon: c)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (used.isNotEmpty) ...[
+                    const _SectionHeader(
+                      title: '使用済み',
+                      subtitle: 'ご利用ありがとうございました',
+                      accent: AppColors.onSurfaceSecondary,
+                    ),
+                    const SizedBox(height: 12),
+                    ...used.map((c) => _CouponCard(coupon: c)),
+                    const SizedBox(height: 24),
+                  ],
+                  if (expired.isNotEmpty) ...[
+                    const _SectionHeader(
+                      title: '期限切れ',
+                      subtitle: '—',
+                      accent: AppColors.danger,
+                    ),
+                    const SizedBox(height: 12),
+                    ...expired.map((c) => _CouponCard(coupon: c)),
+                  ],
                 ],
-                if (owned.isNotEmpty) ...[
-                  const _SectionHeader(
-                    title: '利用可能',
-                    subtitle: '会計時にスワイプで消込',
-                  ),
-                  const SizedBox(height: 8),
-                  ...owned.map((c) => _CouponCard(coupon: c)),
-                  const SizedBox(height: 18),
-                ],
-                if (used.isNotEmpty) ...[
-                  const _SectionHeader(
-                    title: '使用済み',
-                    subtitle: 'ご利用ありがとうございました',
-                  ),
-                  const SizedBox(height: 8),
-                  ...used.map((c) => _CouponCard(coupon: c)),
-                  const SizedBox(height: 18),
-                ],
-                if (expired.isNotEmpty) ...[
-                  const _SectionHeader(
-                    title: '期限切れ',
-                    subtitle: '—',
-                  ),
-                  const SizedBox(height: 8),
-                  ...expired.map((c) => _CouponCard(coupon: c)),
-                ],
-                const SizedBox(height: 24),
-              ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PageHeader extends StatelessWidget {
+  final int totalOwned;
+  final int totalDistributing;
+  const _PageHeader({
+    required this.totalOwned,
+    required this.totalDistributing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'クーポン',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              height: 1.1,
             ),
-          );
-        },
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '利用可能 $totalOwned件・配信中 $totalDistributing件',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
@@ -96,88 +144,57 @@ class _DistributingCouponCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: scheme.surface,
-        border: Border.all(color: scheme.primary.withOpacity(0.25)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          showDragHandle: true,
-          builder: (_) => StorePreviewSheet(store: store),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: scheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(999),
+      decoration: GlassDecoration.accentCard(radius: 22),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            showDragHandle: true,
+            builder: (_) => StorePreviewSheet(store: store),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _CategoryChip(label: store.category.label),
+                    const SizedBox(width: 8),
+                    _StatusChip(
+                      icon: Icons.local_offer,
+                      label: '配信中',
+                      color: AppColors.accent,
                     ),
-                    child: Text(
-                      store.category.label,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSecondaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.local_offer,
-                            size: 12, color: scheme.primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          '配信中',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Icon(Icons.chevron_right, color: scheme.outline),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                store.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+                    const Spacer(),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        size: 14, color: AppColors.onSurfaceSecondary),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                store.benefit,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: scheme.primary,
+                const SizedBox(height: 12),
+                Text(
+                  store.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                Text(
+                  store.benefit,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.accent,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -197,11 +214,16 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🎟', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: GlassDecoration.pill(),
+              child: Icon(Icons.confirmation_number_rounded,
+                  size: 40, color: AppColors.accent),
+            ),
+            const SizedBox(height: 16),
             Text('まだクーポンはありません',
                 style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
+                    ?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             Text(
               '提携駐輪場に15分停めるだけで\n自動的にクーポンが届きます',
@@ -222,83 +244,83 @@ class _CouponCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final isUsable = coupon.isUsable;
     final remaining = _formatRemaining(coupon.expiresAt);
-    final surface = isUsable ? scheme.surface : scheme.surfaceVariant.withOpacity(0.6);
-    final accent = isUsable ? scheme.primaryContainer : scheme.outlineVariant;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [
-            surface,
-            Color.alphaBlend(accent.withOpacity(0.5), surface),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: isUsable
-              ? scheme.primary.withOpacity(0.2)
-              : scheme.outlineVariant,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(coupon.storeName,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      )),
-                ),
-                _Badge(
-                  label: coupon.distanceTier.label,
-                  color: isUsable ? scheme.tertiary : scheme.outline,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(coupon.benefit,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: isUsable ? scheme.primary : scheme.outline,
-                )),
-            const SizedBox(height: 6),
-            Text(coupon.title, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.schedule,
-                    size: 16,
-                    color: isUsable ? scheme.tertiary : scheme.error),
-                const SizedBox(width: 4),
-                Text(
-                  coupon.status == CouponStatus.used
-                      ? '使用済み'
-                      : coupon.isExpired
-                          ? '期限切れ'
-                          : '期限：$remaining',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-            if (isUsable) ...[
-              const SizedBox(height: 12),
-              SwipeToUse(
-                label: 'スワイプして使用',
-                completedLabel: '使用済み ✓',
-                onCompleted: () => _redeem(context, ref),
+      decoration: isUsable
+          ? GlassDecoration.accentCard(radius: 22)
+          : GlassDecoration.light(radius: 22, opacity: 0.72),
+      child: Opacity(
+        opacity: isUsable ? 1.0 : 0.7,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(coupon.storeName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        )),
+                  ),
+                  _DistanceChip(
+                    label: coupon.distanceTier.label,
+                    isUsable: isUsable,
+                  ),
+                ],
               ),
+              const SizedBox(height: 10),
+              Text(coupon.benefit,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.2,
+                    color: isUsable
+                        ? AppColors.accent
+                        : AppColors.onSurfaceSecondary,
+                  )),
+              const SizedBox(height: 4),
+              Text(coupon.title,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceSecondary,
+                  )),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.schedule_rounded,
+                      size: 15,
+                      color: isUsable
+                          ? AppColors.onSurfaceSecondary
+                          : AppColors.danger),
+                  const SizedBox(width: 6),
+                  Text(
+                    coupon.status == CouponStatus.used
+                        ? '使用済み'
+                        : coupon.isExpired
+                            ? '期限切れ'
+                            : '期限：$remaining',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isUsable
+                          ? AppColors.onSurfaceSecondary
+                          : AppColors.danger,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              if (isUsable) ...[
+                const SizedBox(height: 14),
+                SwipeToUse(
+                  label: 'スワイプして使用',
+                  completedLabel: '使用済み ✓',
+                  onCompleted: () => _redeem(context, ref),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -316,26 +338,93 @@ class _CouponCard extends ConsumerWidget {
   }
 }
 
-class _Badge extends StatelessWidget {
+class _CategoryChip extends StatelessWidget {
   final String label;
-  final Color color;
-  const _Badge({required this.label, required this.color});
+  const _CategoryChip({required this.label});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.16),
+        color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.5)),
       ),
-      child: Text(label,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-          )),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: AppColors.onSurfacePrimary,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _StatusChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistanceChip extends StatelessWidget {
+  final String label;
+  final bool isUsable;
+  const _DistanceChip({required this.label, required this.isUsable});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isUsable ? AppColors.success : AppColors.onSurfaceSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 }
@@ -343,22 +432,46 @@ class _Badge extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   final String title;
   final String subtitle;
-  const _SectionHeader({required this.title, required this.subtitle});
+  final Color accent;
+  const _SectionHeader({
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(subtitle,
-            style:
-                theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 4,
+            height: 28,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.onSurfacePrimary,
+                  )),
+              Text(subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceSecondary,
+                  )),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'core/theme/app_theme.dart';
 import 'features/home/presentation/home_shell.dart';
 
 class App extends StatelessWidget {
@@ -9,7 +11,7 @@ class App extends StatelessWidget {
     return MaterialApp(
       title: 'BicycleGo',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(useMaterial3: true),
+      theme: AppTheme.light,
       home: const HomeShell(),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_timer_page.dart';
@@ -39,137 +40,185 @@ class ParkingDetailSheet extends ConsumerWidget {
     final mm = parking.updatedAt.minute.toString().padLeft(2, '0');
     final messenger = ScaffoldMessenger.of(context);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final currentLocation = ref.watch(currentLocationProvider);
     final distanceMeters = currentLocation == null
         ? null
         : _distanceInMeters(currentLocation, parking.position);
     final walkingMinutes = distanceMeters == null
         ? null
-        : (distanceMeters / 80.0).round(); // 80m/分 = 4.8km/h
-    final usageColor = _usageColor(usage, colorScheme);
+        : (distanceMeters / 80.0).round();
+    final usageColor = _usageColor(usage);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Text(
-                  parking.name,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '駐輪場',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppColors.accent,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      parking.name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              _InfoChip(
-                icon: Icons.equalizer,
-                label: '${parking.usageRatePercent}%',
+              _UsageBadge(
+                percent: parking.usageRatePercent,
                 color: usageColor,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 18),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: colorScheme.surfaceVariant.withOpacity(0.6),
-              borderRadius: BorderRadius.circular(16),
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    _InfoChip(
-                      icon: Icons.local_parking,
-                      label: '空き ${parking.available}',
+                    _Stat(
+                      label: '空き',
+                      value: '${parking.available}',
+                      emphasis: true,
                       color: usageColor,
                     ),
-                    const SizedBox(width: 8),
-                    _InfoChip(
-                      icon: Icons.layers_outlined,
-                      label: '収容 ${parking.capacity}',
-                      color: colorScheme.primary,
+                    const SizedBox(width: 18),
+                    Container(
+                      width: 1,
+                      height: 36,
+                      color: AppColors.onSurfaceSecondary
+                          .withValues(alpha: 0.12),
+                    ),
+                    const SizedBox(width: 18),
+                    _Stat(
+                      label: '収容',
+                      value: '${parking.capacity}',
+                      color: AppColors.onSurfacePrimary,
+                    ),
+                    const SizedBox(width: 18),
+                    Container(
+                      width: 1,
+                      height: 36,
+                      color: AppColors.onSurfaceSecondary
+                          .withValues(alpha: 0.12),
+                    ),
+                    const SizedBox(width: 18),
+                    _Stat(
+                      label: '料金/日',
+                      value: '¥${parking.priceYenPerDay}',
+                      color: AppColors.onSurfacePrimary,
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 14),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: usage,
                     minHeight: 8,
                     color: usageColor,
-                    backgroundColor: colorScheme.surface,
+                    backgroundColor:
+                        usageColor.withValues(alpha: 0.15),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _InfoChip(
-                icon: Icons.payments_outlined,
-                label: '${parking.priceYenPerDay}円 / 日',
-                color: colorScheme.secondary,
-              ),
-              _InfoChip(
-                icon: Icons.update,
+              _MetaChip(
+                icon: Icons.update_rounded,
                 label: '更新 $hh:$mm',
-                color: colorScheme.tertiary,
               ),
               if (distanceMeters == null)
-                _InfoChip(
+                _MetaChip(
                   icon: Icons.location_searching,
                   label: '距離 取得中',
-                  color: colorScheme.outline,
                 )
               else ...[
-                _InfoChip(
+                _MetaChip(
                   icon: Icons.place_outlined,
                   label:
                       '約${(distanceMeters / 1000).toStringAsFixed(1)}km',
-                  color: colorScheme.primary,
                 ),
-                _InfoChip(
-                  icon: Icons.directions_walk,
+                _MetaChip(
+                  icon: Icons.directions_walk_rounded,
                   label: '徒歩 約$walkingMinutes分',
-                  color: colorScheme.primary,
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: FilledButton(
+                child: OutlinedButton(
                   onPressed: () {
                     messenger.showSnackBar(
                       SnackBar(content: Text('${parking.name}に駐輪しました')),
                     );
                     Navigator.pop(context);
                   },
-                  child: const Text('ここに停める'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.onSurfacePrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    side: BorderSide(
+                      color: AppColors.onSurfaceSecondary
+                          .withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    'ここに停める',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: FilledButton.tonal(
+                flex: 2,
+                child: ElevatedButton.icon(
                   onPressed: () async {
                     final device = mockDevices.firstWhere(
                       (d) => d.parkingLotId == parking.id,
                       orElse: () => mockDevices.first,
                     );
                     final navigator = Navigator.of(context);
-                    final session = await showModalBottomSheet<ParkingSession?>(
+                    final session =
+                        await showModalBottomSheet<ParkingSession?>(
                       context: context,
                       isScrollControlled: true,
                       showDragHandle: true,
@@ -193,17 +242,49 @@ class ParkingDetailSheet extends ConsumerWidget {
                           builder: (_) => const SessionTimerPage()),
                     );
                   },
-                  child: const Text('NFCスキャンして計測開始'),
+                  icon: const Icon(Icons.nfc_rounded, size: 20),
+                  label: const Text('NFCで計測開始'),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('閉じる'),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageBadge extends StatelessWidget {
+  final int percent;
+  final Color color;
+  const _UsageBadge({required this.percent, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '稼働 $percent%',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -212,16 +293,51 @@ class ParkingDetailSheet extends ConsumerWidget {
   }
 }
 
-class _InfoChip extends StatelessWidget {
+class _Stat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool emphasis;
+  const _Stat({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.emphasis = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: AppColors.onSurfaceSecondary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: emphasis ? FontWeight.w900 : FontWeight.w800,
+            color: color,
+            letterSpacing: -0.3,
+            height: 1.1,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final Color color;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+  const _MetaChip({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -229,20 +345,22 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.35)),
+        border: Border.all(
+          color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
+          Icon(icon, size: 14, color: AppColors.onSurfaceSecondary),
           const SizedBox(width: 6),
           Text(
             label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.onSurfacePrimary,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -251,12 +369,8 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-Color _usageColor(double usage, ColorScheme scheme) {
-  if (usage >= 0.8) {
-    return scheme.error;
-  }
-  if (usage >= 0.5) {
-    return scheme.tertiary;
-  }
-  return scheme.primary;
+Color _usageColor(double usage) {
+  if (usage >= 0.85) return AppColors.danger;
+  if (usage >= 0.6) return AppColors.warning;
+  return AppColors.success;
 }

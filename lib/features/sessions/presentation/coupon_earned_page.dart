@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/glass_decoration.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
@@ -16,19 +18,18 @@ class CouponEarnedPage extends ConsumerWidget {
     final coupon = ref.watch(latestEarnedCouponProvider);
     if (coupon == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('クーポン獲得')),
-        body: const Center(child: Text('クーポンが見つかりませんでした')),
+        backgroundColor: AppColors.background,
+        body: const SafeArea(
+          child: Center(child: Text('クーポンが見つかりませんでした')),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('クーポン獲得！'),
-        automaticallyImplyLeading: false,
-      ),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             children: [
               const _CelebrationBanner(),
@@ -40,10 +41,16 @@ class CouponEarnedPage extends ConsumerWidget {
                 label: 'スワイプして使用',
                 completedLabel: '使用済み ✓',
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: () => _backToHome(context, ref),
-                child: const Text('あとで使う（クーポン一覧に保存）'),
+                child: Text(
+                  'あとで使う（クーポン一覧に保存）',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppColors.onSurfaceSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
               ),
             ],
           ),
@@ -52,7 +59,8 @@ class CouponEarnedPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _redeem(BuildContext context, WidgetRef ref, Coupon coupon) async {
+  Future<void> _redeem(
+      BuildContext context, WidgetRef ref, Coupon coupon) async {
     final api = ref.read(apiClientProvider);
     final userId = ref.read(currentUserIdProvider);
     await api.redeemCoupon(userId: userId, couponId: coupon.id);
@@ -70,7 +78,7 @@ class CouponEarnedPage extends ConsumerWidget {
         title: const Text('ありがとうございました'),
         content: Text('${coupon.storeName} でご利用いただきました。'),
         actions: [
-          FilledButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('OK'),
           ),
@@ -95,21 +103,40 @@ class _CelebrationBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [scheme.tertiaryContainer, scheme.primaryContainer],
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF18B27A),
+            Color(0xFF2E7CF6),
+          ],
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x3318B27A),
+            blurRadius: 28,
+            spreadRadius: -8,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Text('🎉', style: TextStyle(fontSize: 36)),
-          const SizedBox(width: 12),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(Icons.celebration_rounded,
+                color: Colors.white, size: 28),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,13 +145,15 @@ class _CelebrationBanner extends StatelessWidget {
                   '15分達成！',
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '隠れた名店を知るきっかけをあなたに',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: scheme.onPrimaryContainer,
+                    color: Colors.white.withValues(alpha: 0.9),
                   ),
                 ),
               ],
@@ -143,83 +172,107 @@ class _CouponCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final expires = coupon.expiresAt;
     final expiresLabel =
         '${expires.year}/${expires.month.toString().padLeft(2, '0')}/${expires.day.toString().padLeft(2, '0')}';
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: scheme.primary.withOpacity(0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(22),
+      decoration: GlassDecoration.accentCard(radius: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.local_offer, color: scheme.primary),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.local_offer_rounded,
+                    color: AppColors.accent, size: 18),
+              ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  coupon.storeName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '店舗',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppColors.onSurfaceSecondary,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    Text(
+                      coupon.storeName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: scheme.secondaryContainer,
+                  color: AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                      color: AppColors.success.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   coupon.distanceTier.label,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Text(
             coupon.benefit,
             style: theme.textTheme.displaySmall?.copyWith(
               fontWeight: FontWeight.w900,
-              color: scheme.primary,
+              color: AppColors.accent,
+              letterSpacing: -1.2,
+              height: 1.05,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Text(
             coupon.title,
             style: theme.textTheme.bodyLarge,
           ),
           const Spacer(),
-          const Divider(),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.schedule, size: 16, color: scheme.outline),
-              const SizedBox(width: 6),
-              Text('有効期限：$expiresLabel まで',
-                  style: theme.textTheme.bodySmall),
-            ],
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.schedule_rounded,
+                    size: 16, color: AppColors.onSurfaceSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('有効期限：$expiresLabel まで',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      )),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 10),
           Text(
             '※会計時に店舗スタッフの面前でスワイプしてご利用ください。',
-            style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline),
+            style: theme.textTheme.bodySmall,
           ),
         ],
       ),

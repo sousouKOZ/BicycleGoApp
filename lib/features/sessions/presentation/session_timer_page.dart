@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/api/api_providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../stores/domain/store.dart';
@@ -82,8 +84,10 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     final theme = Theme.of(context);
     if (session == null || session.authenticatedAt == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('計測中')),
-        body: const Center(child: Text('有効なセッションがありません')),
+        backgroundColor: AppColors.background,
+        body: const SafeArea(
+          child: Center(child: Text('有効なセッションがありません')),
+        ),
       );
     }
 
@@ -95,41 +99,106 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     final ss = (secondsLeft % 60).toString().padLeft(2, '0');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('駐輪計測中'),
-        automaticallyImplyLeading: false,
-      ),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 4, vertical: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: AppColors.success,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '計測中',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               _CountdownCard(
                 progress: progress,
                 mm: mm,
                 ss: ss,
                 isAchieving: _issuing,
               ),
-              const SizedBox(height: 20),
-              Text(
-                '待機中に行ってみる？',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.accent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '待機中に行ってみる？',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          '15分達成でクーポンを自動発行します',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '15分達成でクーポンを自動発行します',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.hintColor,
-                ),
-              ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Expanded(child: _StoreCarousel()),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: _issuing ? null : _cancelSession,
-                child: const Text('計測を中止する'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                ),
+                child: Text(
+                  '計測を中止する',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: AppColors.danger,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ),
@@ -154,7 +223,11 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
             onPressed: () => Navigator.pop(context, false),
             child: const Text('戻る'),
           ),
-          FilledButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('中止する'),
           ),
@@ -184,33 +257,44 @@ class _CountdownCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: [scheme.primaryContainer, scheme.secondaryContainer],
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF2E7CF6),
+            Color(0xFF7C5CFF),
+          ],
         ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x402E7CF6),
+            blurRadius: 40,
+            spreadRadius: -10,
+            offset: Offset(0, 18),
+          ),
+        ],
       ),
       child: Column(
         children: [
           SizedBox(
-            height: 160,
-            width: 160,
+            height: 180,
+            width: 180,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  height: 160,
-                  width: 160,
+                  height: 180,
+                  width: 180,
                   child: CircularProgressIndicator(
                     value: progress.clamp(0.0, 1.0),
                     strokeWidth: 10,
-                    backgroundColor: scheme.surface,
-                    color: scheme.primary,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white,
                   ),
                 ),
                 Column(
@@ -218,33 +302,48 @@ class _CountdownCard extends StatelessWidget {
                   children: [
                     Text(
                       isAchieving ? '発行中…' : '$mm:$ss',
-                      style: theme.textTheme.headlineMedium?.copyWith(
+                      style: theme.textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: -1,
+                        height: 1,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       isAchieving ? 'クーポンを選定中' : 'クーポン獲得まで',
-                      style: theme.textTheme.bodySmall,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.directions_bike, size: 18, color: scheme.onPrimaryContainer),
-              const SizedBox(width: 6),
-              Text(
-                '停めてスキャン完了 → あとは街を楽しむだけ',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onPrimaryContainer,
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.directions_bike_rounded,
+                    size: 16, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(
+                  '停めてスキャン完了 → 街を楽しむだけ',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -266,7 +365,7 @@ class _StoreCarousel extends ConsumerWidget {
           return const Center(child: Text('周辺店舗がありません'));
         }
         return PageView.builder(
-          controller: PageController(viewportFraction: 0.9),
+          controller: PageController(viewportFraction: 0.88),
           itemCount: stores.length,
           itemBuilder: (context, i) => _StoreCard(store: stores[i]),
         );
@@ -282,76 +381,87 @@ class _StoreCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: scheme.surface,
-        border: Border.all(color: scheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      padding: const EdgeInsets.all(20),
+      decoration: GlassDecoration.accentCard(radius: 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: scheme.secondaryContainer,
+                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   store.category.label,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurfacePrimary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),
               const Spacer(),
-              Icon(Icons.star, size: 16, color: scheme.tertiary),
+              Icon(Icons.star_rounded,
+                  size: 16, color: AppColors.warning),
               const SizedBox(width: 2),
               Text(
                 '${(store.recommendWeight * 100).round()}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: scheme.tertiary,
-                  fontWeight: FontWeight.w700,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppColors.onSurfacePrimary,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             store.name,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '🎁 ${store.benefit}',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: scheme.primary,
-              fontWeight: FontWeight.w700,
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.local_offer_rounded,
+                    size: 14, color: AppColors.accent),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    store.benefit,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const Spacer(),
           Row(
             children: [
-              Icon(Icons.place, size: 16, color: scheme.outline),
+              Icon(Icons.place_outlined,
+                  size: 14, color: AppColors.onSurfaceSecondary),
               const SizedBox(width: 4),
               Text(
-                '徒歩圏 | 15分後にクーポン受取',
-                style: theme.textTheme.bodySmall?.copyWith(color: scheme.outline),
+                '徒歩圏 · 15分後にクーポン受取',
+                style: theme.textTheme.bodySmall,
               ),
             ],
           ),
