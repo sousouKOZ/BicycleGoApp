@@ -51,6 +51,10 @@
   - 表示／非表示トグル付き（地図を広く見たいときに格納可能）
 - 駐輪場タップで詳細ボトムシート表示
 - クーポンマーカータップで店舗プレビューシート表示
+- **アプリ内ルート表示** — 詳細シートの「経路を見る」で Directions API から自転車経路を取得し、地図上に青いポリラインを描画
+  - 取得後に自動でルート全体が収まる範囲へカメラズーム
+  - 地図上部に[_RouteBanner](lib/features/parking/presentation/parking_map_page.dart)（駐輪場名・距離・所要時間・×ボタン）を表示
+  - ✕タップでポリライン・バナーを一括クリア
 
 ### 駐輪場詳細シート [ParkingDetailSheet](lib/features/parking/presentation/parking_detail_sheet.dart)
 - 空き／収容／料金の3カラム表示
@@ -103,6 +107,15 @@
 - 「交換する」ボタン（準備中）
 - 利用可能クーポンの一覧表示（タップで詳細想定）
 - 駐輪履歴・設定メニュー（準備中）
+
+### セキュリティ構成
+- **APIキーの用途別分離** — Maps SDK キー（iOS/Android ネイティブ）と Directions API キー（Dart）を別々に管理
+- **キーのソースコード非含有** — すべて gitignore 済みファイルから読み込み
+  - iOS: [Secrets.xcconfig](ios/Flutter/Secrets.xcconfig) → Info.plist `$(MAPS_API_KEY)` → `GMSServices.provideAPIKey`
+  - Android: [secrets.properties](android/secrets.properties) → Gradle `manifestPlaceholders` → AndroidManifest `${MAPS_API_KEY}`
+  - Dart: [env/dev.json](env/dev.json) → `--dart-define-from-file` → [api_config.dart](lib/core/config/api_config.dart)
+- **テンプレファイル方式** — `.example` 付きファイルのみコミット、実キーファイルは個人環境でコピー生成
+- **VS Code debug 構成** — [.vscode/launch.json](.vscode/launch.json) で `--dart-define-from-file` を自動付与（F5 で即起動）
 
 ---
 
