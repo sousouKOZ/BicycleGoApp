@@ -59,7 +59,6 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Widget build(BuildContext context) {
     final isLast = _index == _steps.length - 1;
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -70,7 +69,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                 child: Text(
                   'スキップ',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.onSurfaceSecondary,
+                        color: context.textSecondary,
                         fontWeight: FontWeight.w700,
                       ),
                 ),
@@ -96,9 +95,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                     width: active ? 24 : 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: active
-                          ? AppColors.accent
-                          : AppColors.onSurfaceSecondary.withValues(alpha: 0.25),
+                      color: active ? AppColors.accent : context.subtleBorder,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   );
@@ -184,7 +181,7 @@ class _StepView extends StatelessWidget {
             step.title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
-              color: AppColors.onSurfacePrimary,
+              color: context.textPrimary,
               height: 1.2,
             ),
           ),
@@ -192,7 +189,7 @@ class _StepView extends StatelessWidget {
           Text(
             step.body,
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: AppColors.onSurfaceSecondary,
+              color: context.textSecondary,
               height: 1.6,
             ),
           ),

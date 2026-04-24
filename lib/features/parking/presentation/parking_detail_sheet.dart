@@ -142,10 +142,10 @@ class ParkingDetailSheet extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: Theme.of(context).scaffoldBackgroundColor,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
-                color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+                color: context.subtleBorder,
               ),
             ),
             child: Column(
@@ -163,27 +163,25 @@ class ParkingDetailSheet extends ConsumerWidget {
                     Container(
                       width: 1,
                       height: 36,
-                      color: AppColors.onSurfaceSecondary
-                          .withValues(alpha: 0.12),
+                      color: context.subtleBorder,
                     ),
                     const SizedBox(width: 18),
                     _Stat(
                       label: '収容',
                       value: '${parking.capacity}',
-                      color: AppColors.onSurfacePrimary,
+                      color: context.textPrimary,
                     ),
                     const SizedBox(width: 18),
                     Container(
                       width: 1,
                       height: 36,
-                      color: AppColors.onSurfaceSecondary
-                          .withValues(alpha: 0.12),
+                      color: context.subtleBorder,
                     ),
                     const SizedBox(width: 18),
                     _Stat(
                       label: '料金/日',
                       value: '¥${parking.priceYenPerDay}',
-                      color: AppColors.onSurfacePrimary,
+                      color: context.textPrimary,
                     ),
                   ],
                 ),
@@ -265,14 +263,13 @@ class ParkingDetailSheet extends ConsumerWidget {
                         ),
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.onSurfacePrimary,
+                        foregroundColor: context.textPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
                         side: BorderSide(
-                          color: AppColors.onSurfaceSecondary
-                              .withValues(alpha: 0.25),
+                          color: context.subtleBorder,
                         ),
                       ),
                     );
@@ -387,7 +384,7 @@ class _Stat extends StatelessWidget {
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceSecondary,
+            color: context.textSecondary,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
           ),
@@ -418,21 +415,21 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+          color: context.subtleBorder,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.onSurfaceSecondary),
+          Icon(icon, size: 14, color: context.textSecondary),
           const SizedBox(width: 6),
           Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: AppColors.onSurfacePrimary,
+              color: context.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -490,7 +487,7 @@ class _NearbyCouponsSection extends StatelessWidget {
               Text(
                 '近くで使えるクーポン',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppColors.onSurfacePrimary,
+                  color: context.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -527,7 +524,7 @@ class _NearbyStoreChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       shape: StadiumBorder(
         side: BorderSide(
           color: AppColors.accent.withValues(alpha: 0.25),
@@ -552,7 +549,7 @@ class _NearbyStoreChip extends StatelessWidget {
               Text(
                 store.name,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfacePrimary,
+                  color: context.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -584,7 +581,7 @@ class _FavoriteButton extends ConsumerWidget {
           child: Icon(
             isFav ? Icons.star_rounded : Icons.star_border_rounded,
             size: 26,
-            color: isFav ? AppColors.warning : AppColors.onSurfaceSecondary,
+            color: isFav ? AppColors.warning : context.textSecondary,
           ),
         ),
       ),

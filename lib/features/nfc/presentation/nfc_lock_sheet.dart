@@ -267,7 +267,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
                     _message,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.onSurfacePrimary,
+                      color: context.textPrimary,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -299,7 +299,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
               child: Text(
                 'キャンセル',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.onSurfaceSecondary,
+                  color: context.textSecondary,
                   fontWeight: FontWeight.w700,
                 ),
               ),

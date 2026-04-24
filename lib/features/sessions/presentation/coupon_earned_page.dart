@@ -18,16 +18,14 @@ class CouponEarnedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coupon = ref.watch(latestEarnedCouponProvider);
     if (coupon == null) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: const SafeArea(
+      return const Scaffold(
+        body: SafeArea(
           child: Center(child: Text('クーポンが見つかりませんでした')),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -48,7 +46,7 @@ class CouponEarnedPage extends ConsumerWidget {
                 child: Text(
                   'あとで使う（クーポン一覧に保存）',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.onSurfaceSecondary,
+                        color: context.textSecondary,
                         fontWeight: FontWeight.w700,
                       ),
                 ),
@@ -205,7 +203,7 @@ class _CouponCard extends StatelessWidget {
                     Text(
                       '店舗',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: AppColors.onSurfaceSecondary,
+                        color: context.textSecondary,
                         letterSpacing: 0.3,
                       ),
                     ),
@@ -257,13 +255,13 @@ class _CouponCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: Theme.of(context).scaffoldBackgroundColor,
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
                 Icon(Icons.schedule_rounded,
-                    size: 16, color: AppColors.onSurfaceSecondary),
+                    size: 16, color: context.textSecondary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text('有効期限：$expiresLabel まで',

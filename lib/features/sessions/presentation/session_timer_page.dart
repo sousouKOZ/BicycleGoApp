@@ -50,9 +50,8 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     final session = ref.watch(activeSessionProvider);
     final theme = Theme.of(context);
     if (session == null || session.authenticatedAt == null) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        body: const SafeArea(
+      return const Scaffold(
+        body: SafeArea(
           child: Center(child: Text('有効なセッションがありません')),
         ),
       );
@@ -68,7 +67,6 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
         secondsPassed >= total;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -116,7 +114,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
                       onPressed: () => Navigator.of(context).maybePop(),
                       icon: Icon(
                         Icons.keyboard_arrow_down_rounded,
-                        color: AppColors.onSurfaceSecondary,
+                        color: context.textSecondary,
                       ),
                     ),
                   ],
@@ -374,13 +372,13 @@ class _StoreCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+                  color: context.subtleBorder,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   store.category.label,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfacePrimary,
+                    color: context.textPrimary,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
                   ),
@@ -393,7 +391,7 @@ class _StoreCard extends StatelessWidget {
               Text(
                 '${(store.recommendWeight * 100).round()}',
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppColors.onSurfacePrimary,
+                  color: context.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -437,7 +435,7 @@ class _StoreCard extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.place_outlined,
-                  size: 14, color: AppColors.onSurfaceSecondary),
+                  size: 14, color: context.textSecondary),
               const SizedBox(width: 4),
               Text(
                 '徒歩圏 · 15分後にクーポン受取',

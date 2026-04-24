@@ -23,7 +23,6 @@ class MyPage extends ConsumerWidget {
     final asyncCoupons = ref.watch(userCouponsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -56,7 +55,7 @@ class MyPage extends ConsumerWidget {
                     child: Row(
                       children: [
                         Icon(Icons.info_outline_rounded,
-                            size: 18, color: AppColors.onSurfaceSecondary),
+                            size: 18, color: context.textSecondary),
                         const SizedBox(width: 10),
                         Text(
                           '利用可能なクーポンはありません',
@@ -111,7 +110,7 @@ class MyPage extends ConsumerWidget {
                   ),
                   Divider(
                     height: 1,
-                    color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+                    color: context.subtleBorder,
                     indent: 56,
                   ),
                   _MenuTile(
@@ -324,7 +323,7 @@ class _OwnedCouponTile extends StatelessWidget {
                   ),
                 ),
                 Icon(Icons.arrow_forward_ios_rounded,
-                    size: 14, color: AppColors.onSurfaceSecondary),
+                    size: 14, color: context.textSecondary),
               ],
             ),
           ),
@@ -361,11 +360,11 @@ class _MenuTile extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+                  color: context.subtleBorder,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child:
-                    Icon(icon, size: 18, color: AppColors.onSurfacePrimary),
+                    Icon(icon, size: 18, color: context.textPrimary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -379,12 +378,12 @@ class _MenuTile extends StatelessWidget {
               Text(
                 hint,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceSecondary,
+                  color: context.textSecondary,
                 ),
               ),
               const SizedBox(width: 6),
               Icon(Icons.arrow_forward_ios_rounded,
-                  size: 14, color: AppColors.onSurfaceSecondary),
+                  size: 14, color: context.textSecondary),
             ],
           ),
         ),
@@ -458,7 +457,7 @@ class _FavoriteParkingSection extends ConsumerWidget {
             child: Row(
               children: [
                 Icon(Icons.star_border_rounded,
-                    size: 18, color: AppColors.onSurfaceSecondary),
+                    size: 18, color: context.textSecondary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

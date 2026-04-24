@@ -20,7 +20,6 @@ class CouponListPage extends ConsumerWidget {
     final asyncCoupons = ref.watch(userCouponsProvider);
     final asyncStores = ref.watch(storesProvider);
     return Scaffold(
-      backgroundColor: AppColors.background,
       body: SafeArea(
         child: asyncCoupons.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -174,7 +173,7 @@ class _DistributingCouponCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Icon(Icons.arrow_forward_ios_rounded,
-                        size: 14, color: AppColors.onSurfaceSecondary),
+                        size: 14, color: context.textSecondary),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -278,14 +277,12 @@ class _CouponCard extends ConsumerWidget {
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.2,
-                    color: isUsable
-                        ? AppColors.accent
-                        : AppColors.onSurfaceSecondary,
+                    color: isUsable ? AppColors.accent : context.textSecondary,
                   )),
               const SizedBox(height: 4),
               Text(coupon.title,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceSecondary,
+                    color: context.textSecondary,
                   )),
               const SizedBox(height: 12),
               Row(
@@ -293,7 +290,7 @@ class _CouponCard extends ConsumerWidget {
                   Icon(Icons.schedule_rounded,
                       size: 15,
                       color: isUsable
-                          ? AppColors.onSurfaceSecondary
+                          ? context.textSecondary
                           : AppColors.danger),
                   const SizedBox(width: 6),
                   Text(
@@ -304,7 +301,7 @@ class _CouponCard extends ConsumerWidget {
                             : '期限：$remaining',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isUsable
-                          ? AppColors.onSurfaceSecondary
+                          ? context.textSecondary
                           : AppColors.danger,
                       fontWeight: FontWeight.w600,
                     ),
@@ -348,14 +345,14 @@ class _CategoryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+        color: context.subtleBorder,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
         style: theme.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurfacePrimary,
+          color: context.textPrimary,
           letterSpacing: 0.3,
         ),
       ),
@@ -408,7 +405,7 @@ class _DistanceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isUsable ? AppColors.success : AppColors.onSurfaceSecondary;
+    final color = isUsable ? AppColors.success : context.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -462,11 +459,11 @@ class _SectionHeader extends StatelessWidget {
               Text(title,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.onSurfacePrimary,
+                    color: context.textPrimary,
                   )),
               Text(subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceSecondary,
+                    color: context.textSecondary,
                   )),
             ],
           ),

@@ -47,13 +47,13 @@ class StorePreviewSheet extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+                  color: context.subtleBorder,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   store.category.label,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfacePrimary,
+                    color: context.textPrimary,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,
                   ),
@@ -66,7 +66,7 @@ class StorePreviewSheet extends StatelessWidget {
               Text(
                 '${(store.recommendWeight * 100).round()}',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.onSurfacePrimary,
+                  color: context.textPrimary,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -148,7 +148,7 @@ class StorePreviewSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.info_outline_rounded,
-                  size: 15, color: AppColors.onSurfaceSecondary),
+                  size: 15, color: context.textSecondary),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

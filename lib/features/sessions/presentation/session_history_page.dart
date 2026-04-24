@@ -15,7 +15,6 @@ class SessionHistoryPage extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('駐輪履歴'),
         actions: [
@@ -38,7 +37,7 @@ class SessionHistoryPage extends ConsumerWidget {
                   Text(
                     '履歴',
                     style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppColors.onSurfaceSecondary,
+                      color: context.textSecondary,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1,
                     ),
@@ -249,10 +248,10 @@ class _HistoryTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppColors.onSurfaceSecondary.withValues(alpha: 0.08),
+          color: context.subtleBorder,
         ),
       ),
       child: Column(
@@ -315,7 +314,7 @@ class _HistoryTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: Theme.of(context).scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
@@ -329,7 +328,7 @@ class _HistoryTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: AppColors.onSurfacePrimary,
+                        color: context.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -355,7 +354,7 @@ class _EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.history_toggle_off_rounded,
-                size: 56, color: AppColors.onSurfaceSecondary),
+                size: 56, color: context.textSecondary),
             const SizedBox(height: 16),
             Text(
               'まだ駐輪履歴がありません',

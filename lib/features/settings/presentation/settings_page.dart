@@ -115,7 +115,7 @@ class _SettingsCard extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+          color: context.subtleBorder,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -153,7 +153,7 @@ class _ThemeModeSelector extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+          color: context.subtleBorder,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -169,8 +169,7 @@ class _ThemeModeSelector extends StatelessWidget {
               Divider(
                 height: 1,
                 indent: 56,
-                color:
-                    AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+                color: context.subtleBorder,
               ),
           ],
         ],

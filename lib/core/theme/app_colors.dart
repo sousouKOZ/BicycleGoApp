@@ -28,3 +28,17 @@ class AppColors {
   static const glassBorderDark = Color(0x33FFFFFF);
   static const glassShadowDark = Color(0x44000000);
 }
+
+extension AppTextColors on BuildContext {
+  Color get textPrimary => Theme.of(this).brightness == Brightness.dark
+      ? AppColors.onSurfacePrimaryDark
+      : AppColors.onSurfacePrimary;
+
+  Color get textSecondary => Theme.of(this).brightness == Brightness.dark
+      ? AppColors.onSurfaceSecondaryDark
+      : AppColors.onSurfaceSecondary;
+
+  Color get subtleBorder => Theme.of(this).brightness == Brightness.dark
+      ? AppColors.onSurfaceSecondaryDark.withValues(alpha: 0.2)
+      : AppColors.onSurfaceSecondary.withValues(alpha: 0.12);
+}

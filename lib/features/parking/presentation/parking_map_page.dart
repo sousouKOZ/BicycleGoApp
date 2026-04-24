@@ -321,7 +321,6 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       extendBody: true,
-      backgroundColor: AppColors.background,
       body: asyncLots.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('読み込み失敗: $e')),
@@ -490,7 +489,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                                   .titleMedium
                                   ?.copyWith(
                                     fontWeight: FontWeight.w900,
-                                    color: AppColors.onSurfacePrimary,
+                                    color: context.textPrimary,
                                   ),
                             ),
                           ],
@@ -505,12 +504,12 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                           decoration: InputDecoration(
                             hintText: '駐輪場を検索',
                             prefixIcon: Icon(Icons.search,
-                                color: AppColors.onSurfaceSecondary),
+                                color: context.textSecondary),
                             suffixIcon: query.isEmpty
                                 ? null
                                 : IconButton(
                                     icon: Icon(Icons.close_rounded,
-                                        color: AppColors.onSurfaceSecondary),
+                                        color: context.textSecondary),
                                     onPressed: () {
                                       _searchController.clear();
                                     },
@@ -725,7 +724,7 @@ class _CouponPreviewStrip extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurfacePrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                     const Spacer(),
@@ -795,7 +794,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
         child: Row(
           children: [
             Icon(Icons.search_off_rounded,
-                size: 18, color: AppColors.onSurfaceSecondary),
+                size: 18, color: context.textSecondary),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -824,7 +823,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
             ),
             Divider(
               height: 1,
-              color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+              color: context.subtleBorder,
             ),
             Flexible(
               child: ListView.separated(
@@ -833,7 +832,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
                 itemCount: sorted.length,
                 separatorBuilder: (_, __) => Divider(
                   height: 1,
-                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+                  color: context.subtleBorder,
                   indent: 62,
                 ),
                 itemBuilder: (_, i) {
@@ -918,7 +917,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
                             ),
                           ),
                           Icon(Icons.north_east_rounded,
-                              size: 16, color: AppColors.onSurfaceSecondary),
+                              size: 16, color: context.textSecondary),
                         ],
                       ),
                     ),
@@ -946,7 +945,7 @@ class _SortToggleRow extends StatelessWidget {
       child: Row(
         children: [
           Icon(Icons.sort_rounded,
-              size: 16, color: AppColors.onSurfaceSecondary),
+              size: 16, color: context.textSecondary),
           const SizedBox(width: 6),
           Text(
             '並び替え',
@@ -987,9 +986,7 @@ class _SortToggleButton extends StatelessWidget {
       color: selected ? AppColors.accent : Colors.transparent,
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected
-              ? Colors.transparent
-              : AppColors.onSurfaceSecondary.withValues(alpha: 0.2),
+          color: selected ? Colors.transparent : context.subtleBorder,
         ),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1000,7 +997,7 @@ class _SortToggleButton extends StatelessWidget {
           child: Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: selected ? Colors.white : AppColors.onSurfacePrimary,
+              color: selected ? Colors.white : context.textPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1149,9 +1146,7 @@ class _FilterChipItem extends StatelessWidget {
                 Text(
                   label,
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: selected
-                        ? Colors.white
-                        : AppColors.onSurfacePrimary,
+                    color: selected ? Colors.white : context.textPrimary,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1213,31 +1208,31 @@ class _RouteBanner extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.onSurfacePrimary,
+                    color: context.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Row(
                   children: [
                     Icon(Icons.route_rounded,
-                        size: 14, color: AppColors.onSurfaceSecondary),
+                        size: 14, color: context.textSecondary),
                     const SizedBox(width: 4),
                     Text(
                       _distanceLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurfacePrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Icon(Icons.schedule_rounded,
-                        size: 14, color: AppColors.onSurfaceSecondary),
+                        size: 14, color: context.textSecondary),
                     const SizedBox(width: 4),
                     Text(
                       _durationLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurfacePrimary,
+                        color: context.textPrimary,
                       ),
                     ),
                   ],
@@ -1249,7 +1244,7 @@ class _RouteBanner extends StatelessWidget {
             tooltip: 'ルートを消す',
             onPressed: onClose,
             icon: Icon(Icons.close_rounded,
-                size: 18, color: AppColors.onSurfaceSecondary),
+                size: 18, color: context.textSecondary),
           ),
         ],
       ),
