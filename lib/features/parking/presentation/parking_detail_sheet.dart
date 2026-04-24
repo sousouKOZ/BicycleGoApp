@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../data/directions_service.dart';
+import '../providers/route_providers.dart';
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_timer_page.dart';
@@ -32,6 +34,42 @@ class ParkingDetailSheet extends ConsumerWidget {
   }
 
   double _toRadians(double degree) => degree * (math.pi / 180.0);
+
+  Future<void> _fetchRoute(
+    BuildContext context,
+    WidgetRef ref,
+    ScaffoldMessengerState messenger,
+    LatLng? currentLocation,
+  ) async {
+    if (currentLocation == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('現在地が取得できていません')),
+      );
+      return;
+    }
+    ref.read(routeLoadingProvider.notifier).state = true;
+    try {
+      final service = ref.read(directionsServiceProvider);
+      final route = await service.fetch(
+        origin: currentLocation,
+        parking: parking,
+      );
+      ref.read(activeRouteProvider.notifier).state = route;
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+    } on DirectionsException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('ルート取得失敗: ${e.message}')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('ルート取得に失敗しました')),
+      );
+    } finally {
+      ref.read(routeLoadingProvider.notifier).state = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -181,30 +219,45 @@ class ParkingDetailSheet extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text('${parking.name}に駐輪しました')),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final loading = ref.watch(routeLoadingProvider);
+                    return OutlinedButton.icon(
+                      onPressed: loading
+                          ? null
+                          : () => _fetchRoute(
+                                context,
+                                ref,
+                                messenger,
+                                currentLocation,
+                              ),
+                      icon: loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2),
+                            )
+                          : const Icon(Icons.directions_rounded, size: 18),
+                      label: Text(
+                        loading ? 'ルート取得中' : '経路を見る',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.onSurfacePrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        side: BorderSide(
+                          color: AppColors.onSurfaceSecondary
+                              .withValues(alpha: 0.25),
+                        ),
+                      ),
                     );
-                    Navigator.pop(context);
                   },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.onSurfacePrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    side: BorderSide(
-                      color: AppColors.onSurfaceSecondary
-                          .withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: Text(
-                    'ここに停める',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
                 ),
               ),
               const SizedBox(width: 10),

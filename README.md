@@ -57,7 +57,8 @@
 - 稼働率プログレスバー（色は稼働率と連動）
 - 現在地からの距離・徒歩時間
 - 更新時刻チップ
-- 「ここに停める」「NFCで計測開始」2ボタン構成
+- **「経路を見る」ボタン** — Google Directions API で自転車経路を取得し、アプリ内の地図上にポリラインで表示（距離・所要時間のバナーと×ボタン付き）
+- 「NFCで計測開始」ボタンでNFC認証シートを表示
 
 ### 店舗プレビューシート [StorePreviewSheet](lib/features/stores/presentation/store_preview_sheet.dart)
 - 配信中バッジ・カテゴリチップ・レコメンド星スコア
@@ -75,8 +76,15 @@
 - 認証完了から**15分カウントダウン**
 - 円形プログレスインジケータで残り時間を視覚化
 - 対象店舗カード（特典プレビュー付き）
-- 15分経過時に自動で `evaluateEarn` を呼び出しクーポン発行
-- キャンセル時はセッション破棄して地図に戻る
+- **最小化ボタン** — 画面を閉じてもセッションは背景で継続、ミニバーから再展開可能
+- 「計測を中止する」で確認ダイアログ → セッション破棄
+
+### セッションミニバー [SessionMiniBar](lib/features/sessions/presentation/session_mini_bar.dart)
+- 計測中は**ボトムナビゲーションの上に常駐**するグラデーションバー
+- 残り時間・プログレスをリアルタイム表示
+- **全タブから進捗確認可能**（地図／クーポン／マイページ切替時も表示継続）
+- タップで計測画面を再展開
+- 15分達成判定・`evaluateEarn` 呼び出し・獲得画面遷移は **HomeShellに集約** — どの画面からでもクーポン獲得画面に自動遷移
 
 ### クーポン獲得画面 [CouponEarnedPage](lib/features/sessions/presentation/coupon_earned_page.dart)
 - 達成バナー（グラデーション + 祝福アイコン）
@@ -188,7 +196,70 @@ cd ios && pod install && cd ..
 flutter run
 ```
 
-Google Maps APIキーを `ios/Runner/AppDelegate.swift` / `android/app/src/main/AndroidManifest.xml` に設定してください。
+### APIキーの設定（用途別に2種類）
+
+本アプリは Google Cloud Platform のキーを**用途別に2つ**使い分けます。キーはいずれも **gitに含まれないファイル**から読み込む構成になっています。
+
+| 用途 | 有効化するAPI | 格納先 |
+| --- | --- | --- |
+| 地図描画（iOS/Android） | Maps SDK for iOS / Maps SDK for Android | `ios/Flutter/Secrets.xcconfig` / `android/secrets.properties` |
+| 経路取得（Directions） | Directions API | `env/dev.json` |
+
+#### 1. Maps SDK キー（地図描画用）
+
+**iOS** — [ios/Flutter/Secrets.example.xcconfig](ios/Flutter/Secrets.example.xcconfig) をコピーして値を書き換え。
+
+```bash
+cp ios/Flutter/Secrets.example.xcconfig ios/Flutter/Secrets.xcconfig
+# Secrets.xcconfig の MAPS_API_KEY を編集
+```
+
+**Android** — [android/secrets.example.properties](android/secrets.example.properties) をコピーして値を書き換え。
+
+```bash
+cp android/secrets.example.properties android/secrets.properties
+# secrets.properties の MAPS_API_KEY を編集
+```
+
+- iOS は [Info.plist](ios/Runner/Info.plist) の `GMSApiKey` が `$(MAPS_API_KEY)` を参照し、[AppDelegate.swift](ios/Runner/AppDelegate.swift) がそれを読んで `GMSServices.provideAPIKey` に渡します。
+- Android は [build.gradle.kts](android/app/build.gradle.kts) で `manifestPlaceholders["MAPS_API_KEY"]` に注入、[AndroidManifest.xml](android/app/src/main/AndroidManifest.xml) の `${MAPS_API_KEY}` に展開されます。
+
+#### 2. Directions API キー（経路取得用）
+
+[env/dev.example.json](env/dev.example.json) をコピーして値を書き換え。
+
+```bash
+cp env/dev.example.json env/dev.json
+# env/dev.json の GOOGLE_DIRECTIONS_API_KEY を編集
+```
+
+実行時は [.vscode/launch.json](.vscode/launch.json) から起動するか、コマンドラインで:
+
+```bash
+flutter run --dart-define-from-file=env/dev.json
+```
+
+Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `directionsApiKey` として読まれ、[directions_service.dart](lib/features/parking/data/directions_service.dart) で利用されます。
+
+#### 3. GCP 側の制限設定（必須）
+
+各キーは GCP Console → Credentials で以下の制限をかけてください。
+
+- **Maps SDK キー**
+  - Application restrictions: iOS Bundle ID (`com.example.bicycle_go`) / Android アプリ（パッケージ名 + SHA-1）
+  - API restrictions: Maps SDK for iOS / Maps SDK for Android のみ
+- **Directions API キー**
+  - Application restrictions: なし（アプリから直接叩くため）／または HTTP Referrers
+  - API restrictions: Directions API のみ
+  - Quotas: 1日あたり上限を設定しておくと事故時の被害を抑えられる
+
+#### 4. キー漏洩時の対応
+
+万が一 git に誤ってコミットしてしまった場合は：
+
+1. GCP Console で該当キーを **Delete**（無効化）
+2. 新しいキーを発行して上記の手順で差し替え
+3. git 履歴から削除（`git filter-repo` など）— ただしキー自体は既に漏洩しているため、ローテーションが最優先
 
 ---
 

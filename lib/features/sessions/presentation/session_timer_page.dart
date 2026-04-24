@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,7 +10,6 @@ import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
-import 'coupon_earned_page.dart';
 
 class SessionTimerPage extends ConsumerStatefulWidget {
   const SessionTimerPage({super.key});
@@ -23,7 +21,6 @@ class SessionTimerPage extends ConsumerStatefulWidget {
 class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
-  bool _issuing = false;
 
   @override
   void initState() {
@@ -39,37 +36,6 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     if (!mounted) return;
     final elapsed = DateTime.now().difference(session.authenticatedAt!);
     setState(() => _elapsed = elapsed);
-    if (elapsed >= ParkingSession.earnThreshold &&
-        session.status == ParkingSessionStatus.measuring &&
-        !_issuing) {
-      _issueCoupon(session);
-    }
-  }
-
-  Future<void> _issueCoupon(ParkingSession session) async {
-    setState(() => _issuing = true);
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      final api = ref.read(apiClientProvider);
-      final coupon = await api.evaluateEarn(
-        sessionId: session.id,
-        userLat: pos.latitude,
-        userLng: pos.longitude,
-      );
-      if (coupon == null || !mounted) return;
-      ref.read(activeSessionProvider.notifier).state =
-          session.copyWith(status: ParkingSessionStatus.achieved);
-      ref.read(latestEarnedCouponProvider.notifier).state = coupon;
-      _ticker?.cancel();
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const CouponEarnedPage()),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _issuing = false);
-    }
   }
 
   @override
@@ -97,6 +63,8 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     final progress = secondsPassed / total;
     final mm = (secondsLeft ~/ 60).toString().padLeft(2, '0');
     final ss = (secondsLeft % 60).toString().padLeft(2, '0');
+    final isAchieving = session.status == ParkingSessionStatus.achieved ||
+        secondsPassed >= total;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -141,6 +109,15 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
                         ],
                       ),
                     ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: '最小化',
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: AppColors.onSurfaceSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -149,7 +126,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
                 progress: progress,
                 mm: mm,
                 ss: ss,
-                isAchieving: _issuing,
+                isAchieving: isAchieving,
               ),
               const SizedBox(height: 24),
               Padding(
@@ -188,7 +165,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
               const Expanded(child: _StoreCarousel()),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: _issuing ? null : _cancelSession,
+                onPressed: isAchieving ? null : _cancelSession,
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.danger,
                 ),

@@ -43,3 +43,13 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 環境変数（APIキー等は .example のみコミット）
+/env/*.json
+!/env/*.example.json
+
+# ネイティブ側のAPIキー（iOS / Android）
+/ios/Flutter/Secrets.xcconfig
+!/ios/Flutter/Secrets.example.xcconfig
+/android/secrets.properties
+!/android/secrets.example.properties

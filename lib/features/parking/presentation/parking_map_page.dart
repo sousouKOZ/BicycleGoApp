@@ -11,8 +11,10 @@ import '../../../core/theme/glass_decoration.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
+import '../domain/directions_route.dart';
 import '../domain/parking_lot.dart';
 import '../providers/parking_providers.dart';
+import '../providers/route_providers.dart';
 import 'parking_detail_sheet.dart';
 
 class ParkingMapPage extends ConsumerStatefulWidget {
@@ -69,6 +71,28 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => ParkingDetailSheet(parking: p),
+    );
+  }
+
+  Future<void> _animateToRoute(DirectionsRoute route) async {
+    final controller = _mapController;
+    if (controller == null || route.polyline.isEmpty) return;
+    double minLat = route.polyline.first.latitude;
+    double maxLat = route.polyline.first.latitude;
+    double minLng = route.polyline.first.longitude;
+    double maxLng = route.polyline.first.longitude;
+    for (final p in route.polyline) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    await controller.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds, 72),
     );
   }
 
@@ -282,6 +306,13 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final asyncLots = ref.watch(parkingLotsProvider);
     final asyncStores = ref.watch(storesProvider);
     final query = ref.watch(parkingSearchQueryProvider);
+    final activeRoute = ref.watch(activeRouteProvider);
+
+    ref.listen<DirectionsRoute?>(activeRouteProvider, (prev, next) {
+      if (next != null && next != prev) {
+        _animateToRoute(next);
+      }
+    });
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -381,17 +412,35 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   ),
                 };
 
+          final polylines = <Polyline>{};
+          if (activeRoute != null && activeRoute.polyline.isNotEmpty) {
+            polylines.add(Polyline(
+              polylineId: PolylineId('route-${activeRoute.parkingLotId}'),
+              points: activeRoute.polyline,
+              color: AppColors.accent,
+              width: 6,
+              startCap: Cap.roundCap,
+              endCap: Cap.roundCap,
+              jointType: JointType.round,
+            ));
+          }
+
           return Stack(
             children: [
               GoogleMap(
                 initialCameraPosition: ParkingMapPage._initialCamera,
                 markers: markers,
                 circles: circles,
+                polylines: polylines,
                 myLocationEnabled: true,
                 zoomControlsEnabled: false,
                 myLocationButtonEnabled: true,
                 onMapCreated: (controller) {
                   _mapController = controller;
+                  final initialRoute = ref.read(activeRouteProvider);
+                  if (initialRoute != null) {
+                    _animateToRoute(initialRoute);
+                  }
                 },
                 onTap: (_) => _searchFocus.unfocus(),
               ),
@@ -463,6 +512,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                             filteredLots: visibleLots,
                             currentLocation: _currentLocation,
                             onTap: _focusParking,
+                          ),
+                        ),
+                      if (activeRoute != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: _RouteBanner(
+                            route: activeRoute,
+                            onClose: () {
+                              ref
+                                  .read(activeRouteProvider.notifier)
+                                  .state = null;
+                            },
                           ),
                         ),
                     ],
@@ -811,4 +872,97 @@ double _haversineMeters(LatLng a, LatLng b) {
           math.cos(toRad(b.latitude)) *
           math.pow(math.sin(dLng / 2), 2);
   return earth * 2 * math.asin(math.sqrt(h.toDouble()));
+}
+
+class _RouteBanner extends StatelessWidget {
+  final DirectionsRoute route;
+  final VoidCallback onClose;
+  const _RouteBanner({required this.route, required this.onClose});
+
+  String get _distanceLabel {
+    final m = route.distanceMeters;
+    if (m >= 1000) {
+      return '${(m / 1000).toStringAsFixed(1)}km';
+    }
+    return '${m}m';
+  }
+
+  String get _durationLabel {
+    final minutes = (route.durationSeconds / 60).round();
+    if (minutes < 60) return '約$minutes分';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '約$h時間' : '約$h時間$m分';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: GlassDecoration.light(radius: 16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.directions_bike_rounded,
+                size: 18, color: AppColors.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  route.parkingName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.onSurfacePrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Icon(Icons.route_rounded,
+                        size: 14, color: AppColors.onSurfaceSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      _distanceLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurfacePrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Icon(Icons.schedule_rounded,
+                        size: 14, color: AppColors.onSurfaceSecondary),
+                    const SizedBox(width: 4),
+                    Text(
+                      _durationLabel,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurfacePrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'ルートを消す',
+            onPressed: onClose,
+            icon: Icon(Icons.close_rounded,
+                size: 18, color: AppColors.onSurfaceSecondary),
+          ),
+        ],
+      ),
+    );
+  }
 }
