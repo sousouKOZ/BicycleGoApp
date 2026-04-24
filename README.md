@@ -49,6 +49,11 @@
   - 地図タップまたは✕ボタンで検索状態をクリア
 - **配信中クーポンストリップ**（下端の横スクロールカード）
   - 表示／非表示トグル付き（地図を広く見たいときに格納可能）
+- **マーカーフィルタチップ**（検索バー下の横並びトグル）
+  - `空きのみ` — 満車の駐輪場を除外
+  - `クーポンあり` — 300m以内に提携店舗がある駐輪場のみ表示
+  - `お気に入り` — お気に入り登録した駐輪場のみ表示
+  - 複数条件のAND適用、検索ワードとも併用可能
 - 駐輪場タップで詳細ボトムシート表示
 - クーポンマーカータップで店舗プレビューシート表示
 - **アプリ内ルート表示** — 詳細シートの「経路を見る」で Directions API から自転車経路を取得し、地図上に青いポリラインを描画
@@ -62,6 +67,7 @@
 - 現在地からの距離・徒歩時間
 - 更新時刻チップ
 - **「経路を見る」ボタン** — Google Directions API で自転車経路を取得し、アプリ内の地図上にポリラインで表示（距離・所要時間のバナーと×ボタン付き）
+- **お気に入り★ボタン** — ヘッダーに常設、1タップでお気に入り登録／解除（端末ローカルに永続化）
 - 「NFCで計測開始」ボタンでNFC認証シートを表示
 
 ### 店舗プレビューシート [StorePreviewSheet](lib/features/stores/presentation/store_preview_sheet.dart)
@@ -106,7 +112,30 @@
 - ポイント残高カード（グラデーションヒーロー）
 - 「交換する」ボタン（準備中）
 - 利用可能クーポンの一覧表示（タップで詳細想定）
+- **お気に入り駐輪場セクション** — 登録済み駐輪場をカード一覧表示、タップで詳細シートを開く（未登録時は誘導文を表示）
 - 駐輪履歴・設定メニュー（準備中）
+
+### お気に入り駐輪場 [FavoriteParkings](lib/features/parking/providers/favorite_providers.dart)
+- 駐輪場詳細シートの★タップでトグル
+- `shared_preferences` で端末ローカルに永続化（キー: `favorite_parking_ids_v1`）
+- 地図の `お気に入り` フィルタ・マイページのセクション表示と連動
+
+### オンボーディング [OnboardingPage](lib/features/onboarding/presentation/onboarding_page.dart)
+- 初回起動時に表示される3ステップの PageView
+  1. 「近場が満車でも、ちょっと遠くへ」 — コンセプト訴求
+  2. 「NFCでサッと計測開始」 — 使い方の説明
+  3. 「15分停めるだけでクーポン獲得」 — インセンティブ訴求
+- 完了フラグを `shared_preferences` に保存（キー: `onboarding_completed_v1`）し、2回目以降はスキップ
+- [app.dart](lib/app.dart) が `onboardingCompletedProvider` を監視して `OnboardingPage` / `HomeShell` を出し分け
+
+### プッシュ通知（ローカル通知）
+- 駐輪セッション中、アプリを閉じていてもクーポン発行タイミングを通知
+- **10分経過時** — 「もう少しでクーポンが届きます」
+- **15分達成時** — 「🎉 クーポンが発行されました」
+- セッション開始時（NFC認証成功時）に[NotificationService](lib/features/sessions/data/notification_service.dart)で2本同時予約
+- 計測中止・クーポン消込・「あとで使う」で予約キャンセル
+- 初回セッション開始時に通知権限を自動リクエスト（iOS / Android 13+）
+- `flutter_local_notifications` + `timezone` でサーバー不要 — 後で FCM への差し替えも容易
 
 ### セキュリティ構成
 - **APIキーの用途別分離** — Maps SDK キー（iOS/Android ネイティブ）と Directions API キー（Dart）を別々に管理
@@ -290,7 +319,6 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 - クーポン内容と距離のマッピングロジック確定
 - ポイント交換UIと交換商品ラインナップ
 - 駐輪履歴画面・設定画面の実装
-- オンボーディング／初回チュートリアル
 - 実機駐輪場データの取得方法（API連携 or 手動登録）
 
 ---

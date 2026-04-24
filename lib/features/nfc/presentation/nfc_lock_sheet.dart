@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -9,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
+import '../../sessions/data/notification_service.dart';
 import '../../user/providers/user_providers.dart';
 
 enum _Stage { waitingTag, verifying, success, error }
@@ -78,6 +81,16 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     );
   }
 
+  Future<void> _scheduleSessionNotifications(ParkingSession session) async {
+    final startedAt = session.authenticatedAt ?? DateTime.now();
+    final notifier = NotificationService.instance;
+    await notifier.requestPermissions();
+    await notifier.scheduleSessionReminders(
+      sessionStartAt: startedAt,
+      parkingName: widget.parkingName,
+    );
+  }
+
   Future<void> _authenticate() async {
     try {
       final position = await Geolocator.getCurrentPosition(
@@ -100,6 +113,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
 
       if (!mounted) return;
       ref.read(activeSessionProvider.notifier).state = session;
+      unawaited(_scheduleSessionNotifications(session));
       setState(() {
         _stage = _Stage.success;
         _message = '認証完了・15分計測を開始しました';

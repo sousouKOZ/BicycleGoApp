@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../data/directions_service.dart';
+import '../providers/favorite_providers.dart';
 import '../providers/route_providers.dart';
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
@@ -119,6 +120,8 @@ class ParkingDetailSheet extends ConsumerWidget {
                   ],
                 ),
               ),
+              _FavoriteButton(parkingId: parking.id),
+              const SizedBox(width: 8),
               _UsageBadge(
                 percent: parking.usageRatePercent,
                 color: usageColor,
@@ -426,4 +429,32 @@ Color _usageColor(double usage) {
   if (usage >= 0.85) return AppColors.danger;
   if (usage >= 0.6) return AppColors.warning;
   return AppColors.success;
+}
+
+class _FavoriteButton extends ConsumerWidget {
+  final String parkingId;
+  const _FavoriteButton({required this.parkingId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favorites = ref.watch(favoriteParkingsProvider);
+    final isFav = favorites.contains(parkingId);
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () =>
+            ref.read(favoriteParkingsProvider.notifier).toggle(parkingId),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(
+            isFav ? Icons.star_rounded : Icons.star_border_rounded,
+            size: 26,
+            color: isFav ? AppColors.warning : AppColors.onSurfaceSecondary,
+          ),
+        ),
+      ),
+    );
+  }
 }

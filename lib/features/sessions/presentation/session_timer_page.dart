@@ -10,6 +10,7 @@ import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
+import '../data/notification_service.dart';
 
 class SessionTimerPage extends ConsumerStatefulWidget {
   const SessionTimerPage({super.key});
@@ -213,6 +214,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     );
     if (confirm != true) return;
     await ref.read(apiClientProvider).endSession(session.id);
+    await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
     if (!mounted) return;
     Navigator.of(context).pop();

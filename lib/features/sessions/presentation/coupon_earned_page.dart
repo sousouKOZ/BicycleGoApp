@@ -9,6 +9,7 @@ import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
+import '../data/notification_service.dart';
 
 class CouponEarnedPage extends ConsumerWidget {
   const CouponEarnedPage({super.key});
@@ -68,6 +69,7 @@ class CouponEarnedPage extends ConsumerWidget {
     if (session != null) {
       await api.endSession(session.id);
     }
+    await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
@@ -90,6 +92,7 @@ class CouponEarnedPage extends ConsumerWidget {
   }
 
   void _backToHome(BuildContext context, WidgetRef ref) {
+    NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);

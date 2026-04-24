@@ -13,6 +13,8 @@ import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
 import '../domain/directions_route.dart';
 import '../domain/parking_lot.dart';
+import '../providers/favorite_providers.dart';
+import '../providers/map_filter_providers.dart';
 import '../providers/parking_providers.dart';
 import '../providers/route_providers.dart';
 import 'parking_detail_sheet.dart';
@@ -323,14 +325,32 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
         error: (e, st) => Center(child: Text('読み込み失敗: $e')),
         data: (lots) {
           final normalizedQuery = query.trim().toLowerCase();
-          final visibleLots = normalizedQuery.isEmpty
-              ? lots
-              : lots
-                  .where(
-                    (p) => p.name.toLowerCase().contains(normalizedQuery),
-                  )
-                  .toList();
           final stores = asyncStores.asData?.value ?? const <Store>[];
+          final filter = ref.watch(mapFilterProvider);
+          final favorites = ref.watch(favoriteParkingsProvider);
+
+          Iterable<ParkingLot> filtered = normalizedQuery.isEmpty
+              ? lots
+              : lots.where(
+                  (p) => p.name.toLowerCase().contains(normalizedQuery),
+                );
+          if (filter.availableOnly) {
+            filtered = filtered.where((p) => p.available > 0);
+          }
+          if (filter.favoriteOnly) {
+            filtered = filtered.where((p) => favorites.contains(p.id));
+          }
+          if (filter.couponOnly) {
+            filtered = filtered.where((p) {
+              for (final s in stores) {
+                if (_haversineMeters(p.position, s.position) <= 300) {
+                  return true;
+                }
+              }
+              return false;
+            });
+          }
+          final visibleLots = filtered.toList();
 
           final markers = <Marker>{};
           for (final p in visibleLots) {
@@ -501,6 +521,10 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                                 horizontal: 14, vertical: 16),
                           ),
                         ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10),
+                        child: _MapFilterBar(),
                       ),
                       if (_searchFocus.hasFocus ||
                           normalizedQuery.isNotEmpty)
@@ -872,6 +896,112 @@ double _haversineMeters(LatLng a, LatLng b) {
           math.cos(toRad(b.latitude)) *
           math.pow(math.sin(dLng / 2), 2);
   return earth * 2 * math.asin(math.sqrt(h.toDouble()));
+}
+
+class _MapFilterBar extends ConsumerWidget {
+  const _MapFilterBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(mapFilterProvider);
+    final notifier = ref.read(mapFilterProvider.notifier);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _FilterChipItem(
+            icon: Icons.event_available_rounded,
+            label: '空きのみ',
+            selected: filter.availableOnly,
+            onTap: () => notifier.state =
+                filter.copyWith(availableOnly: !filter.availableOnly),
+          ),
+          const SizedBox(width: 8),
+          _FilterChipItem(
+            icon: Icons.local_offer_rounded,
+            label: 'クーポンあり',
+            selected: filter.couponOnly,
+            onTap: () => notifier.state =
+                filter.copyWith(couponOnly: !filter.couponOnly),
+          ),
+          const SizedBox(width: 8),
+          _FilterChipItem(
+            icon: Icons.star_rounded,
+            label: 'お気に入り',
+            selected: filter.favoriteOnly,
+            onTap: () => notifier.state =
+                filter.copyWith(favoriteOnly: !filter.favoriteOnly),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChipItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterChipItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: selected
+          ? BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.accent.withValues(alpha: 0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            )
+          : GlassDecoration.pill(),
+      child: Material(
+        color: Colors.transparent,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          splashColor: AppColors.accent.withValues(alpha: 0.1),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: selected ? Colors.white : AppColors.accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: selected
+                        ? Colors.white
+                        : AppColors.onSurfacePrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RouteBanner extends StatelessWidget {

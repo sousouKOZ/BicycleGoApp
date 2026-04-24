@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import GoogleMaps
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -14,6 +15,10 @@ import GoogleMaps
       GMSServices.provideAPIKey(apiKey)
     } else {
       assertionFailure("Missing GMSApiKey in Info.plist — check ios/Flutter/Secrets.xcconfig")
+    }
+
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate
     }
 
     GeneratedPluginRegistrant.register(with: self)

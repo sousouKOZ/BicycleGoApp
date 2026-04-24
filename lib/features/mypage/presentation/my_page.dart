@@ -5,6 +5,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/providers/coupon_providers.dart';
+import '../../parking/domain/parking_lot.dart';
+import '../../parking/presentation/parking_detail_sheet.dart';
+import '../../parking/providers/favorite_providers.dart';
+import '../../parking/providers/parking_providers.dart';
 import '../../points/providers/points_providers.dart';
 
 class MyPage extends ConsumerWidget {
@@ -66,6 +70,14 @@ class MyPage extends ConsumerWidget {
                 );
               },
             ),
+            const SizedBox(height: 24),
+            const _SectionHeader(
+              title: 'お気に入り駐輪場',
+              subtitle: 'よく使う駐輪場をブックマーク',
+              accent: AppColors.warning,
+            ),
+            const SizedBox(height: 12),
+            const _FavoriteParkingSection(),
             const SizedBox(height: 24),
             const _SectionHeader(
               title: 'メニュー',
@@ -403,6 +415,133 @@ class _SectionHeader extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FavoriteParkingSection extends ConsumerWidget {
+  const _FavoriteParkingSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favorites = ref.watch(favoriteParkingsProvider);
+    final asyncLots = ref.watch(parkingLotsProvider);
+
+    return asyncLots.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => Text('読み込み失敗: $e'),
+      data: (lots) {
+        final favLots =
+            lots.where((p) => favorites.contains(p.id)).toList(growable: false);
+        if (favLots.isEmpty) {
+          return Container(
+            decoration: GlassDecoration.light(radius: 20),
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              children: [
+                Icon(Icons.star_border_rounded,
+                    size: 18, color: AppColors.onSurfaceSecondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'お気に入りの駐輪場はまだありません\n詳細シートの★をタップで登録できます',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        return Column(
+          children: favLots
+              .map((p) => _FavoriteParkingTile(parking: p))
+              .toList(growable: false),
+        );
+      },
+    );
+  }
+}
+
+class _FavoriteParkingTile extends ConsumerWidget {
+  final ParkingLot parking;
+  const _FavoriteParkingTile({required this.parking});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final usage = parking.usageRatePercent;
+    final usageColor = usage >= 85
+        ? AppColors.danger
+        : usage >= 60
+            ? AppColors.warning
+            : AppColors.success;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: GlassDecoration.light(radius: 18),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              showDragHandle: true,
+              builder: (_) => ParkingDetailSheet(parking: parking),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: usageColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.local_parking_rounded,
+                      size: 20, color: usageColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        parking.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '空き${parking.available}/${parking.capacity}・稼働$usage%',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: usageColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'お気に入りを解除',
+                  onPressed: () => ref
+                      .read(favoriteParkingsProvider.notifier)
+                      .toggle(parking.id),
+                  icon: Icon(Icons.star_rounded,
+                      color: AppColors.warning, size: 22),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
