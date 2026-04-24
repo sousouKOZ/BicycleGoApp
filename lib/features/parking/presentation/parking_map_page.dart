@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../../../core/theme/glass_decoration.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
+import '../domain/parking_lot.dart';
 import '../providers/parking_providers.dart';
 import 'parking_detail_sheet.dart';
 
@@ -27,6 +29,7 @@ class ParkingMapPage extends ConsumerStatefulWidget {
 
 class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   late final TextEditingController _searchController;
+  late final FocusNode _searchFocus;
   GoogleMapController? _mapController;
   LatLng? _currentLocation;
   BitmapDescriptor? _currentLocationIcon;
@@ -45,8 +48,28 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
         ref.read(parkingSearchQueryProvider.notifier).state = value;
       }
     });
+    _searchFocus = FocusNode();
+    _searchFocus.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadCustomMarkerIcons();
     _fetchCurrentLocation();
+  }
+
+  Future<void> _focusParking(ParkingLot p) async {
+    _searchFocus.unfocus();
+    _searchController.clear();
+    await _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(p.position, 17),
+    );
+    if (!mounted) return;
+    ref.read(selectedParkingProvider.notifier).state = p;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ParkingDetailSheet(parking: p),
+    );
   }
 
   Future<void> _loadCustomMarkerIcons() async {
@@ -250,6 +273,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -369,6 +393,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                 onMapCreated: (controller) {
                   _mapController = controller;
                 },
+                onTap: (_) => _searchFocus.unfocus(),
               ),
               SafeArea(
                 child: Padding(
@@ -404,6 +429,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                         decoration: GlassDecoration.light(radius: 16),
                         child: TextField(
                           controller: _searchController,
+                          focusNode: _searchFocus,
                           textInputAction: TextInputAction.search,
                           decoration: InputDecoration(
                             hintText: '駐輪場を検索',
@@ -427,6 +453,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                           ),
                         ),
                       ),
+                      if (_searchFocus.hasFocus ||
+                          normalizedQuery.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _SearchResultsDropdown(
+                            query: normalizedQuery,
+                            allLots: lots,
+                            filteredLots: visibleLots,
+                            currentLocation: _currentLocation,
+                            onTap: _focusParking,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -622,4 +660,155 @@ class _CouponPreviewStrip extends StatelessWidget {
       },
     );
   }
+}
+
+class _SearchResultsDropdown extends StatelessWidget {
+  final String query;
+  final List<ParkingLot> allLots;
+  final List<ParkingLot> filteredLots;
+  final LatLng? currentLocation;
+  final ValueChanged<ParkingLot> onTap;
+
+  const _SearchResultsDropdown({
+    required this.query,
+    required this.allLots,
+    required this.filteredLots,
+    required this.currentLocation,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final source = query.isEmpty ? allLots : filteredLots;
+    final sorted = [...source];
+    if (currentLocation != null) {
+      sorted.sort((a, b) => _haversineMeters(currentLocation!, a.position)
+          .compareTo(_haversineMeters(currentLocation!, b.position)));
+    }
+
+    if (sorted.isEmpty) {
+      return Container(
+        decoration: GlassDecoration.light(radius: 16),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.search_off_rounded,
+                size: 18, color: AppColors.onSurfaceSecondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '「$query」に該当する駐輪場はありません',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      decoration: GlassDecoration.light(radius: 16),
+      clipBehavior: Clip.antiAlias,
+      constraints: const BoxConstraints(maxHeight: 320),
+      child: Material(
+        color: Colors.transparent,
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: sorted.length,
+          separatorBuilder: (_, __) => Divider(
+            height: 1,
+            color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+            indent: 62,
+          ),
+          itemBuilder: (_, i) {
+            final p = sorted[i];
+            final usage = p.usageRatePercent;
+            final usageColor = usage >= 85
+                ? AppColors.danger
+                : usage >= 60
+                    ? AppColors.warning
+                    : AppColors.success;
+            final distance = currentLocation == null
+                ? null
+                : _haversineMeters(currentLocation!, p.position);
+            final distanceLabel = distance == null
+                ? null
+                : distance >= 1000
+                    ? '${(distance / 1000).toStringAsFixed(1)}km'
+                    : '${distance.round()}m';
+            return InkWell(
+              onTap: () => onTap(p),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: usageColor.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.local_parking_rounded,
+                          size: 20, color: usageColor),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                '空き${p.available}/${p.capacity}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: usageColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                ' ・ 稼働${p.usageRatePercent}%'
+                                '${distanceLabel != null ? ' ・ $distanceLabel' : ''}',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.north_east_rounded,
+                        size: 16, color: AppColors.onSurfaceSecondary),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+double _haversineMeters(LatLng a, LatLng b) {
+  const earth = 6371000.0;
+  double toRad(double d) => d * math.pi / 180.0;
+  final dLat = toRad(b.latitude - a.latitude);
+  final dLng = toRad(b.longitude - a.longitude);
+  final h = math.pow(math.sin(dLat / 2), 2) +
+      math.cos(toRad(a.latitude)) *
+          math.cos(toRad(b.latitude)) *
+          math.pow(math.sin(dLng / 2), 2);
+  return earth * 2 * math.asin(math.sqrt(h.toDouble()));
 }
