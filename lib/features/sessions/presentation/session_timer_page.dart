@@ -216,6 +216,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     await ref.read(apiClientProvider).endSession(session.id);
     await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
+    ref.read(activeParkingInfoProvider.notifier).state = null;
     if (!mounted) return;
     Navigator.of(context).pop();
   }
@@ -363,7 +364,7 @@ class _StoreCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       padding: const EdgeInsets.all(20),
-      decoration: GlassDecoration.accentCard(radius: 22),
+      decoration: GlassDecoration.accentCard(context, radius: 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

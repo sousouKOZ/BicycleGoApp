@@ -19,4 +19,12 @@ class AppColors {
 
   static const glassBorder = Color(0x33FFFFFF);
   static const glassShadow = Color(0x14000000);
+
+  // Dark theme
+  static const backgroundDark = Color(0xFF0E121B);
+  static const surfaceDark = Color(0xFF181E2B);
+  static const onSurfacePrimaryDark = Color(0xFFF5F7FB);
+  static const onSurfaceSecondaryDark = Color(0xFFAAB1C2);
+  static const glassBorderDark = Color(0x33FFFFFF);
+  static const glassShadowDark = Color(0x44000000);
 }

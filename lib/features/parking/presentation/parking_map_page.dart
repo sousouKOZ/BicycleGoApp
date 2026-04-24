@@ -16,7 +16,9 @@ import '../domain/parking_lot.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/map_filter_providers.dart';
 import '../providers/parking_providers.dart';
+import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
+import '../providers/sort_mode_providers.dart';
 import 'parking_detail_sheet.dart';
 
 class ParkingMapPage extends ConsumerStatefulWidget {
@@ -476,7 +478,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                           children: [
                             Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: GlassDecoration.pill(),
+                              decoration: GlassDecoration.pill(context),
                               child: Icon(Icons.directions_bike,
                                   size: 18, color: AppColors.accent),
                             ),
@@ -495,7 +497,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                         ),
                       ),
                       DecoratedBox(
-                        decoration: GlassDecoration.light(radius: 16),
+                        decoration: GlassDecoration.light(context, radius: 16),
                         child: TextField(
                           controller: _searchController,
                           focusNode: _searchFocus,
@@ -619,7 +621,7 @@ class _CouponStripToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return DecoratedBox(
-      decoration: GlassDecoration.pill(),
+      decoration: GlassDecoration.pill(context),
       child: Material(
         color: Colors.transparent,
         shape: const StadiumBorder(),
@@ -668,7 +670,7 @@ class _CouponPreviewStrip extends StatelessWidget {
         final theme = Theme.of(context);
         final scheme = theme.colorScheme;
         return DecoratedBox(
-          decoration: GlassDecoration.accentCard(radius: 20),
+          decoration: GlassDecoration.accentCard(context, radius: 20),
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(20),
@@ -747,7 +749,7 @@ class _CouponPreviewStrip extends StatelessWidget {
   }
 }
 
-class _SearchResultsDropdown extends StatelessWidget {
+class _SearchResultsDropdown extends ConsumerWidget {
   final String query;
   final List<ParkingLot> allLots;
   final List<ParkingLot> filteredLots;
@@ -763,18 +765,32 @@ class _SearchResultsDropdown extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final sortMode = ref.watch(parkingSortModeProvider);
+
     final source = query.isEmpty ? allLots : filteredLots;
+    final recommendations = <String, ParkingRecommendation>{
+      for (final p in source)
+        p.id: computeRecommendation(
+          parking: p,
+          stores: stores,
+          userLocation: currentLocation,
+        ),
+    };
     final sorted = [...source];
-    if (currentLocation != null) {
+    if (sortMode == ParkingSortMode.recommend) {
+      sorted.sort((a, b) =>
+          recommendations[b.id]!.score.compareTo(recommendations[a.id]!.score));
+    } else if (currentLocation != null) {
       sorted.sort((a, b) => _haversineMeters(currentLocation!, a.position)
           .compareTo(_haversineMeters(currentLocation!, b.position)));
     }
 
     if (sorted.isEmpty) {
       return Container(
-        decoration: GlassDecoration.light(radius: 16),
+        decoration: GlassDecoration.light(context, radius: 16),
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -793,94 +809,238 @@ class _SearchResultsDropdown extends StatelessWidget {
     }
 
     return Container(
-      decoration: GlassDecoration.light(radius: 16),
+      decoration: GlassDecoration.light(context, radius: 16),
       clipBehavior: Clip.antiAlias,
-      constraints: const BoxConstraints(maxHeight: 320),
+      constraints: const BoxConstraints(maxHeight: 360),
       child: Material(
         color: Colors.transparent,
-        child: ListView.separated(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          itemCount: sorted.length,
-          separatorBuilder: (_, __) => Divider(
-            height: 1,
-            color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
-            indent: 62,
-          ),
-          itemBuilder: (_, i) {
-            final p = sorted[i];
-            final usage = p.usageRatePercent;
-            final usageColor = usage >= 85
-                ? AppColors.danger
-                : usage >= 60
-                    ? AppColors.warning
-                    : AppColors.success;
-            final distance = currentLocation == null
-                ? null
-                : _haversineMeters(currentLocation!, p.position);
-            final distanceLabel = distance == null
-                ? null
-                : distance >= 1000
-                    ? '${(distance / 1000).toStringAsFixed(1)}km'
-                    : '${distance.round()}m';
-            return InkWell(
-              onTap: () => onTap(p),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: usageColor.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.local_parking_rounded,
-                          size: 20, color: usageColor),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SortToggleRow(
+              mode: sortMode,
+              onChanged: (m) =>
+                  ref.read(parkingSortModeProvider.notifier).state = m,
+            ),
+            Divider(
+              height: 1,
+              color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: sorted.length,
+                separatorBuilder: (_, __) => Divider(
+                  height: 1,
+                  color: AppColors.onSurfaceSecondary.withValues(alpha: 0.1),
+                  indent: 62,
+                ),
+                itemBuilder: (_, i) {
+                  final p = sorted[i];
+                  final rec = recommendations[p.id]!;
+                  final usage = p.usageRatePercent;
+                  final usageColor = usage >= 85
+                      ? AppColors.danger
+                      : usage >= 60
+                          ? AppColors.warning
+                          : AppColors.success;
+                  final distance = currentLocation == null
+                      ? null
+                      : _haversineMeters(currentLocation!, p.position);
+                  final distanceLabel = distance == null
+                      ? null
+                      : distance >= 1000
+                          ? '${(distance / 1000).toStringAsFixed(1)}km'
+                          : '${distance.round()}m';
+                  return InkWell(
+                    onTap: () => onTap(p),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      child: Row(
                         children: [
-                          Text(
-                            p.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: usageColor.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.local_parking_rounded,
+                                size: 20, color: usageColor),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        p.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                    if (rec.isRecommended) ...[
+                                      const SizedBox(width: 6),
+                                      _RecommendBadge(
+                                        bonusPercent: rec.bonusPointsPercent,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    Text(
+                                      '空き${p.available}/${p.capacity}',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                        color: usageColor,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      ' ・ 稼働${p.usageRatePercent}%'
+                                      '${distanceLabel != null ? ' ・ $distanceLabel' : ''}',
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Text(
-                                '空き${p.available}/${p.capacity}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: usageColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              Text(
-                                ' ・ 稼働${p.usageRatePercent}%'
-                                '${distanceLabel != null ? ' ・ $distanceLabel' : ''}',
-                                style: theme.textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
+                          Icon(Icons.north_east_rounded,
+                              size: 16, color: AppColors.onSurfaceSecondary),
                         ],
                       ),
                     ),
-                    Icon(Icons.north_east_rounded,
-                        size: 16, color: AppColors.onSurfaceSecondary),
-                  ],
-                ),
+                  );
+                },
               ),
-            );
-          },
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _SortToggleRow extends StatelessWidget {
+  final ParkingSortMode mode;
+  final ValueChanged<ParkingSortMode> onChanged;
+  const _SortToggleRow({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      child: Row(
+        children: [
+          Icon(Icons.sort_rounded,
+              size: 16, color: AppColors.onSurfaceSecondary),
+          const SizedBox(width: 6),
+          Text(
+            '並び替え',
+            style: theme.textTheme.labelMedium,
+          ),
+          const Spacer(),
+          _SortToggleButton(
+            label: '距離順',
+            selected: mode == ParkingSortMode.distance,
+            onTap: () => onChanged(ParkingSortMode.distance),
+          ),
+          const SizedBox(width: 6),
+          _SortToggleButton(
+            label: 'おすすめ順',
+            selected: mode == ParkingSortMode.recommend,
+            onTap: () => onChanged(ParkingSortMode.recommend),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortToggleButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SortToggleButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: selected ? AppColors.accent : Colors.transparent,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected
+              ? Colors.transparent
+              : AppColors.onSurfaceSecondary.withValues(alpha: 0.2),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: selected ? Colors.white : AppColors.onSurfacePrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendBadge extends StatelessWidget {
+  final int bonusPercent;
+  const _RecommendBadge({required this.bonusPercent});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.accent, AppColors.accentAlt],
+        ),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_awesome_rounded,
+              size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            bonusPercent > 0 ? 'おすすめ +$bonusPercent%' : 'おすすめ',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 10,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -966,7 +1126,7 @@ class _FilterChipItem extends StatelessWidget {
                 ),
               ],
             )
-          : GlassDecoration.pill(),
+          : GlassDecoration.pill(context),
       child: Material(
         color: Colors.transparent,
         shape: const StadiumBorder(),
@@ -1029,7 +1189,7 @@ class _RouteBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      decoration: GlassDecoration.light(radius: 16),
+      decoration: GlassDecoration.light(context, radius: 16),
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       child: Row(
         children: [

@@ -146,7 +146,7 @@ class _DistributingCouponCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: GlassDecoration.accentCard(radius: 22),
+      decoration: GlassDecoration.accentCard(context, radius: 22),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(22),
@@ -216,7 +216,7 @@ class _EmptyState extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: GlassDecoration.pill(),
+              decoration: GlassDecoration.pill(context),
               child: Icon(Icons.confirmation_number_rounded,
                   size: 40, color: AppColors.accent),
             ),
@@ -250,8 +250,8 @@ class _CouponCard extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: isUsable
-          ? GlassDecoration.accentCard(radius: 22)
-          : GlassDecoration.light(radius: 22, opacity: 0.72),
+          ? GlassDecoration.accentCard(context, radius: 22)
+          : GlassDecoration.light(context, radius: 22, opacity: 0.72),
       child: Opacity(
         opacity: isUsable ? 1.0 : 0.7,
         child: Padding(

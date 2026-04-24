@@ -5,8 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../stores/domain/store.dart';
+import '../../stores/presentation/store_preview_sheet.dart';
+import '../../stores/providers/store_providers.dart';
 import '../data/directions_service.dart';
 import '../providers/favorite_providers.dart';
+import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
@@ -87,6 +91,12 @@ class ParkingDetailSheet extends ConsumerWidget {
         ? null
         : (distanceMeters / 80.0).round();
     final usageColor = _usageColor(usage);
+    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final recommendation = computeRecommendation(
+      parking: parking,
+      stores: stores,
+      userLocation: currentLocation,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -218,6 +228,12 @@ class ParkingDetailSheet extends ConsumerWidget {
               ],
             ],
           ),
+          if (recommendation.nearbyStores.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            _NearbyCouponsSection(
+              recommendation: recommendation,
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -279,6 +295,7 @@ class ParkingDetailSheet extends ConsumerWidget {
                       isScrollControlled: true,
                       showDragHandle: true,
                       builder: (_) => NfcLockSheet(
+                        parkingId: parking.id,
                         parkingName: parking.name,
                         deviceId: device.id,
                       ),
@@ -429,6 +446,122 @@ Color _usageColor(double usage) {
   if (usage >= 0.85) return AppColors.danger;
   if (usage >= 0.6) return AppColors.warning;
   return AppColors.success;
+}
+
+class _NearbyCouponsSection extends StatelessWidget {
+  final ParkingRecommendation recommendation;
+  const _NearbyCouponsSection({required this.recommendation});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bonus = recommendation.bonusPointsPercent;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.accent.withValues(alpha: 0.08),
+            AppColors.accentAlt.withValues(alpha: 0.08),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.local_offer_rounded,
+                    size: 14, color: AppColors.accent),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '近くで使えるクーポン',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppColors.onSurfacePrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              if (bonus > 0)
+                Text(
+                  '遠距離ボーナス +$bonus%',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: recommendation.nearbyStores
+                .map((s) => _NearbyStoreChip(store: s))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NearbyStoreChip extends StatelessWidget {
+  final Store store;
+  const _NearbyStoreChip({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.white,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: AppColors.accent.withValues(alpha: 0.25),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => StorePreviewSheet(store: store),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.local_offer_rounded,
+                  size: 12, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Text(
+                store.name,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.onSurfacePrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _FavoriteButton extends ConsumerWidget {

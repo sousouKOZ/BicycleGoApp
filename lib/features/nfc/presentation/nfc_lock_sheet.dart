@@ -17,11 +17,13 @@ import '../../user/providers/user_providers.dart';
 enum _Stage { waitingTag, verifying, success, error }
 
 class NfcLockSheet extends ConsumerStatefulWidget {
+  final String parkingId;
   final String parkingName;
   final String deviceId;
 
   const NfcLockSheet({
     super.key,
+    required this.parkingId,
     required this.parkingName,
     required this.deviceId,
   });
@@ -113,6 +115,10 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
 
       if (!mounted) return;
       ref.read(activeSessionProvider.notifier).state = session;
+      ref.read(activeParkingInfoProvider.notifier).state = ActiveParkingInfo(
+        parkingId: widget.parkingId,
+        parkingName: widget.parkingName,
+      );
       unawaited(_scheduleSessionNotifications(session));
       setState(() {
         _stage = _Stage.success;
@@ -242,7 +248,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
           const SizedBox(height: 22),
           Container(
             padding: const EdgeInsets.symmetric(vertical: 28),
-            decoration: GlassDecoration.accentCard(radius: 24),
+            decoration: GlassDecoration.accentCard(context, radius: 24),
             child: Column(
               children: [
                 AnimatedSwitcher(

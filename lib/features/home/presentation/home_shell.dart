@@ -10,8 +10,10 @@ import '../../mypage/presentation/my_page.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/presentation/parking_map_page.dart';
 import '../../parking/providers/session_providers.dart';
+import '../../sessions/domain/session_record.dart';
 import '../../sessions/presentation/coupon_earned_page.dart';
 import '../../sessions/presentation/session_mini_bar.dart';
+import '../../sessions/providers/session_history_providers.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -65,6 +67,21 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ref.read(activeSessionProvider.notifier).state =
           session.copyWith(status: ParkingSessionStatus.achieved);
       ref.read(latestEarnedCouponProvider.notifier).state = coupon;
+      final parkingInfo = ref.read(activeParkingInfoProvider);
+      if (parkingInfo != null) {
+        await ref.read(sessionHistoryProvider.notifier).add(
+              SessionRecord(
+                id: session.id,
+                parkingId: parkingInfo.parkingId,
+                parkingName: parkingInfo.parkingName,
+                startedAt: session.authenticatedAt!,
+                completedAt: DateTime.now(),
+                earnedPoints: 10,
+                issuedCouponId: coupon.id,
+                couponBenefit: coupon.benefit,
+              ),
+            );
+      }
       if (!mounted) return;
       final navigator = Navigator.of(context, rootNavigator: true);
       navigator.popUntil((r) => r.isFirst);

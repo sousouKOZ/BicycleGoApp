@@ -71,6 +71,7 @@ class CouponEarnedPage extends ConsumerWidget {
     }
     await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
+    ref.read(activeParkingInfoProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
     if (!context.mounted) return;
@@ -94,6 +95,7 @@ class CouponEarnedPage extends ConsumerWidget {
   void _backToHome(BuildContext context, WidgetRef ref) {
     NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
+    ref.read(activeParkingInfoProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
     Navigator.of(context).popUntil((r) => r.isFirst);
@@ -180,7 +182,7 @@ class _CouponCard extends StatelessWidget {
         '${expires.year}/${expires.month.toString().padLeft(2, '0')}/${expires.day.toString().padLeft(2, '0')}';
     return Container(
       padding: const EdgeInsets.all(22),
-      decoration: GlassDecoration.accentCard(radius: 24),
+      decoration: GlassDecoration.accentCard(context, radius: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

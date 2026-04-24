@@ -10,6 +10,9 @@ import '../../parking/presentation/parking_detail_sheet.dart';
 import '../../parking/providers/favorite_providers.dart';
 import '../../parking/providers/parking_providers.dart';
 import '../../points/providers/points_providers.dart';
+import '../../sessions/presentation/session_history_page.dart';
+import '../../sessions/providers/session_history_providers.dart';
+import '../../settings/presentation/settings_page.dart';
 
 class MyPage extends ConsumerWidget {
   const MyPage({super.key});
@@ -48,7 +51,7 @@ class MyPage extends ConsumerWidget {
                     .toList();
                 if (usable.isEmpty) {
                   return Container(
-                    decoration: GlassDecoration.light(radius: 20),
+                    decoration: GlassDecoration.light(context, radius: 20),
                     padding: const EdgeInsets.all(18),
                     child: Row(
                       children: [
@@ -86,15 +89,25 @@ class MyPage extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Container(
-              decoration: GlassDecoration.light(radius: 20),
+              decoration: GlassDecoration.light(context, radius: 20),
               clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
-                  _MenuTile(
-                    icon: Icons.history_rounded,
-                    title: '駐輪履歴',
-                    hint: '準備中',
-                    onTap: () {},
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final count =
+                          ref.watch(sessionHistoryProvider).length;
+                      return _MenuTile(
+                        icon: Icons.history_rounded,
+                        title: '駐輪履歴',
+                        hint: count == 0 ? '未取得' : '$count件',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SessionHistoryPage(),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   Divider(
                     height: 1,
@@ -104,8 +117,12 @@ class MyPage extends ConsumerWidget {
                   _MenuTile(
                     icon: Icons.settings_rounded,
                     title: '設定',
-                    hint: '準備中',
-                    onTap: () {},
+                    hint: 'テーマ・通知',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsPage(),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -266,7 +283,7 @@ class _OwnedCouponTile extends StatelessWidget {
         '${expires.month}/${expires.day.toString().padLeft(2, '0')}まで';
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: GlassDecoration.light(radius: 18),
+      decoration: GlassDecoration.light(context, radius: 18),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
@@ -436,7 +453,7 @@ class _FavoriteParkingSection extends ConsumerWidget {
             lots.where((p) => favorites.contains(p.id)).toList(growable: false);
         if (favLots.isEmpty) {
           return Container(
-            decoration: GlassDecoration.light(radius: 20),
+            decoration: GlassDecoration.light(context, radius: 20),
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
@@ -478,7 +495,7 @@ class _FavoriteParkingTile extends ConsumerWidget {
             : AppColors.success;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: GlassDecoration.light(radius: 18),
+      decoration: GlassDecoration.light(context, radius: 18),
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
