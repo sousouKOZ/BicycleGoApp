@@ -25,7 +25,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     ),
     _Step(
       icon: Icons.nfc_rounded,
-      title: 'NFCでサッと計測開始',
+      title: 'タッチでサッと計測開始',
       body: '駐輪したらロックのタグをスキャンするだけ。\n'
           '15分の駐輪タイマーが自動で始まります。',
       accent: AppColors.accentAlt,

@@ -49,7 +49,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       if (!mounted) return;
       setState(() {
         _stage = _Stage.verifying;
-        _message = 'NFC未対応端末：デモモードで認証を実行します';
+        _message = 'タッチ非対応端末：デモモードで認証を実行します';
       });
       await _authenticate();
       return;

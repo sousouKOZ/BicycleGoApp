@@ -313,7 +313,7 @@ class ParkingDetailSheet extends ConsumerWidget {
                     );
                   },
                   icon: const Icon(Icons.nfc_rounded, size: 20),
-                  label: const Text('NFCで計測開始'),
+                  label: const Text('タッチで計測開始'),
                 ),
               ),
             ],
