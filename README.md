@@ -63,6 +63,10 @@
   - 取得後に自動でルート全体が収まる範囲へカメラズーム
   - 地図上部に[_RouteBanner](lib/features/parking/presentation/parking_map_page.dart)（駐輪場名・距離・所要時間・×ボタン）を表示
   - ✕タップでポリライン・バナーを一括クリア
+- **位置情報パーミッションバナー** [LocationPermissionBanner](lib/features/parking/presentation/widgets/location_permission_banner.dart)
+  - 拒否／拒否（永続）／サービスOFF を [LocationPermissionNotifier](lib/features/parking/providers/location_permission_providers.dart) で4状態に集約
+  - 状態別の見出しと CTA — 「位置情報を許可」「設定アプリを開く」「位置情報の設定を開く」
+  - dialog 連打を廃止し、検索バー直下のガラス調バナーに集約
 
 ### 駐輪場詳細シート [ParkingDetailSheet](lib/features/parking/presentation/parking_detail_sheet.dart)
 - 空き／収容／料金の3カラム表示
@@ -92,6 +96,9 @@
 - 対象店舗カード（特典プレビュー付き）
 - **最小化ボタン** — 画面を閉じてもセッションは背景で継続、ミニバーから再展開可能
 - 「計測を中止する」で確認ダイアログ → セッション破棄
+- **通知OFF時の誘導カード** [_NotificationHint](lib/features/sessions/presentation/session_timer_page.dart)
+  - [NotificationPermissionNotifier](lib/features/sessions/providers/notification_permission_providers.dart) を監視
+  - 「許可」タップで再リクエスト、再拒否なら設定アプリへ自動遷移
 
 ### セッションミニバー [SessionMiniBar](lib/features/sessions/presentation/session_mini_bar.dart)
 - 計測中は**ボトムナビゲーションの上に常駐**するグラデーションバー
@@ -99,26 +106,62 @@
 - **全タブから進捗確認可能**（地図／クーポン／マイページ切替時も表示継続）
 - タップで計測画面を再展開
 - 15分達成判定・`evaluateEarn` 呼び出し・獲得画面遷移は **HomeShellに集約** — どの画面からでもクーポン獲得画面に自動遷移
+- **`parked` モード** — クーポン獲得後も自転車を出していない間は緑グラデの「駐輪中（クーポン獲得済）」バーに切替、累計駐輪時間を表示
+  - タップで [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart) を表示
 
 ### クーポン獲得画面 [CouponEarnedPage](lib/features/sessions/presentation/coupon_earned_page.dart)
 - 達成バナー（グラデーション + 祝福アイコン）
 - 発行されたクーポンの大型カード表示（店舗・特典・有効期限）
 - **スワイプto消込**（`SwipeToUse`ウィジェット・店舗スタッフ面前で利用）
-- 「あとで使う」でマイページのクーポン一覧へ保存
+- 「あとで使う（駐輪は継続中）」 — クーポンを保存しつつセッションを `parked` 状態に遷移、ミニバーから出庫操作を継続できる
+- **入場時の触覚フィードバック** — `HapticFeedback.heavyImpact()` で達成感を物理的にも演出
+- **スパークルバースト** [_SparkleBurst](lib/features/sessions/presentation/coupon_earned_page.dart) — バナー周辺で14個のパーティクルが放射状に拡散（CustomPainter、外部依存なし）
+- **シェアボタン** — 達成バナー右肩のアイコン。タップで「#BicycleGo で15分駐輪したら ○○ の『△△』クーポンが届いた！」をクリップボードにコピー（追加パッケージ不要、SNS への貼り付けを想定）
+
+### 出庫シート [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart)
+- 駐輪場名・駐輪開始時刻・累計駐輪時間・ステータスを一覧表示
+- 「自転車を出す」で `api.endSession` を呼び、履歴の `completedAt` を**実際の出庫時刻**に上書き（[SessionHistory.updateCompletedAt](lib/features/sessions/providers/session_history_providers.dart)）
+- セッションを `completed` に遷移しミニバーを消去、駐輪場の空き情報更新トリガとなる
+- 「まだ出さない」でシートだけ閉じる（セッションは継続）
 
 ### クーポン一覧 [CouponListPage](lib/features/coupons/presentation/coupon_list_page.dart)
 - セクション別表示：**配信中 / 利用可能 / 使用済み / 期限切れ**
 - 配信中クーポンは店舗一覧から（未取得でも閲覧可能）
 - プルダウンで手動リフレッシュ
 - 空状態の専用イラスト
+- **検索バー** — 店名・特典文の部分一致でフィルタ（[couponSearchQueryProvider](lib/features/coupons/providers/coupon_filter_providers.dart)）
+- **並び順トグル** — `新しい順 / 期限が近い順`（[couponSortModeProvider](lib/features/coupons/providers/coupon_filter_providers.dart)）
+- カードタップで [CouponDetailPage](lib/features/coupons/presentation/coupon_detail_page.dart) に遷移
+
+### クーポン詳細ページ [CouponDetailPage](lib/features/coupons/presentation/coupon_detail_page.dart)
+- ステータスバッジ（利用可能／使用済み／期限切れ）と発行元タグ
+- 特典ヒーローカード（`StorePreviewSheet` と統一感のあるグラデ）
+- **有効期限カウントダウン** — `あと N日 H時間` 形式で30秒ごとに自動更新
+- **「店舗を地図で開く」** — `url_launcher` で Google Maps を外部起動（緯度経度クエリ）
+- 利用方法（3ステップ）・クーポン情報テーブル（発行日時／有効期限／使用日時／クーポンID）
+- 利用可能なクーポンは画面下部に [SwipeToUse](lib/features/coupons/presentation/widgets/swipe_to_use.dart) を表示、消込後は自動で前画面に戻る
+- 使用済み・期限切れは無効状態のラベルカードを表示
 
 ### マイページ [MyPage](lib/features/mypage/presentation/my_page.dart)
 - ポイント残高カード（グラデーションヒーロー）
-- 「交換する」ボタン（準備中）
-- 利用可能クーポンの一覧表示（タップで詳細想定）
+- **「交換する」ボタン** — [PointsExchangePage](lib/features/points/presentation/points_exchange_page.dart) に遷移
+- 利用可能クーポンの一覧表示（タップで [CouponDetailPage](lib/features/coupons/presentation/coupon_detail_page.dart) へ）
 - **お気に入り駐輪場セクション** — 登録済み駐輪場をカード一覧表示、タップで詳細シートを開く（未登録時は誘導文を表示）
 - **駐輪履歴メニュー** — 件数バッジ付き、タップで履歴画面に遷移
 - **設定メニュー** — テーマ切替・通知権限確認
+
+### ポイント交換 [PointsExchangePage](lib/features/points/presentation/points_exchange_page.dart)
+- 残高ヒーローカード + カテゴリ絞り込みチップ（カフェ／グルメ／物販／モビリティ／寄付）
+- 商品リスト（[exchangeCatalog](lib/features/points/data/exchange_catalog_data.dart)）
+  - 各タイル：アイコン・タイトル・説明・必要ポイント
+  - 残高不足の商品は薄表示
+- タップで [ExchangeConfirmSheet](lib/features/points/presentation/exchange_confirm_sheet.dart)（必要pt／現在残高／交換後残高を可視化、不足ならボタン無効）
+- 交換確定で
+  - `api.issueExchangeCoupon` を呼び、**即時 `owned` 状態のクーポン**を発行（駐輪達成と異なり15分待ち不要）
+  - ポイント残高を減算
+  - [ExchangeHistory](lib/features/points/providers/exchange_providers.dart) に記録（`shared_preferences` に永続化、キー: `exchange_history_v1`）
+  - `userCouponsProvider` を invalidate して利用可能クーポンに反映
+- 右上の履歴アイコンから [ExchangeHistoryPage](lib/features/points/presentation/exchange_history_page.dart) — 商品名・交換日時・消費pt を時系列表示
 
 ### 駐輪履歴 [SessionHistoryPage](lib/features/sessions/presentation/session_history_page.dart)
 - 15分達成（クーポン獲得）時に自動記録され、端末ローカルに永続化（キー: `session_history_v1`、最大200件）
@@ -129,7 +172,7 @@
 
 ### 設定 [SettingsPage](lib/features/settings/presentation/settings_page.dart)
 - **テーマモード切替** — 端末設定に合わせる／ライト／ダーク の3択。選択は `shared_preferences` に永続化（キー: `app_theme_mode_v1`）
-- **通知権限確認** — NotificationService 経由で現在の権限状態をスナックバー表示
+- **通知権限確認** — NotificationService 経由で権限状態を取得してスナックバー表示。結果は [NotificationPermissionNotifier](lib/features/sessions/providers/notification_permission_providers.dart) にも反映され、計測中のヒントカードと同期
 - **アプリバージョン**表示
 - [ダークテーマ実装](lib/core/theme/app_theme.dart) — `ColorScheme.fromSeed(brightness: dark)` ベース、[GlassDecoration](lib/core/theme/glass_decoration.dart) もcontext経由でダーク配色に追従
 
@@ -168,6 +211,7 @@
 
 ## 🔄 主要フロー
 
+### 駐輪 → クーポン獲得
 ```
 駐輪場マーカー選択
   ↓ 「NFCで計測開始」
@@ -175,9 +219,25 @@ NFC認証シート（タグ読み取り + GPS照合）
   ↓ 認証成功
 計測中画面（15分カウントダウン）
   ↓ 15分経過
-クーポン獲得画面
-  ↓ スワイプ消込
-クーポン使用完了 → 地図に戻る
+クーポン獲得画面（haptic + sparkle + share）
+  ↓ ① スワイプ消込 — 店舗で即利用、セッション完了
+  ↓ ② 「あとで使う（駐輪は継続中）」 — クーポン保存、セッションは parked
+出庫タイミング：ミニバーから CheckoutSheet
+  ↓ 「自転車を出す」
+セッション完了（履歴の completedAt を実出庫時刻に上書き）
+```
+
+### ポイント交換
+```
+マイページ「交換する」
+  ↓
+PointsExchangePage（カテゴリ絞り込み + 商品リスト）
+  ↓ 商品タップ
+ExchangeConfirmSheet（残高検証）
+  ↓ 「交換する」
+api.issueExchangeCoupon → 即時 owned クーポン発行 + 残高減算 + 履歴記録
+  ↓
+クーポン一覧の「利用可能」セクションに反映
 ```
 
 5分以内にNFC認証されなかった場合はセッション失効（`AuthGraceExpiredException`）。
@@ -203,17 +263,22 @@ lib/
 ├── routes.dart            # ルート定義
 ├── core/
 │   ├── api/               # ApiClient抽象 + MockApiClient実装
+│   ├── config/            # APIキー読み込み等
+│   ├── recommendation/    # クーポン推薦スコアリング
 │   ├── theme/             # カラー・グラス装飾・テーマ
 │   └── widgets/, utils/   # 共通ウィジェット・ユーティリティ
 └── features/
-    ├── parking/           # 駐輪場・セッション・地図
+    ├── parking/           # 駐輪場・地図・位置情報パーミッション
     ├── stores/            # 提携店舗
-    ├── coupons/           # クーポン・スワイプ消込
-    ├── sessions/          # 計測タイマー・獲得演出
+    ├── coupons/           # クーポン・詳細ページ・フィルタ・スワイプ消込
+    ├── sessions/          # 計測タイマー・獲得演出・出庫シート・通知パーミッション
     ├── nfc/               # NFC認証シート
-    ├── points/            # ポイント残高
+    ├── points/            # ポイント残高・交換カタログ・交換履歴
+    ├── alerts/            # 通知関連プロバイダ
     ├── user/              # ユーザー情報
     ├── mypage/            # マイページ
+    ├── settings/          # 設定（テーマ・通知）
+    ├── onboarding/        # 初回起動オンボーディング
     └── home/              # ボトムナビシェル
 ```
 
@@ -229,8 +294,11 @@ lib/
 - **Flutter 3.x / Dart**（Material 3）
 - **flutter_riverpod** — 状態管理
 - **google_maps_flutter** — 地図表示
-- **geolocator** — 位置情報取得
+- **geolocator** — 位置情報取得 + 設定アプリ起動
 - **nfc_manager** — NFCタグ読み取り（`third_party/` にローカルフォーク）
+- **flutter_local_notifications + timezone** — セッション通知の予約
+- **shared_preferences** — お気に入り／履歴／オンボーディング状態の永続化
+- **url_launcher** — クーポン詳細から外部マップを起動
 - **google_fonts** — Inter / Noto Sans JP
 
 ### バックエンド（現状）
@@ -335,9 +403,14 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 
 - データベース選定・バックエンド実装（Supabase想定・担当者別）
 - クーポン内容と距離のマッピングロジック確定
-- ポイント交換UIと交換商品ラインナップ
-- 駐輪履歴画面・設定画面の実装
+- 交換商品ラインナップの最終版（現状はモックカタログ6種）
 - 実機駐輪場データの取得方法（API連携 or 手動登録）
+- 通知センター画面（[features/alerts](lib/features/alerts) は providers のみ存在）
+- 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
+- 駐輪場の混雑予測（時間帯別ヒートマップ）
+- 機種変更でも引き継げるユーザー認証（現状は端末ローカル）
+- ヘルプ／FAQ／利用規約／プライバシー
+- 多言語対応（i18n の土台）
 
 ---
 
@@ -352,3 +425,19 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 - 意思決定時点の現在地をスナップショットとして使用
 - リアルタイム追跡は行わない
 - NFCタッチ時に距離評価を確定（到着後の現在地更新で不整合が生じるのを防ぐ）
+
+### セッション状態遷移
+- `unauthenticated` → NFC検知のみ（認証待ち）
+- `measuring` → 認証成功後の15分カウントダウン
+- `achieved` → 15分達成・クーポン獲得画面表示中
+- `parked` → クーポン獲得後も自転車を出していない（ミニバーは緑モード）
+- `completed` → 出庫完了
+- `expired` → 5分以内に認証されなかった
+- `parked` 中は HomeShell の `_checkSession` が再評価しない（重複発行防止）
+
+### クーポン発行タイミング
+- **駐輪達成クーポン** — 15分経過後に `evaluateEarn` で発行（距離に応じて `near / far / exchange` tier）
+  - 有効期限: 3日
+- **ポイント交換クーポン** — `issueExchangeCoupon` で**即時 `owned`** で発行
+  - 有効期限: 30日
+  - `storeId = 'exchange-{itemId}'` のため地図検索には現れない（クーポン詳細の「店舗を地図で開く」も非表示）
