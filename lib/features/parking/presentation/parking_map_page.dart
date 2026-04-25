@@ -14,12 +14,14 @@ import '../../stores/providers/store_providers.dart';
 import '../domain/directions_route.dart';
 import '../domain/parking_lot.dart';
 import '../providers/favorite_providers.dart';
+import '../providers/location_permission_providers.dart';
 import '../providers/map_filter_providers.dart';
 import '../providers/parking_providers.dart';
 import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
 import '../providers/sort_mode_providers.dart';
 import 'parking_detail_sheet.dart';
+import 'widgets/location_permission_banner.dart';
 
 class ParkingMapPage extends ConsumerStatefulWidget {
   const ParkingMapPage({super.key});
@@ -228,27 +230,13 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
   }
 
-  Future<void> _fetchCurrentLocation() async {
+  Future<void> _fetchCurrentLocation({bool requestIfDenied = true}) async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        _showLocationDialog(
-          title: '位置情報がオフです',
-          message: '端末の位置情報サービスをオンにしてください。',
-        );
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        _showLocationDialog(
-          title: '位置情報の権限が必要です',
-          message: '設定から位置情報の許可を有効にしてください。',
-        );
+      final notifier = ref.read(locationPermissionProvider.notifier);
+      final status = requestIfDenied
+          ? await notifier.request()
+          : await notifier.refresh();
+      if (status != LocationGateStatus.granted) {
         return;
       }
 
@@ -272,30 +260,6 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
         );
       }
     } catch (_) {}
-  }
-
-  void _showLocationDialog({
-    required String title,
-    required String message,
-  }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-    });
   }
 
   @override
@@ -520,6 +484,14 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                             focusedBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 16),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: LocationPermissionBanner(
+                          onGranted: () => _fetchCurrentLocation(
+                            requestIfDenied: false,
                           ),
                         ),
                       ),

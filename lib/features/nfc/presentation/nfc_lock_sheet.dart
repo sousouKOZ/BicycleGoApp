@@ -12,6 +12,7 @@ import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../sessions/data/notification_service.dart';
+import '../../sessions/providers/notification_permission_providers.dart';
 import '../../user/providers/user_providers.dart';
 
 enum _Stage { waitingTag, verifying, success, error }
@@ -86,7 +87,16 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
   Future<void> _scheduleSessionNotifications(ParkingSession session) async {
     final startedAt = session.authenticatedAt ?? DateTime.now();
     final notifier = NotificationService.instance;
-    await notifier.requestPermissions();
+    final granted = await notifier.requestPermissions();
+    if (mounted) {
+      final permNotifier =
+          ref.read(notificationPermissionProvider.notifier);
+      if (granted) {
+        permNotifier.markGranted();
+      } else {
+        permNotifier.markDenied();
+      }
+    }
     await notifier.scheduleSessionReminders(
       sessionStartAt: startedAt,
       parkingName: widget.parkingName,

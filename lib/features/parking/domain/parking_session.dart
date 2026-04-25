@@ -2,6 +2,9 @@ enum ParkingSessionStatus {
   unauthenticated,
   measuring,
   achieved,
+  // クーポン獲得後も自転車をまだ出していない状態。
+  // ユーザーが「自転車を出す」操作を行うまで保持される。
+  parked,
   completed,
   expired,
 }

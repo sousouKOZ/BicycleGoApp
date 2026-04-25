@@ -43,6 +43,16 @@ class SessionHistory extends StateNotifier<List<SessionRecord>> {
     await _save();
   }
 
+  /// 出庫が確定した際に、該当履歴の completedAt を実際の出庫時刻に上書きする。
+  Future<void> updateCompletedAt(String recordId, DateTime completedAt) async {
+    final next = state
+        .map((r) => r.id == recordId ? r.copyWith(completedAt: completedAt) : r)
+        .toList()
+      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+    state = next;
+    await _save();
+  }
+
   Future<void> clear() async {
     state = const <SessionRecord>[];
     final prefs = await SharedPreferences.getInstance();

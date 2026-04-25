@@ -22,6 +22,24 @@ class SessionRecord {
 
   Duration get duration => completedAt.difference(startedAt);
 
+  SessionRecord copyWith({
+    DateTime? completedAt,
+    int? earnedPoints,
+    String? issuedCouponId,
+    String? couponBenefit,
+  }) {
+    return SessionRecord(
+      id: id,
+      parkingId: parkingId,
+      parkingName: parkingName,
+      startedAt: startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      earnedPoints: earnedPoints ?? this.earnedPoints,
+      issuedCouponId: issuedCouponId ?? this.issuedCouponId,
+      couponBenefit: couponBenefit ?? this.couponBenefit,
+    );
+  }
+
   Map<String, Object?> toJson() => {
         'id': id,
         'parkingId': parkingId,

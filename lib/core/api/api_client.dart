@@ -43,6 +43,17 @@ abstract class ApiClient {
   /// セッション終了（出庫）。
   Future<ParkingSession> endSession(String sessionId);
 
+  /// ポイント交換でクーポンを即時発行する。
+  /// 駐輪達成と異なり距離スコアに依存せず、保有クーポン（owned）として直ちに利用可能。
+  Future<Coupon> issueExchangeCoupon({
+    required String userId,
+    required String exchangeItemId,
+    required String displayStoreName,
+    required String title,
+    required String benefit,
+    required Duration validity,
+  });
+
   /// マップ表示用の空き状況一覧（§7.1）。
   Future<List<ParkingLot>> getParkingLots();
 

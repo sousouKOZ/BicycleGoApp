@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../coupons/domain/coupon.dart';
+import '../../coupons/presentation/coupon_detail_page.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/domain/parking_lot.dart';
 import '../../parking/presentation/parking_detail_sheet.dart';
 import '../../parking/providers/favorite_providers.dart';
 import '../../parking/providers/parking_providers.dart';
+import '../../points/presentation/points_exchange_page.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_history_page.dart';
 import '../../sessions/providers/session_history_providers.dart';
@@ -245,7 +247,11 @@ class _PointsCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const PointsExchangePage(),
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.accent,
@@ -288,7 +294,11 @@ class _OwnedCouponTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () {},
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CouponDetailPage(coupon: coupon),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(

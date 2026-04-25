@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_providers.dart';
 import '../../sessions/data/notification_service.dart';
+import '../../sessions/providers/notification_permission_providers.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -45,6 +46,13 @@ class SettingsPage extends ConsumerWidget {
                   onTap: () async {
                     final ok = await NotificationService.instance
                         .requestPermissions();
+                    final permNotifier =
+                        ref.read(notificationPermissionProvider.notifier);
+                    if (ok) {
+                      permNotifier.markGranted();
+                    } else {
+                      permNotifier.markDenied();
+                    }
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

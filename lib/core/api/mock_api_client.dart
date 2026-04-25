@@ -234,6 +234,33 @@ class MockApiClient implements ApiClient {
   }
 
   @override
+  Future<Coupon> issueExchangeCoupon({
+    required String userId,
+    required String exchangeItemId,
+    required String displayStoreName,
+    required String title,
+    required String benefit,
+    required Duration validity,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    final now = DateTime.now();
+    final coupon = Coupon(
+      id: _nextId('cp-exch'),
+      storeId: 'exchange-$exchangeItemId',
+      storeName: displayStoreName,
+      title: title,
+      benefit: benefit,
+      issuedAt: now,
+      expiresAt: now.add(validity),
+      status: CouponStatus.owned,
+      distanceTier: CouponDistanceTier.exchange,
+    );
+    final list = _userCoupons.putIfAbsent(userId, () => <Coupon>[]);
+    list.insert(0, coupon);
+    return coupon;
+  }
+
+  @override
   Future<ParkingSession> endSession(String sessionId) async {
     await Future<void>.delayed(const Duration(milliseconds: 80));
     final session = _sessions[sessionId];

@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
@@ -7,15 +10,44 @@ import '../../../core/theme/glass_decoration.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
+import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
 import '../data/notification_service.dart';
+import '../providers/session_history_providers.dart';
 
-class CouponEarnedPage extends ConsumerWidget {
+class CouponEarnedPage extends ConsumerStatefulWidget {
   const CouponEarnedPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CouponEarnedPage> createState() => _CouponEarnedPageState();
+}
+
+class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _burstController;
+
+  @override
+  void initState() {
+    super.initState();
+    _burstController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HapticFeedback.heavyImpact();
+      _burstController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _burstController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final coupon = ref.watch(latestEarnedCouponProvider);
     if (coupon == null) {
       return const Scaffold(
@@ -31,7 +63,17 @@ class CouponEarnedPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             children: [
-              const _CelebrationBanner(),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  _CelebrationBanner(onShare: () => _share(coupon)),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: _SparkleBurst(controller: _burstController),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               Expanded(child: _CouponCard(coupon: coupon)),
               const SizedBox(height: 16),
@@ -42,9 +84,9 @@ class CouponEarnedPage extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               TextButton(
-                onPressed: () => _backToHome(context, ref),
+                onPressed: () => _keepParkedAndExit(context, ref),
                 child: Text(
-                  'あとで使う（クーポン一覧に保存）',
+                  'あとで使う（駐輪は継続中）',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: context.textSecondary,
                         fontWeight: FontWeight.w700,
@@ -58,6 +100,17 @@ class CouponEarnedPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _share(Coupon coupon) async {
+    HapticFeedback.selectionClick();
+    final text =
+        '#BicycleGo で15分駐輪したら ${coupon.storeName} の「${coupon.benefit}」クーポンが届いた！';
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('シェア用テキストをコピーしました')),
+    );
+  }
+
   Future<void> _redeem(
       BuildContext context, WidgetRef ref, Coupon coupon) async {
     final api = ref.read(apiClientProvider);
@@ -66,6 +119,9 @@ class CouponEarnedPage extends ConsumerWidget {
     final session = ref.read(activeSessionProvider);
     if (session != null) {
       await api.endSession(session.id);
+      await ref
+          .read(sessionHistoryProvider.notifier)
+          .updateCompletedAt(session.id, DateTime.now());
     }
     await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
@@ -90,10 +146,15 @@ class CouponEarnedPage extends ConsumerWidget {
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
-  void _backToHome(BuildContext context, WidgetRef ref) {
+  /// クーポンは保存し、駐輪セッションを `parked` 状態として継続する。
+  /// 自転車を出すタイミングでミニバーから出庫操作（CheckoutSheet）を行う。
+  void _keepParkedAndExit(BuildContext context, WidgetRef ref) {
     NotificationService.instance.cancelSessionReminders();
-    ref.read(activeSessionProvider.notifier).state = null;
-    ref.read(activeParkingInfoProvider.notifier).state = null;
+    final session = ref.read(activeSessionProvider);
+    if (session != null) {
+      ref.read(activeSessionProvider.notifier).state =
+          session.copyWith(status: ParkingSessionStatus.parked);
+    }
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
     Navigator.of(context).popUntil((r) => r.isFirst);
@@ -101,13 +162,14 @@ class CouponEarnedPage extends ConsumerWidget {
 }
 
 class _CelebrationBanner extends StatelessWidget {
-  const _CelebrationBanner();
+  final VoidCallback? onShare;
+  const _CelebrationBanner({this.onShare});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 12, 20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
@@ -162,10 +224,86 @@ class _CelebrationBanner extends StatelessWidget {
               ],
             ),
           ),
+          if (onShare != null)
+            IconButton(
+              tooltip: 'シェア',
+              icon: const Icon(Icons.ios_share_rounded, color: Colors.white),
+              onPressed: onShare,
+            ),
         ],
       ),
     );
   }
+}
+
+/// クーポン獲得時にバナー周辺で短時間だけ星形パーティクルを散らす演出。
+class _SparkleBurst extends StatelessWidget {
+  final AnimationController controller;
+  const _SparkleBurst({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _SparkleBurstPainter(progress: controller.value),
+        );
+      },
+    );
+  }
+}
+
+class _SparkleBurstPainter extends CustomPainter {
+  final double progress;
+  static final List<_SparkleSpec> _specs = List.generate(14, (i) {
+    final rng = math.Random(i * 31);
+    return _SparkleSpec(
+      angle: (i / 14) * math.pi * 2 + rng.nextDouble() * 0.4,
+      distance: 80 + rng.nextDouble() * 80,
+      size: 6 + rng.nextDouble() * 6,
+      hueShift: rng.nextDouble(),
+    );
+  });
+
+  _SparkleBurstPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0 || progress >= 1) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final eased = Curves.easeOutQuad.transform(progress);
+    final fade = 1.0 - Curves.easeIn.transform(progress);
+
+    for (final spec in _specs) {
+      final dx = math.cos(spec.angle) * spec.distance * eased;
+      final dy = math.sin(spec.angle) * spec.distance * eased;
+      final paint = Paint()
+        ..color = (spec.hueShift < 0.5
+                ? Colors.white
+                : const Color(0xFFFFE082))
+            .withValues(alpha: fade);
+      canvas.drawCircle(center + Offset(dx, dy), spec.size * (1 - eased * 0.5),
+          paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparkleBurstPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _SparkleSpec {
+  final double angle;
+  final double distance;
+  final double size;
+  final double hueShift;
+  const _SparkleSpec({
+    required this.angle,
+    required this.distance,
+    required this.size,
+    required this.hueShift,
+  });
 }
 
 class _CouponCard extends StatelessWidget {

@@ -9,7 +9,9 @@ import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
 import '../../user/providers/user_providers.dart';
 import '../domain/coupon.dart';
+import '../providers/coupon_filter_providers.dart';
 import '../providers/coupon_providers.dart';
+import 'coupon_detail_page.dart';
 import 'widgets/swipe_to_use.dart';
 
 class CouponListPage extends ConsumerWidget {
@@ -26,15 +28,52 @@ class CouponListPage extends ConsumerWidget {
           error: (e, _) => Center(child: Text('読み込み失敗: $e')),
           data: (coupons) {
             final stores = asyncStores.asData?.value ?? const <Store>[];
-            final owned =
-                coupons.where((c) => c.status == CouponStatus.owned).toList();
-            final used =
-                coupons.where((c) => c.status == CouponStatus.used).toList();
+            final query =
+                ref.watch(couponSearchQueryProvider).trim().toLowerCase();
+            final sortMode = ref.watch(couponSortModeProvider);
+
+            bool matchesQuery(Coupon c) =>
+                query.isEmpty ||
+                c.storeName.toLowerCase().contains(query) ||
+                c.benefit.toLowerCase().contains(query);
+
+            int compare(Coupon a, Coupon b) {
+              switch (sortMode) {
+                case CouponSortMode.expiringSoon:
+                  return a.expiresAt.compareTo(b.expiresAt);
+                case CouponSortMode.newest:
+                  return b.issuedAt.compareTo(a.issuedAt);
+              }
+            }
+
+            final owned = coupons
+                .where((c) =>
+                    c.status == CouponStatus.owned &&
+                    !c.isExpired &&
+                    matchesQuery(c))
+                .toList()
+              ..sort(compare);
+            final used = coupons
+                .where((c) =>
+                    c.status == CouponStatus.used && matchesQuery(c))
+                .toList()
+              ..sort((a, b) =>
+                  (b.usedAt ?? b.issuedAt).compareTo(a.usedAt ?? a.issuedAt));
             final expired = coupons
                 .where((c) =>
-                    c.status == CouponStatus.expired ||
-                    (c.status == CouponStatus.owned && c.isExpired))
-                .toList();
+                    (c.status == CouponStatus.expired ||
+                        (c.status == CouponStatus.owned && c.isExpired)) &&
+                    matchesQuery(c))
+                .toList()
+              ..sort((a, b) => b.expiresAt.compareTo(a.expiresAt));
+
+            final visibleStores = query.isEmpty
+                ? stores
+                : stores
+                    .where((s) =>
+                        s.name.toLowerCase().contains(query) ||
+                        s.benefit.toLowerCase().contains(query))
+                    .toList();
 
             if (coupons.isEmpty && stores.isEmpty) {
               return const _EmptyState();
@@ -50,23 +89,28 @@ class CouponListPage extends ConsumerWidget {
                 children: [
                   _PageHeader(
                     totalOwned: owned.length,
-                    totalDistributing: stores.length,
+                    totalDistributing: visibleStores.length,
                   ),
-                  const SizedBox(height: 20),
-                  if (stores.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const _CouponFilterBar(),
+                  const SizedBox(height: 16),
+                  if (visibleStores.isNotEmpty) ...[
                     const _SectionHeader(
                       title: '配信中',
                       subtitle: '近くの提携駐輪場に15分停めると獲得できます',
                       accent: AppColors.accent,
                     ),
                     const SizedBox(height: 12),
-                    ...stores.map((s) => _DistributingCouponCard(store: s)),
+                    ...visibleStores
+                        .map((s) => _DistributingCouponCard(store: s)),
                     const SizedBox(height: 24),
                   ],
                   if (owned.isNotEmpty) ...[
-                    const _SectionHeader(
+                    _SectionHeader(
                       title: '利用可能',
-                      subtitle: '会計時にスワイプで消込',
+                      subtitle: sortMode == CouponSortMode.expiringSoon
+                          ? '期限が近い順に表示中'
+                          : '会計時にスワイプで消込',
                       accent: AppColors.success,
                     ),
                     const SizedBox(height: 12),
@@ -92,6 +136,20 @@ class CouponListPage extends ConsumerWidget {
                     const SizedBox(height: 12),
                     ...expired.map((c) => _CouponCard(coupon: c)),
                   ],
+                  if (owned.isEmpty &&
+                      used.isEmpty &&
+                      expired.isEmpty &&
+                      visibleStores.isEmpty &&
+                      query.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: Center(
+                        child: Text(
+                          '「$query」に一致するクーポンはありません',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -251,72 +309,86 @@ class _CouponCard extends ConsumerWidget {
       decoration: isUsable
           ? GlassDecoration.accentCard(context, radius: 22)
           : GlassDecoration.light(context, radius: 22, opacity: 0.72),
-      child: Opacity(
-        opacity: isUsable ? 1.0 : 0.7,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CouponDetailPage(coupon: coupon),
+            ),
+          ),
+          child: Opacity(
+            opacity: isUsable ? 1.0 : 0.7,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(coupon.storeName,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        )),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(coupon.storeName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            )),
+                      ),
+                      _DistanceChip(
+                        label: coupon.distanceTier.label,
+                        isUsable: isUsable,
+                      ),
+                    ],
                   ),
-                  _DistanceChip(
-                    label: coupon.distanceTier.label,
-                    isUsable: isUsable,
+                  const SizedBox(height: 10),
+                  Text(coupon.benefit,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.2,
+                        color: isUsable
+                            ? AppColors.accent
+                            : context.textSecondary,
+                      )),
+                  const SizedBox(height: 4),
+                  Text(coupon.title,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.textSecondary,
+                      )),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.schedule_rounded,
+                          size: 15,
+                          color: isUsable
+                              ? context.textSecondary
+                              : AppColors.danger),
+                      const SizedBox(width: 6),
+                      Text(
+                        coupon.status == CouponStatus.used
+                            ? '使用済み'
+                            : coupon.isExpired
+                                ? '期限切れ'
+                                : '期限：$remaining',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: isUsable
+                              ? context.textSecondary
+                              : AppColors.danger,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(coupon.benefit,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.2,
-                    color: isUsable ? AppColors.accent : context.textSecondary,
-                  )),
-              const SizedBox(height: 4),
-              Text(coupon.title,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.textSecondary,
-                  )),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.schedule_rounded,
-                      size: 15,
-                      color: isUsable
-                          ? context.textSecondary
-                          : AppColors.danger),
-                  const SizedBox(width: 6),
-                  Text(
-                    coupon.status == CouponStatus.used
-                        ? '使用済み'
-                        : coupon.isExpired
-                            ? '期限切れ'
-                            : '期限：$remaining',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isUsable
-                          ? context.textSecondary
-                          : AppColors.danger,
-                      fontWeight: FontWeight.w600,
+                  if (isUsable) ...[
+                    const SizedBox(height: 14),
+                    SwipeToUse(
+                      label: 'スワイプして使用',
+                      completedLabel: '使用済み ✓',
+                      onCompleted: () => _redeem(context, ref),
                     ),
-                  ),
+                  ],
                 ],
               ),
-              if (isUsable) ...[
-                const SizedBox(height: 14),
-                SwipeToUse(
-                  label: 'スワイプして使用',
-                  completedLabel: '使用済み ✓',
-                  onCompleted: () => _redeem(context, ref),
-                ),
-              ],
-            ],
+            ),
           ),
         ),
       ),
@@ -483,4 +555,153 @@ String _formatRemaining(DateTime expiresAt) {
   final minutes = diff.inMinutes % 60;
   if (diff.inHours >= 1) return 'あと${diff.inHours}時間 $minutes分';
   return 'あと${diff.inMinutes}分';
+}
+
+class _CouponFilterBar extends ConsumerStatefulWidget {
+  const _CouponFilterBar();
+
+  @override
+  ConsumerState<_CouponFilterBar> createState() => _CouponFilterBarState();
+}
+
+class _CouponFilterBarState extends ConsumerState<_CouponFilterBar> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: ref.read(couponSearchQueryProvider),
+    );
+    _controller.addListener(() {
+      final v = _controller.text;
+      if (ref.read(couponSearchQueryProvider) != v) {
+        ref.read(couponSearchQueryProvider.notifier).state = v;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sortMode = ref.watch(couponSortModeProvider);
+    final query = ref.watch(couponSearchQueryProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: GlassDecoration.light(context, radius: 14),
+          child: TextField(
+            controller: _controller,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: '店名・特典で検索',
+              prefixIcon:
+                  Icon(Icons.search, color: context.textSecondary),
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: Icon(Icons.close_rounded,
+                          color: context.textSecondary),
+                      onPressed: () => _controller.clear(),
+                    ),
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(Icons.sort_rounded,
+                size: 16, color: context.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              '並び順',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: context.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final mode in CouponSortMode.values) ...[
+                      _SortChip(
+                        label: mode.label,
+                        isActive: sortMode == mode,
+                        onTap: () => ref
+                            .read(couponSortModeProvider.notifier)
+                            .state = mode,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SortChip extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+  const _SortChip({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.accent.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isActive ? AppColors.accent : context.subtleBorder,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: isActive ? AppColors.accent : context.textPrimary,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
