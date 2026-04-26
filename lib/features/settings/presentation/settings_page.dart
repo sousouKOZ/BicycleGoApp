@@ -5,6 +5,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_providers.dart';
 import '../../sessions/data/notification_service.dart';
 import '../../sessions/providers/notification_permission_providers.dart';
+import 'help_page.dart';
+import 'legal_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -66,6 +68,53 @@ class SettingsPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 24),
+            _SectionLabel(label: 'サポート'),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              children: [
+                _SupportTile(
+                  icon: Icons.help_outline_rounded,
+                  title: 'ヘルプ・FAQ',
+                  hint: 'よくある質問',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const HelpPage()),
+                  ),
+                ),
+                Divider(
+                    height: 1, color: context.subtleBorder, indent: 56),
+                _SupportTile(
+                  icon: Icons.description_outlined,
+                  title: '利用規約',
+                  hint: '',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const TermsPage()),
+                  ),
+                ),
+                Divider(
+                    height: 1, color: context.subtleBorder, indent: 56),
+                _SupportTile(
+                  icon: Icons.privacy_tip_outlined,
+                  title: 'プライバシーポリシー',
+                  hint: '',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PrivacyPage()),
+                  ),
+                ),
+                Divider(
+                    height: 1, color: context.subtleBorder, indent: 56),
+                _SupportTile(
+                  icon: Icons.gavel_rounded,
+                  title: 'オープンソースライセンス',
+                  hint: '',
+                  onTap: () => showLicensePage(
+                    context: context,
+                    applicationName: 'BicycleGo',
+                    applicationVersion: '1.0.0',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             _SectionLabel(label: 'アプリ情報'),
             const SizedBox(height: 10),
             _SettingsCard(
@@ -88,6 +137,36 @@ class SettingsPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SupportTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String hint;
+  final VoidCallback onTap;
+
+  const _SupportTile({
+    required this.icon,
+    required this.title,
+    required this.hint,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Icon(icon, color: AppColors.accent),
+      title: Text(title),
+      subtitle: hint.isEmpty
+          ? null
+          : Text(hint, style: theme.textTheme.bodySmall),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: onTap,
     );
   }
 }

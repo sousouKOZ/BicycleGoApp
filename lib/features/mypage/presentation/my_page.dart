@@ -15,6 +15,8 @@ import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_history_page.dart';
 import '../../sessions/providers/session_history_providers.dart';
 import '../../settings/presentation/settings_page.dart';
+import '../../user/presentation/user_profile_page.dart';
+import '../../user/providers/user_providers.dart';
 
 class MyPage extends ConsumerWidget {
   const MyPage({super.key});
@@ -135,28 +137,64 @@ class MyPage extends ConsumerWidget {
   }
 }
 
-class _PageHeader extends StatelessWidget {
+class _PageHeader extends ConsumerWidget {
   const _PageHeader();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final profile = ref.watch(userProfileProvider);
     return Padding(
       padding: const EdgeInsets.only(left: 4, top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            'マイページ',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              height: 1.1,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'マイページ',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'こんにちは、${profile.displayName} さん',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'ポイントとクーポンをここで管理',
-            style: theme.textTheme.bodySmall,
+          Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const UserProfilePage(),
+                ),
+              ),
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  profile.initial,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
