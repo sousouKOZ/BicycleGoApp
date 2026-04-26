@@ -77,6 +77,37 @@ class MyPage extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 24),
+            asyncCoupons.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (list) {
+                final recentlyUsed = list
+                    .where((c) => c.status == CouponStatus.used)
+                    .toList()
+                  ..sort((a, b) =>
+                      (b.usedAt ?? b.issuedAt).compareTo(a.usedAt ?? a.issuedAt));
+                final top = recentlyUsed.take(3).toList();
+                if (top.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SectionHeader(
+                      title: '最近使ったクーポン',
+                      subtitle: list.where((c) =>
+                                  c.status == CouponStatus.used)
+                              .length >
+                          3
+                          ? 'クーポンタブで全件確認できます'
+                          : 'ご利用ありがとうございました',
+                      accent: AppColors.onSurfaceSecondary,
+                    ),
+                    const SizedBox(height: 12),
+                    ...top.map((c) => _UsedCouponTile(coupon: c)),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
+            ),
             const _SectionHeader(
               title: 'お気に入り駐輪場',
               subtitle: 'よく使う駐輪場をブックマーク',
@@ -373,6 +404,80 @@ class _OwnedCouponTile extends StatelessWidget {
                 Icon(Icons.arrow_forward_ios_rounded,
                     size: 14, color: context.textSecondary),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UsedCouponTile extends StatelessWidget {
+  final Coupon coupon;
+  const _UsedCouponTile({required this.coupon});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final usedAt = coupon.usedAt;
+    final usedLabel = usedAt == null
+        ? '使用済み'
+        : '${usedAt.month}/${usedAt.day.toString().padLeft(2, '0')} 使用';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: GlassDecoration.light(context, radius: 18, opacity: 0.72),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => CouponDetailPage(coupon: coupon),
+            ),
+          ),
+          child: Opacity(
+            opacity: 0.78,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: context.subtleBorder,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.check_circle_rounded,
+                        color: context.textSecondary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          coupon.benefit,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: context.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${coupon.storeName}・$usedLabel',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded,
+                      size: 14, color: context.textSecondary),
+                ],
+              ),
             ),
           ),
         ),

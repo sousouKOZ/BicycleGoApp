@@ -44,7 +44,18 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final coupon = widget.coupon;
+    // 一覧やマイページなど他の画面で消込された場合に追従できるよう、
+    // userCouponsProvider から最新状態を取得する。フォールバックは constructor のスナップショット。
+    final asyncCoupons = ref.watch(userCouponsProvider);
+    final latest = asyncCoupons.asData?.value ?? const <Coupon>[];
+    Coupon coupon = widget.coupon;
+    for (final c in latest) {
+      if (c.id == widget.coupon.id) {
+        coupon = c;
+        break;
+      }
+    }
+
     final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
     Store? store;
     for (final s in stores) {

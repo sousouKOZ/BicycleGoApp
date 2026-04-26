@@ -309,87 +309,95 @@ class _CouponCard extends ConsumerWidget {
       decoration: isUsable
           ? GlassDecoration.accentCard(context, radius: 22)
           : GlassDecoration.light(context, radius: 22, opacity: 0.72),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CouponDetailPage(coupon: coupon),
-            ),
-          ),
-          child: Opacity(
-            opacity: isUsable ? 1.0 : 0.7,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      clipBehavior: Clip.antiAlias,
+      child: Opacity(
+        opacity: isUsable ? 1.0 : 0.7,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 詳細遷移用のタップ領域。SwipeToUse とジェスチャーが衝突しないよう
+            // Material/InkWell はカード上部のみに限定する。
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CouponDetailPage(coupon: coupon),
+                  ),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      18, 16, 18, isUsable ? 12 : 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(coupon.storeName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            )),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(coupon.storeName,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                )),
+                          ),
+                          _DistanceChip(
+                            label: coupon.distanceTier.label,
+                            isUsable: isUsable,
+                          ),
+                        ],
                       ),
-                      _DistanceChip(
-                        label: coupon.distanceTier.label,
-                        isUsable: isUsable,
+                      const SizedBox(height: 10),
+                      Text(coupon.benefit,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                            color: isUsable
+                                ? AppColors.accent
+                                : context.textSecondary,
+                          )),
+                      const SizedBox(height: 4),
+                      Text(coupon.title,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.textSecondary,
+                          )),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule_rounded,
+                              size: 15,
+                              color: isUsable
+                                  ? context.textSecondary
+                                  : AppColors.danger),
+                          const SizedBox(width: 6),
+                          Text(
+                            coupon.status == CouponStatus.used
+                                ? '使用済み'
+                                : coupon.isExpired
+                                    ? '期限切れ'
+                                    : '期限：$remaining',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: isUsable
+                                  ? context.textSecondary
+                                  : AppColors.danger,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(coupon.benefit,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.2,
-                        color: isUsable
-                            ? AppColors.accent
-                            : context.textSecondary,
-                      )),
-                  const SizedBox(height: 4),
-                  Text(coupon.title,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: context.textSecondary,
-                      )),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.schedule_rounded,
-                          size: 15,
-                          color: isUsable
-                              ? context.textSecondary
-                              : AppColors.danger),
-                      const SizedBox(width: 6),
-                      Text(
-                        coupon.status == CouponStatus.used
-                            ? '使用済み'
-                            : coupon.isExpired
-                                ? '期限切れ'
-                                : '期限：$remaining',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: isUsable
-                              ? context.textSecondary
-                              : AppColors.danger,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (isUsable) ...[
-                    const SizedBox(height: 14),
-                    SwipeToUse(
-                      label: 'スワイプして使用',
-                      completedLabel: '使用済み ✓',
-                      onCompleted: () => _redeem(context, ref),
-                    ),
-                  ],
-                ],
+                ),
               ),
             ),
-          ),
+            if (isUsable)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                child: SwipeToUse(
+                  label: 'スワイプして使用',
+                  completedLabel: '使用済み ✓',
+                  onCompleted: () => _redeem(context, ref),
+                ),
+              ),
+          ],
         ),
       ),
     );
