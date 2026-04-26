@@ -8,13 +8,20 @@ DB/サーバ側実装の仕様書として使用する。
 
 ---
 
-## 0. 前提と確認事項（未確定）
+## 0. 前提と確認事項
 
-- [ ] **バックエンド方式**: Supabase想定だが未確定。REST / Supabaseクライアント直叩き / Flask+PostgreSQL のどれか。
-- [ ] **認証**: Supabase Auth? それとも独自? `userId` の発行方法。
-- [ ] **IoT駆動エンドポイント** (`POST /api/parking/detect`) の受け口: Edge Function? 別サーバ?
-- [ ] **リアルタイム性**: 駐輪場の空き状況は pull（定期GET）か push（Realtime購読）か。
-- [ ] **日時フォーマット**: ISO8601 UTC で統一する前提でよいか。
+- [x] **バックエンド方式**: **Supabase で確定**。Postgres + Auth + Storage + Edge Functions + Realtime を活用想定。
+  - 読み取り系・書き込み系は基本 `supabase_flutter` クライアントから直接（PostgREST 経由）
+  - 副作用が大きい処理（`evaluateEarn`、`postParkingDetect`、IoTイベント受信）は Edge Function を推奨
+- [ ] **認証**: **Anonymous Sign-In を初期採用**（端末紐付けで匿名利用可）。後にメール/Apple/Google にアップグレード可能。
+  - `userId` は `auth.users.id`（uuid）。アプリ側 `currentUserIdProvider` をこの ID に差し替える。
+  - 端末側で生成する `deviceId`（[user_providers.dart](../lib/features/user/providers/user_providers.dart) の `deviceIdProvider`）は `users.device_id` に紐付け（機種変更検知用）。
+- [ ] **IoT駆動エンドポイント** (`postParkingDetect`): **Edge Function 想定**。service-role キーで認証、IoT 側から HTTP POST。
+- [ ] **リアルタイム性**:
+  - `parking_lots.occupied` は Realtime 購読推奨（地図のリアルタイム反映）。
+  - `parking_sessions` は本人分のみ購読（自分の session 状態変化を即時反映）。
+- [x] **日時フォーマット**: **ISO8601 UTC で統一**。クライアント側でローカル時刻に変換。
+- [ ] **冪等性**: `redeemCoupon` は同じ couponId に対する 2 度目の呼び出しでエラー（`already_used`）にする想定。要合意。
 
 ---
 
@@ -63,14 +70,36 @@ DB/サーバ側実装の仕様書として使用する。
 | userId | string | ー | 認証前は null |
 | detectedAt | datetime | ○ | IoT検知時刻 |
 | authenticatedAt | datetime | ー | NFC認証時刻 |
-| exitedAt | datetime | ー | 出庫時刻 |
-| status | enum | ○ | `unauthenticated / measuring / achieved / completed / expired` |
+| exitedAt | datetime | ー | 出庫時刻（CheckoutSheet で確定） |
+| status | enum | ○ | `unauthenticated / measuring / achieved / parked / completed / expired` |
 | issuedCouponId | string | ー | 獲得したクーポンID |
 
 時間ルール（ビジネスロジック）:
 - **認証猶予**: `detectedAt` から **5分以内** に認証必須。超過で `expired`。
 - **達成しきい値**: `authenticatedAt` から **15分経過** でクーポン発行対象。
+- **`parked` 状態**: `achieved` 後にユーザーが「あとで使う（駐輪は継続中）」を選んだ場合に遷移。`endSession` 呼び出しまで継続。サーバ側では `achieved` と同様に扱って良い（クライアント側のUI状態のみで使う）。
 - **長時間アラート**: 24時間（現状フロントのみの参照値）。
+
+### ExchangeItem（ポイント交換カタログ） — 新規
+| フィールド | 型 | 必須 | 備考 |
+|---|---|---|---|
+| id | string | ○ | 主キー |
+| title | string | ○ | 商品名（例: コーヒー1杯無料券） |
+| description | string | ○ | 詳細説明 |
+| costPoints | int | ○ | 必要ポイント |
+| category | enum | ○ | `coffee / food / retail / mobility / donation` |
+| validityDays | int | ○ | 発行クーポンの有効日数（現状30日固定） |
+
+> 現状はクライアント側の固定カタログ（[exchange_catalog_data.dart](../lib/features/points/data/exchange_catalog_data.dart)）で定義。DB化するとカタログ追加・差し替えがアプリ更新無しで可能になる。
+
+### Points（ポイント残高）
+| フィールド | 型 | 必須 | 備考 |
+|---|---|---|---|
+| userId | string | ○ | PK |
+| balance | int | ○ | 現在残高 |
+| updatedAt | datetime | ○ | |
+
+増減イベントは別テーブル `point_transactions` で記録推奨（監査・不正検知のため）。
 
 ### Coupon（クーポン）
 | フィールド | 型 | 必須 | 備考 |
@@ -90,8 +119,8 @@ DB/サーバ側実装の仕様書として使用する。
 
 ## 2. エンドポイント契約
 
-現状のアプリは `ApiClient` 抽象クラス（`lib/core/api/api_client.dart`）経由でのみ通信する。
-以下の9メソッドが呼ばれる。
+現状のアプリは `ApiClient` 抽象クラス（[lib/core/api/api_client.dart](../lib/core/api/api_client.dart)）経由でのみ通信する。
+以下の **10メソッド** が呼ばれる。
 
 ### 2.1 `postParkingDetect`
 - **用途**: IoT→サーバ。駐輪検知通知。
@@ -122,21 +151,78 @@ DB/サーバ側実装の仕様書として使用する。
 ### 2.5 `redeemCoupon`
 - **入力**: `userId`, `couponId`
 - **出力**: `Coupon`（`status=used`, `usedAt=now`）
-- **エラー**: 見つからない場合 `ApiException('not_found', ...)`
+- **エラー**:
+  - 見つからない: `ApiException('not_found', ...)`
+  - 既に使用済み: `ApiException('already_used', ...)`（**冪等性**: 2回目の呼び出しは必ずエラー）
+- **副作用**: `coupons.status = 'used'`、`used_at = now()`
 
 ### 2.6 `endSession`
 - **入力**: `sessionId`
 - **出力**: `ParkingSession`（`status=completed`, `exitedAt=now`）
+- **副作用**: 該当 session の駐輪場 `parking_lots.occupied -= 1`（駐輪場の空き反映）。
+- **注意**: クライアントは出庫時に [SessionHistory.updateCompletedAt](../lib/features/sessions/providers/session_history_providers.dart) で**履歴の completedAt を実出庫時刻に更新**する。これは端末ローカルのみ（履歴DB化する場合はサーバ側にも同等のフィールドが必要）。
 
-### 2.7 `getParkingLots`
+### 2.7 `issueExchangeCoupon`
+- **用途**: ポイント交換による即時クーポン発行（駐輪達成と異なり距離スコア無関係）。
+- **入力**: `userId`, `exchangeItemId`, `displayStoreName`, `title`, `benefit`, `validity` (Duration)
+- **出力**: `Coupon`（`status=owned`、`distanceTier=exchange`、`expiresAt = now + validity`）
+- **エラー**:
+  - 残高不足: `ApiException('insufficient_points', ...)`
+  - カタログ ID 不正: `ApiException('exchange_item_not_found', ...)`
+- **副作用**:
+  - `coupons` に新規 row 作成（`storeId='exchange-{exchangeItemId}'`）
+  - `points.balance -= exchangeItem.costPoints`
+  - `point_transactions` に減算履歴記録
+- **トランザクション**: 上記3つは**1トランザクションで原子的に**実行（残高だけ減って発行失敗、を防ぐ）
+
+### 2.8 `getParkingLots`
 - **出力**: `List<ParkingLot>`
+- **Realtime購読推奨**: `parking_lots` テーブルの UPDATE を購読すると地図が自動更新できる。
 
-### 2.8 `getStores`
+### 2.9 `getStores`
 - **出力**: `List<Store>`
+- 配信中フラグや表示期間が必要なら将来 `is_active`, `valid_from/to` を追加。
 
-### 2.9 `getActiveSession`
+### 2.10 `getActiveSession`
 - **入力**: `userId`
-- **出力**: `ParkingSession?`（`measuring` or `achieved` 状態のものを返す）
+- **出力**: `ParkingSession?`（`measuring` / `achieved` / `parked` 状態のものを返す）
+
+---
+
+## 2.x サンプル JSON（`postParkingAuth`）
+
+### Request
+```json
+POST /functions/v1/parking_auth
+Authorization: Bearer <user-jwt>
+{
+  "deviceId": "dev-osaka-st-01",
+  "lat": 34.7025,
+  "lng": 135.4959
+}
+```
+
+### Response (200)
+```json
+{
+  "id": "ses-1719981234-1",
+  "deviceId": "dev-osaka-st-01",
+  "userId": "auth-uuid-...",
+  "detectedAt": "2026-04-25T05:00:00Z",
+  "authenticatedAt": "2026-04-25T05:00:30Z",
+  "exitedAt": null,
+  "status": "measuring",
+  "issuedCouponId": null
+}
+```
+
+### Error (422 - GPS不一致)
+```json
+{
+  "code": "gps_mismatch",
+  "message": "スタンドから約120m離れています。現地で再度お試しください。"
+}
+```
 
 ---
 
@@ -152,6 +238,28 @@ DB/サーバ側実装の仕様書として使用する。
 | `AuthGraceExpiredException` | 5分超過 | 422 `{"code": "auth_grace_expired"}` |
 | `ApiException` | 汎用 | 4xx/5xx `{"code": "...", "message": "..."}` |
 
+クライアント側の例外マッピングは [api_exceptions.dart](../lib/core/api/api_exceptions.dart) を参照。`code` フィールドで分岐する。
+
+---
+
+## 3.5 RLS（Row Level Security）方針
+
+Supabase 採用にあたり、最低限必要なポリシー想定。
+
+| テーブル | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `users` | 自分のみ | Auth フック | 自分のみ | 不可 |
+| `parking_lots` | 全員 | 不可（管理者のみ） | service-role のみ（IoT/管理） | 不可 |
+| `stores` | 全員 | 不可 | 不可 | 不可 |
+| `devices` | 不可（クライアント不要） | 不可 | service-role のみ | 不可 |
+| `parking_sessions` | 自分の userId のみ | service-role 経由（Edge Function） | 自分のみ（出庫操作） | 不可 |
+| `coupons` | 自分の userId のみ | service-role 経由 | 自分のみ（消込時 status 変更） | 不可 |
+| `points` | 自分のみ | Auth フック | service-role 経由（不正防止） | 不可 |
+| `point_transactions` | 自分のみ | service-role 経由 | 不可（イベントソース） | 不可 |
+| `exchange_items` | 全員 | 不可 | 不可 | 不可 |
+
+**Edge Function 経由が必要なもの**: `evaluateEarn`、`postParkingDetect`、`postParkingAuth`、`issueExchangeCoupon`、`redeemCoupon`。残高や発行ロジックを service-role キーで安全に処理。
+
 ---
 
 ## 4. 参照実装（動作の正）
@@ -165,16 +273,29 @@ DB/サーバ側実装の仕様書として使用する。
 
 ## 5. スキーマ初期案（参考・DB担当判断）
 
-※ あくまで参考。正規化/インデックス等はDB担当の判断に委ねる。
+※ あくまで参考。正規化/インデックス/Postgres ENUM 化等は DB 担当の判断に委ねる。
 
 ```
-users (id, name, created_at, ...)
-stores (id, name, category, lat, lng, benefit, recommend_weight)
+users (id [auth.users.id], device_id, nickname?, created_at)
+stores (id, name, category, lat, lng, benefit, recommend_weight, created_at)
 parking_lots (id, name, lat, lng, capacity, occupied, price_yen_per_day, updated_at)
 devices (id, store_id FK, parking_lot_id FK, lat, lng, status, nfc_code)
 parking_sessions (id, device_id FK, user_id FK?, detected_at, authenticated_at?, exited_at?, status, issued_coupon_id FK?)
-coupons (id, user_id FK, store_id FK, title, benefit, issued_at, expires_at, used_at?, status, distance_tier)
+coupons (id, user_id FK, store_id, store_name, title, benefit, issued_at, expires_at, used_at?, status, distance_tier)
+exchange_items (id, title, description, cost_points, category, validity_days, is_active)
+points (user_id PK FK, balance, updated_at)
+point_transactions (id, user_id FK, delta, kind [earn|exchange|adjust], related_session_id?, related_exchange_item_id?, created_at)
 ```
+
+**インデックス候補（参考）**
+- `coupons (user_id, status, expires_at)` — クーポン一覧の絞り込み
+- `parking_sessions (user_id, status)` — `getActiveSession`
+- `parking_lots` の `position` に PostGIS 入れるなら GiST インデックス（範囲検索想定）
+
+**`distance_tier` の決定（クライアント実装と合わせる）**
+- `<200m` → `near`
+- `<800m` → `far`
+- それ以上 → `exchange`
 
 ---
 
@@ -182,7 +303,49 @@ coupons (id, user_id FK, store_id FK, title, benefit, issued_at, expires_at, use
 
 1. このドキュメントをレビュー、未確定事項（§0）を埋める
 2. サーバ側でスキーマ設計・API実装
-3. アプリ側で `HttpApiClient`（または `SupabaseApiClient`）を `ApiClient` を implements して実装
-4. `lib/core/api/api_providers.dart` の `apiClientProvider` を環境変数で切替可能に
+3. アプリ側で `SupabaseApiClient implements ApiClient` を実装（DB担当が同じファイルで実装する想定）
+4. [api_providers.dart](../lib/core/api/api_providers.dart) の `apiClientProvider` を環境変数で切替可能に
+   ```dart
+   final apiClientProvider = Provider<ApiClient>((ref) {
+     return const bool.fromEnvironment('USE_SUPABASE')
+         ? SupabaseApiClient(...)
+         : MockApiClient();
+   });
+   ```
 5. **読み取り系** (`getParkingLots` / `getStores`) から段階的に実接続へ切替
 6. 書き込み系（認証・クーポン発行）は IoT連携テスト含めて後フェーズで
+
+---
+
+## 7. クライアント側ローカル保存（サーバ移行不要）
+
+以下は端末ローカルに `shared_preferences` で保持しており、**バックエンド実装の対象外**。
+将来「機種変更でも引き継ぎたい」となれば各々サーバに上げる検討対象になるが、初期リリースでは対象外で良い。
+
+| データ | 保存キー | 補足 |
+|---|---|---|
+| お気に入り駐輪場 | `favorite_parking_ids_v1` | UI 表示用のブックマーク |
+| 駐輪履歴 | `session_history_v1` | クーポン獲得時に追加・出庫時に completedAt 更新 |
+| 交換履歴 | `exchange_history_v1` | UI 表示用。本来は `point_transactions` から派生可能 |
+| テーマ設定 | `app_theme_mode_v1` | system / light / dark |
+| オンボーディング完了 | `onboarding_completed_v1` | 初回起動判定 |
+| ユーザープロファイル | `user_profile_v1` | ニックネーム（後で users テーブルに移行可） |
+| デバイスID | `device_id_v1` | 機種変更検知用。`users.device_id` に紐付け予定 |
+
+> 「履歴系」「ポイント取引」をサーバ化する場合、サーバ側集計を正として端末側のキャッシュを更新する設計に切替。
+
+---
+
+## 8. 環境変数
+
+`env/dev.json`（gitignore済）に以下を追加予定：
+
+```json
+{
+  "GOOGLE_DIRECTIONS_API_KEY": "...",
+  "SUPABASE_URL": "https://xxxx.supabase.co",
+  "SUPABASE_ANON_KEY": "..."
+}
+```
+
+`env/dev.example.json` をテンプレとして用意してリポジトリに含める。
