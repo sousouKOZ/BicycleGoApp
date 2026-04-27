@@ -41,6 +41,14 @@ class ParkingDetailSheet extends ConsumerWidget {
 
   double _toRadians(double degree) => degree * (math.pi / 180.0);
 
+  /// 上部の _RouteBanner と表記を揃えるため、1km 未満は m 表記、それ以上は km 表記。
+  String _formatDistance(double meters) {
+    if (meters >= 1000) {
+      return '約${(meters / 1000).toStringAsFixed(1)}km';
+    }
+    return '約${meters.round()}m';
+  }
+
   Future<void> _fetchRoute(
     BuildContext context,
     WidgetRef ref,
@@ -113,12 +121,22 @@ class ParkingDetailSheet extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final theme = Theme.of(context);
     final currentLocation = ref.watch(currentLocationProvider);
-    final distanceMeters = currentLocation == null
-        ? null
-        : _distanceInMeters(currentLocation, parking.position);
-    final walkingMinutes = distanceMeters == null
-        ? null
-        : (distanceMeters / 80.0).round();
+    // ルートを取得済みなら同じ値（自転車経路の実距離・実所要時間）を使い、
+    // 上部の _RouteBanner と完全に一致させる。
+    // 未取得時は直線距離 + 自転車速度（250m/分 ≒ 15km/h）で見積もり。
+    final activeRoute = ref.watch(activeRouteProvider);
+    final useRoute = activeRoute != null &&
+        activeRoute.parkingLotId == parking.id;
+    final distanceMeters = useRoute
+        ? activeRoute.distanceMeters.toDouble()
+        : currentLocation == null
+            ? null
+            : _distanceInMeters(currentLocation, parking.position);
+    final cyclingMinutes = useRoute
+        ? (activeRoute.durationSeconds / 60).round()
+        : distanceMeters == null
+            ? null
+            : (distanceMeters / 250.0).round().clamp(1, 999);
     final usageColor = _usageColor(usage);
     final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
     final recommendation = computeRecommendation(
@@ -245,12 +263,11 @@ class ParkingDetailSheet extends ConsumerWidget {
               else ...[
                 _MetaChip(
                   icon: Icons.place_outlined,
-                  label:
-                      '約${(distanceMeters / 1000).toStringAsFixed(1)}km',
+                  label: _formatDistance(distanceMeters),
                 ),
                 _MetaChip(
-                  icon: Icons.directions_walk_rounded,
-                  label: '徒歩 約$walkingMinutes分',
+                  icon: Icons.directions_bike_rounded,
+                  label: '自転車 約$cyclingMinutes分',
                 ),
               ],
             ],

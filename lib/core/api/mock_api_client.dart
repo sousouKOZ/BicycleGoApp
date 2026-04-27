@@ -132,15 +132,22 @@ class MockApiClient implements ApiClient {
     if (earnBy == null || DateTime.now().isBefore(earnBy)) {
       return null;
     }
+    // 推薦は「駐輪場（スタンド）位置」基準に変更。
+    // ユーザー GPS は屋内で揺らぐため、駐輪場座標を使った方が
+    // 「停めた駐輪場の近くの店舗」というコンセプトと一致する。
+    final device = _findDevice(session.deviceId);
+    final origin = device.position;
+
     if (session.issuedCouponId != null) {
       final owned = _userCoupons[session.userId] ?? const [];
       return owned.firstWhere(
         (c) => c.id == session.issuedCouponId,
-        orElse: () => _buildFallbackCoupon(userLat, userLng),
+        orElse: () =>
+            _recommendCoupon(origin.latitude, origin.longitude),
       );
     }
 
-    final coupon = _recommendCoupon(userLat, userLng);
+    final coupon = _recommendCoupon(origin.latitude, origin.longitude);
     _sessions[sessionId] = session.copyWith(
       status: ParkingSessionStatus.achieved,
       issuedCouponId: coupon.id,
@@ -151,11 +158,11 @@ class MockApiClient implements ApiClient {
     return coupon;
   }
 
-  Coupon _recommendCoupon(double userLat, double userLng) {
-    final store = _pickStoreByDistance(userLat, userLng);
+  Coupon _recommendCoupon(double parkingLat, double parkingLng) {
+    final store = _pickStoreWeighted(parkingLat, parkingLng);
     final distanceM = _distanceMeters(
-      userLat,
-      userLng,
+      parkingLat,
+      parkingLng,
       store.position.latitude,
       store.position.longitude,
     );
@@ -178,20 +185,34 @@ class MockApiClient implements ApiClient {
     );
   }
 
-  Store _pickStoreByDistance(double lat, double lng) {
-    final stores = List.of(mockStores);
-    stores.sort((a, b) {
-      final da = _distanceMeters(lat, lng, a.position.latitude, a.position.longitude);
-      final db = _distanceMeters(lat, lng, b.position.latitude, b.position.longitude);
-      final scoreA = da / (a.recommendWeight + 0.01);
-      final scoreB = db / (b.recommendWeight + 0.01);
-      return scoreA.compareTo(scoreB);
-    });
-    return stores.first;
-  }
-
-  Coupon _buildFallbackCoupon(double userLat, double userLng) {
-    return _recommendCoupon(userLat, userLng);
+  /// 駐輪場（lat, lng）からの距離 × 推薦重みで重み付きランダム選択。
+  ///
+  /// - 距離が近い店舗ほど選ばれやすい（distanceWeight = 1 / (1 + km)）
+  /// - recommendWeight も乗算
+  /// - ランダムなので同じ駐輪場でも毎回同じにはならず、バリエーションが出る
+  Store _pickStoreWeighted(double lat, double lng) {
+    final weights = <double>[];
+    double sum = 0;
+    for (final s in mockStores) {
+      final meters = _distanceMeters(
+          lat, lng, s.position.latitude, s.position.longitude);
+      final km = meters / 1000.0;
+      // 距離由来の重み（近いほど大きい、1km で半分）
+      final distanceFactor = 1.0 / (1.0 + km);
+      final w = distanceFactor * (s.recommendWeight + 0.05);
+      weights.add(w);
+      sum += w;
+    }
+    if (sum <= 0) {
+      return mockStores.first;
+    }
+    final r = math.Random().nextDouble() * sum;
+    double acc = 0;
+    for (var i = 0; i < mockStores.length; i++) {
+      acc += weights[i];
+      if (r <= acc) return mockStores[i];
+    }
+    return mockStores.last;
   }
 
   @override
