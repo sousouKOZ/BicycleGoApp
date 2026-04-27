@@ -46,8 +46,8 @@ class DirectionsService {
     final body = jsonDecode(resp.body) as Map<String, dynamic>;
     final status = body['status'] as String? ?? 'UNKNOWN_ERROR';
     if (status != 'OK') {
-      final err = body['error_message'] as String? ?? status;
-      throw DirectionsException(err);
+      final err = body['error_message'] as String?;
+      throw DirectionsException(_friendlyMessage(status, err));
     }
     final routes = body['routes'] as List<dynamic>;
     if (routes.isEmpty) {
@@ -70,6 +70,36 @@ class DirectionsService {
       distanceMeters: distance,
       durationSeconds: duration,
     );
+  }
+
+  /// Directions API の status コードをユーザー向けの文言に変換する。
+  /// 切り分けに使えるよう原因の見当も括弧書きで併記。
+  String _friendlyMessage(String status, String? errorMessage) {
+    switch (status) {
+      case 'ZERO_RESULTS':
+        return '自転車で行けるルートが見つかりませんでした。'
+            '（駐輪場が遠すぎるか、自転車経路が存在しない地域の可能性）';
+      case 'MAX_ROUTE_LENGTH_EXCEEDED':
+        return 'ルートが長すぎます。'
+            '（モックの駐輪場は大阪駅周辺に固定されています。'
+            '近くで検証する場合はモックデータを差し替えてください）';
+      case 'NOT_FOUND':
+        return '出発地または駐輪場の位置を特定できませんでした。';
+      case 'REQUEST_DENIED':
+        return 'API リクエストが拒否されました。'
+            '（GCP Console で Directions API が有効化されているか・'
+            'キーの Application restrictions を確認してください）'
+            '${errorMessage != null ? "\n詳細: $errorMessage" : ""}';
+      case 'OVER_DAILY_LIMIT':
+      case 'OVER_QUERY_LIMIT':
+        return 'API のクォータ上限を超えました。';
+      case 'INVALID_REQUEST':
+        return 'リクエストが不正です。$errorMessage';
+      case 'UNKNOWN_ERROR':
+        return '一時的なサーバエラーです。少し待って再試行してください。';
+      default:
+        return errorMessage ?? status;
+    }
   }
 
   /// Google Encoded Polyline Algorithm Format のデコード。

@@ -17,8 +17,6 @@ class MockApiClient implements ApiClient {
   final List<Device> _devices = List.of(mockDevices);
   int _seq = 0;
 
-  static const double _maxGpsMeters = 80.0;
-
   String _nextId(String prefix) {
     _seq++;
     return '$prefix-${DateTime.now().millisecondsSinceEpoch}-$_seq';
@@ -79,19 +77,10 @@ class MockApiClient implements ApiClient {
     required double lng,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 180));
-    final device = _findDevice(deviceId);
-
-    final distance = _distanceMeters(
-      lat,
-      lng,
-      device.position.latitude,
-      device.position.longitude,
-    );
-    if (distance > _maxGpsMeters) {
-      throw GpsMismatchException(
-        'スタンドから約${distance.round()}m離れています。現地で再度お試しください。',
-      );
-    }
+    // GPS 照合は屋内で誤判定が多いため廃止。スタンドに紐付けた deviceId（NFCタグID）の
+    // 一致のみで認証する。本番では IoT 検知イベントの存在を必須化する。
+    // lat/lng は将来のフォールバック用に引数だけ温存。
+    _findDevice(deviceId);
 
     var session = _sessions.values.where((s) =>
         s.deviceId == deviceId &&

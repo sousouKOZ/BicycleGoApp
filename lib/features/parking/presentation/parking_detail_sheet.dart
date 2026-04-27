@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -44,19 +45,41 @@ class ParkingDetailSheet extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     ScaffoldMessengerState messenger,
-    LatLng? currentLocation,
+    LatLng? cachedLocation,
   ) async {
-    if (currentLocation == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('現在地が取得できていません')),
-      );
-      return;
-    }
     ref.read(routeLoadingProvider.notifier).state = true;
     try {
+      // 起動時の座標は古い・屋内取得で不正確な場合があるため、
+      // ルート取得直前に新しい fix を取り直す。
+      // 8秒で取れなければキャッシュにフォールバック。
+      LatLng? origin;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 8),
+        );
+        origin = LatLng(pos.latitude, pos.longitude);
+        // フレッシュな座標を全体プロバイダにも反映（地図側の表示も更新）。
+        ref.read(currentLocationProvider.notifier).state = origin;
+      } catch (_) {
+        origin = cachedLocation;
+      }
+
+      if (origin == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              '現在地が取得できませんでした。屋外で位置情報が取れる場所で再度お試しください。',
+            ),
+            duration: Duration(seconds: 6),
+          ),
+        );
+        return;
+      }
+
       final service = ref.read(directionsServiceProvider);
       final route = await service.fetch(
-        origin: currentLocation,
+        origin: origin,
         parking: parking,
       );
       ref.read(activeRouteProvider.notifier).state = route;
@@ -65,11 +88,17 @@ class ParkingDetailSheet extends ConsumerWidget {
       }
     } on DirectionsException catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('ルート取得失敗: ${e.message}')),
+        SnackBar(
+          content: Text('ルート取得失敗: ${e.message}'),
+          duration: const Duration(seconds: 8),
+        ),
       );
-    } catch (_) {
+    } catch (e) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('ルート取得に失敗しました')),
+        SnackBar(
+          content: Text('ルート取得に失敗しました（$e）'),
+          duration: const Duration(seconds: 6),
+        ),
       );
     } finally {
       ref.read(routeLoadingProvider.notifier).state = false;

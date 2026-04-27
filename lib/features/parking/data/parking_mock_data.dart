@@ -40,6 +40,15 @@ final mockParkingLots = <ParkingLot>[
     priceYenPerDay: 120,
     updatedAt: DateTime.now(),
   ),
+  ParkingLot(
+    id: 'p5',
+    name: '大学 駐輪場',
+    position: const LatLng(34.7000, 135.4930),
+    capacity: 50,
+    occupied: 20,
+    priceYenPerDay: 110,
+    updatedAt: DateTime.now(),
+  )
 ];
 
 final mockDevices = <Device>[
@@ -74,5 +83,13 @@ final mockDevices = <Device>[
     position: const LatLng(34.7078, 135.5134),
     status: DeviceStatus.idle,
     nfcCode: 'NFC-TENJIN-01',
+  ),
+  Device(
+    id: 'd-p5-01',
+    storeId: 's5',
+    parkingLotId: 'p5',
+    position: const LatLng(34.7000, 135.4930),
+    status: DeviceStatus.idle,
+    nfcCode: 'NFC-UNIVERSITY-01',
   ),
 ];

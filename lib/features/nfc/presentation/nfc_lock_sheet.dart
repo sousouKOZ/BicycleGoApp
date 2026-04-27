@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 
 import '../../../core/api/api_exceptions.dart';
@@ -68,7 +67,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
         if (!mounted || _isCancelled) return;
         setState(() {
           _stage = _Stage.verifying;
-          _message = 'GPS照合中…';
+          _message = 'スタンドIDを確認中…';
         });
         await _authenticate();
       },
@@ -105,12 +104,12 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
 
   Future<void> _authenticate() async {
     try {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
       final api = ref.read(apiClientProvider);
       final userId = ref.read(currentUserIdProvider);
 
+      // 屋内・隣接スタンド誤判定対策のため GPS 照合は廃止し、
+      // スタンドに紐付けたNFCタグの ID（deviceId）のみで認証する。
+      // 本番では IoT 検知イベントとの紐付けで強化する想定（docs/api_contract.md §2.1）。
       await api.postParkingDetect(
         deviceId: widget.deviceId,
         detectedAt: DateTime.now(),
@@ -119,8 +118,8 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       final session = await api.postParkingAuth(
         userId: userId,
         deviceId: widget.deviceId,
-        lat: position.latitude,
-        lng: position.longitude,
+        lat: 0,
+        lng: 0,
       );
 
       if (!mounted) return;
@@ -137,14 +136,14 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
       Navigator.of(context).pop(session);
-    } on GpsMismatchException catch (e) {
-      _showError(e.message);
     } on AuthGraceExpiredException catch (e) {
       _showError(e.message);
+    } on DeviceNotFoundException catch (_) {
+      _showError('スタンドIDが見つかりませんでした。NFCタグをご確認ください。');
     } on ApiException catch (e) {
       _showError('認証に失敗しました（${e.code}）');
-    } catch (_) {
-      _showError('位置情報の取得に失敗しました。GPSをご確認ください。');
+    } catch (e) {
+      _showError('認証に失敗しました（$e）');
     }
   }
 
