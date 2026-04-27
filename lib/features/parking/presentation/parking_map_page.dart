@@ -269,6 +269,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     final asyncLots = ref.watch(parkingLotsProvider);
@@ -501,14 +502,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                       ),
                       if (_searchFocus.hasFocus ||
                           normalizedQuery.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _SearchResultsDropdown(
-                            query: normalizedQuery,
-                            allLots: lots,
-                            filteredLots: visibleLots,
-                            currentLocation: _currentLocation,
-                            onTap: _focusParking,
+                        // Flexible で残り高さに合わせてドロップダウンを自動収縮。
+                        // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: _SearchResultsDropdown(
+                              query: normalizedQuery,
+                              allLots: lots,
+                              filteredLots: visibleLots,
+                              currentLocation: _currentLocation,
+                              onTap: _focusParking,
+                            ),
                           ),
                         ),
                       if (activeRoute != null)
@@ -527,7 +532,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   ),
                 ),
               ),
-              if (stores.isNotEmpty)
+              if (stores.isNotEmpty &&
+                  !(_searchFocus.hasFocus || normalizedQuery.isNotEmpty))
                 Positioned(
                   left: 0,
                   right: 0,
@@ -782,6 +788,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
     return Container(
       decoration: GlassDecoration.light(context, radius: 16),
       clipBehavior: Clip.antiAlias,
+      // Flexible 親が残り高さを渡すので、ここは "それ以上は伸ばさない" という上限として機能する。
       constraints: const BoxConstraints(maxHeight: 360),
       child: Material(
         color: Colors.transparent,
