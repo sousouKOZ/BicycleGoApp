@@ -96,8 +96,13 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
         permNotifier.markDenied();
       }
     }
+    // 達成しきい値を撮影モードでも反映できるよう、scheduleSessionReminders に
+    // earnThreshold ベースの値を渡す。
+    final totalSec = ParkingSession.earnThreshold.inSeconds;
     await notifier.scheduleSessionReminders(
       sessionStartAt: startedAt,
+      reminderSeconds: (totalSec * 2 / 3).round(),
+      achievedSeconds: totalSec,
       parkingName: widget.parkingName,
     );
   }

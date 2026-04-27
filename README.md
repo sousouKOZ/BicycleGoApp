@@ -391,6 +391,28 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 
 ---
 
+### 🎬 撮影モード（達成時間を短縮）
+
+プロトタイプ動画やデモ撮影用に、`--dart-define=DEMO=true` を付けて起動すると **15分の達成しきい値が30秒**になります。タイマー画面の円形プログレスも30秒で1周するので動画映えします。
+
+```bash
+# 撮影用（30秒で達成 → クーポン獲得画面へ）
+flutter run --dart-define-from-file=env/dev.json --dart-define=DEMO=true
+
+# 通常起動（15分達成、変更なし）
+flutter run --dart-define-from-file=env/dev.json
+```
+
+| タイミング | 撮影モード | 通常 |
+| --- | --- | --- |
+| NFCタップ → 認証完了 | 即時 | 即時 |
+| 経過リマインダ通知 | 20秒後「もう少しで…」 | 10分後 |
+| クーポン獲得画面に遷移 | **30秒後** | 15分後 |
+
+実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。スナックバー文言と通知予約も `earnThreshold` から動的に計算しているので、撮影モードでも整合します。
+
+---
+
 ## 📦 モックデータ
 
 - 駐輪場 — [parking_mock_data.dart](lib/features/parking/data/parking_mock_data.dart)

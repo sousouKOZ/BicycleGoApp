@@ -30,9 +30,18 @@ class ParkingSession {
     this.issuedCouponId,
   });
 
+  /// `--dart-define=DEMO=true` で起動した時だけ撮影用に短い時間設定を使う。
+  /// 通常ビルドでは false なので本番値が選ばれる。
+  static const _isDemoMode = bool.fromEnvironment('DEMO');
+
   static const authGrace = Duration(minutes: 5);
-  static const earnThreshold = Duration(minutes: 15);
+  static const earnThreshold = _isDemoMode
+      ? Duration(seconds: 30)
+      : Duration(minutes: 15);
   static const longTermAlert = Duration(hours: 24);
+
+  /// 撮影モード判定（UI 表示・通知タイミング計算に使う）。
+  static bool get isDemoMode => _isDemoMode;
 
   DateTime get authDeadline => detectedAt.add(authGrace);
   DateTime? get earnDeadline =>

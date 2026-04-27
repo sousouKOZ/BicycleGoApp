@@ -331,9 +331,15 @@ class ParkingDetailSheet extends ConsumerWidget {
                     }
                     ref.read(pointsProvider.notifier).state +=
                         _nfcLockRewardPoints;
+                    final earnSec =
+                        ParkingSession.earnThreshold.inSeconds;
+                    final earnLabel = earnSec >= 60
+                        ? '${earnSec ~/ 60}分'
+                        : '${earnSec}秒';
                     messenger.showSnackBar(
-                      const SnackBar(
-                          content: Text('認証完了！15分後にクーポンが届きます')),
+                      SnackBar(
+                        content: Text('認証完了！$earnLabel後にクーポンが届きます'),
+                      ),
                     );
                     navigator.pop();
                     await navigator.push(
