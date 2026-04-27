@@ -223,14 +223,17 @@ class UserProfilePage extends ConsumerWidget {
   }
 
   Future<void> _editNickname(BuildContext context, WidgetRef ref) async {
-    final controller =
-        TextEditingController(text: ref.read(userProfileProvider).nickname);
+    final initial = ref.read(userProfileProvider).nickname;
+    // 手動で TextEditingController を作るとダイアログ unmount 前に dispose して
+    // _dependents.isEmpty アサーション失敗を起こすため、TextFormField の
+    // initialValue + onChanged で Flutter 側にライフサイクルを任せる。
+    var text = initial;
     final next = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('ニックネーム'),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          initialValue: initial,
           autofocus: true,
           maxLength: 20,
           textInputAction: TextInputAction.done,
@@ -238,8 +241,9 @@ class UserProfilePage extends ConsumerWidget {
             hintText: '20文字以内',
             border: OutlineInputBorder(),
           ),
-          onSubmitted: (_) =>
-              Navigator.of(dialogContext).pop(controller.text),
+          onChanged: (v) => text = v,
+          onFieldSubmitted: (v) =>
+              Navigator.of(dialogContext).pop(v),
         ),
         actions: [
           TextButton(
@@ -247,14 +251,12 @@ class UserProfilePage extends ConsumerWidget {
             child: const Text('キャンセル'),
           ),
           ElevatedButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text),
+            onPressed: () => Navigator.of(dialogContext).pop(text),
             child: const Text('保存'),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (next == null) return;
     await ref.read(userProfileProvider.notifier).setNickname(next);
   }
