@@ -57,7 +57,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
 
     setState(() {
       _stage = _Stage.waitingTag;
-      _message = 'iPhone上部をタグに近づけてください';
+      _message = '端末上部をタグに近づけてください';
     });
 
     NfcManager.instance.startSession(
