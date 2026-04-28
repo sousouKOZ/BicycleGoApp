@@ -34,7 +34,7 @@ class NfcLockSheet extends ConsumerStatefulWidget {
 
 class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
   _Stage _stage = _Stage.waitingTag;
-  String _message = 'iPhone上部をタグに近づけてください';
+  String _message = '端末上部をタグに近づけてください';
   bool _isCancelled = false;
 
   @override
@@ -88,8 +88,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     final notifier = NotificationService.instance;
     final granted = await notifier.requestPermissions();
     if (mounted) {
-      final permNotifier =
-          ref.read(notificationPermissionProvider.notifier);
+      final permNotifier = ref.read(notificationPermissionProvider.notifier);
       if (granted) {
         permNotifier.markGranted();
       } else {
@@ -219,13 +218,11 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
-                border:
-                    Border.all(color: accent.withValues(alpha: 0.3)),
+                border: Border.all(color: accent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -338,8 +335,7 @@ class _StageIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading =
-        stage == _Stage.waitingTag || stage == _Stage.verifying;
+    final isLoading = stage == _Stage.waitingTag || stage == _Stage.verifying;
     return SizedBox(
       width: 96,
       height: 96,
