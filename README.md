@@ -411,6 +411,90 @@ flutter run --dart-define-from-file=env/dev.json
 
 実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。スナックバー文言と通知予約も `earnThreshold` から動的に計算しているので、撮影モードでも整合します。
 
+> **Supabase モード（後述）と組み合わせる場合**は、サーバ側 Edge Function にも `EARN_THRESHOLD_SECONDS=30` を渡す必要があります（[supabase/functions/.env.demo](supabase/functions/.env.demo)）。クライアント・サーバ両方で短縮しないと cron が 15分を待ってしまいクーポンが出ません。
+
+---
+
+## 🚦 開発ワークフロー（モード3種）
+
+| モード | データ | 認証 | 用途 |
+| --- | --- | --- | --- |
+| **A. Mock のみ** | メモリ上のモック | 固定 ID | UI 修正・オフライン |
+| **B. Supabase 接続** | ローカル Postgres | Anonymous Sign-In | 統合テスト |
+| **C. Supabase + DEMO** | ローカル Postgres | Anonymous Sign-In | 撮影・短時間検証 |
+
+### モード A：Mock のみ（一番簡単・サーバ不要）
+
+サーバ起動不要。`apiClientProvider` が [MockApiClient](lib/core/api/mock_api_client.dart) を返す。
+
+```bash
+flutter run --dart-define-from-file=env/dev.json
+```
+
+### モード B：Supabase 接続（本番に近い動作）
+
+ターミナル3枚を並行で起動：
+
+**ターミナル 1: Docker Desktop を起動**
+```bash
+open -a Docker   # クジラアイコンが緑になるまで30秒〜1分待つ
+```
+
+**ターミナル 2: Supabase ローカルスタック**
+```bash
+supabase start   # 初回 5〜10分（イメージpull）、2回目以降は20秒
+```
+
+**ターミナル 3: Edge Functions（起動中ずっと開いたままにする）**
+```bash
+supabase functions serve --no-verify-jwt
+```
+
+**ターミナル 4: Flutter アプリ**
+```bash
+flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
+```
+
+### モード C：Supabase + DEMO（撮影用・30秒達成）
+
+ターミナル 1, 2 はモード B と同じ。3, 4 を以下に差し替え：
+
+**ターミナル 3: Edge Functions（DEMO 設定で起動）**
+```bash
+supabase functions serve --no-verify-jwt --env-file supabase/functions/.env.demo
+```
+
+**ターミナル 4: Flutter アプリ（DEMO フラグ追加）**
+```bash
+flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true --dart-define=DEMO=true
+```
+
+### 動作確認 URL（モード B/C 時のみ）
+
+| 何を見るか | URL |
+| --- | --- |
+| Supabase Studio（DB/Auth/Edge を GUI で操作） | http://127.0.0.1:54323 |
+| メールテスト用 (Mailpit) | http://127.0.0.1:54324 |
+| Edge Function 直接呼び出し | http://127.0.0.1:54321/functions/v1/<関数名> |
+
+### 終了方法
+
+| 終わらせるもの | 操作 |
+| --- | --- |
+| Flutter アプリ | ターミナル 4 で `q`（または Ctrl+C） |
+| Edge Functions | ターミナル 3 で `Ctrl+C` |
+| Supabase スタック（DB データ保持） | `supabase stop` |
+| Supabase スタック + データ初期化 | `supabase stop --no-backup` |
+| Docker Desktop | クジラアイコン → Quit |
+
+### 端末別の Supabase URL（実機/Android 時の注意）
+
+[env/dev.json](env/dev.json) の `SUPABASE_URL` を実行端末によって書き換える：
+
+- **iOS シミュレータ・Mac から**: `http://127.0.0.1:54321`
+- **Android エミュレータから**: `http://10.0.2.2:54321`
+- **実機（同一Wi-Fi）から**: `http://<MacのLAN IP>:54321`
+
 ---
 
 ## 📦 モックデータ
