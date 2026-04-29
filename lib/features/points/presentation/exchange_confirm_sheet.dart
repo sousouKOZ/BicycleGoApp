@@ -38,7 +38,7 @@ class _ExchangeConfirmSheetState extends ConsumerState<ExchangeConfirmSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = widget.item;
-    final points = ref.watch(pointsProvider);
+    final points = ref.watch(pointsProvider).valueOrNull ?? 0;
     final remaining = points - item.costPoints;
     final isInsufficient = remaining < 0;
 
@@ -188,7 +188,7 @@ class _ExchangeConfirmSheetState extends ConsumerState<ExchangeConfirmSheet> {
     });
     try {
       final pointsNotifier = ref.read(pointsProvider.notifier);
-      final current = pointsNotifier.state;
+      final current = ref.read(pointsProvider).valueOrNull ?? 0;
       if (current < widget.item.costPoints) {
         setState(() {
           _error = 'ポイントが不足しています';
@@ -208,7 +208,8 @@ class _ExchangeConfirmSheetState extends ConsumerState<ExchangeConfirmSheet> {
         validity: const Duration(days: 30),
       );
 
-      pointsNotifier.state = current - widget.item.costPoints;
+      // 残高を更新（Mock: ローカル減算 / Supabase: サーバ反映後 refetch）
+      await pointsNotifier.add(-widget.item.costPoints);
       await ref.read(exchangeHistoryProvider.notifier).add(
             ExchangeRecord(
               id: 'exch-${DateTime.now().millisecondsSinceEpoch}',

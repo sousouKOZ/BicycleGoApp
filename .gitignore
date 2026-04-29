@@ -53,3 +53,4 @@ app.*.map.json
 !/ios/Flutter/Secrets.example.xcconfig
 /android/secrets.properties
 !/android/secrets.example.properties
+supabase/functions/.env*

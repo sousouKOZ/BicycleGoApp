@@ -22,7 +22,7 @@ class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
 
   @override
   Widget build(BuildContext context) {
-    final points = ref.watch(pointsProvider);
+    final points = ref.watch(pointsProvider).valueOrNull ?? 0;
     final catalog = ref.watch(exchangeCatalogProvider);
     final filtered = _filter == null
         ? catalog

@@ -346,8 +346,9 @@ class ParkingDetailSheet extends ConsumerWidget {
                     if (session == null) {
                       return;
                     }
-                    ref.read(pointsProvider.notifier).state +=
-                        _nfcLockRewardPoints;
+                    ref
+                        .read(pointsProvider.notifier)
+                        .add(_nfcLockRewardPoints);
                     final earnSec =
                         ParkingSession.earnThreshold.inSeconds;
                     final earnLabel = earnSec >= 60

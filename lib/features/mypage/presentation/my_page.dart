@@ -23,7 +23,7 @@ class MyPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final points = ref.watch(pointsProvider);
+    final points = ref.watch(pointsProvider).valueOrNull ?? 0;
     final asyncCoupons = ref.watch(userCouponsProvider);
 
     return Scaffold(

@@ -1,3 +1,10 @@
 {
-  "GOOGLE_DIRECTIONS_API_KEY": "AIzaSy..."
+  "GOOGLE_DIRECTIONS_API_KEY": "AIzaSy...",
+
+  "// Supabase 接続情報（USE_SUPABASE=true で起動した時のみ参照）": "",
+  "// iOS シミュレータ・Mac から: http://127.0.0.1:54321": "",
+  "// Android エミュレータから: http://10.0.2.2:54321": "",
+  "// 実機（Wi-Fi）から: http://<MacのLAN IP>:54321": "",
+  "SUPABASE_URL": "http://127.0.0.1:54321",
+  "SUPABASE_ANON_KEY": "<supabase status の ANON_KEY をコピー>"
 }

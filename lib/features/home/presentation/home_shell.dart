@@ -3,13 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/api/api_providers.dart';
+import '../../../core/config/api_config.dart';
+import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/coupon_list_page.dart';
+import '../../coupons/providers/coupon_providers.dart';
 import '../../mypage/presentation/my_page.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/presentation/parking_map_page.dart';
 import '../../parking/providers/session_providers.dart';
+import '../../points/providers/points_providers.dart';
 import '../../sessions/domain/session_record.dart';
 import '../../sessions/presentation/coupon_earned_page.dart';
 import '../../sessions/presentation/session_mini_bar.dart';
@@ -34,6 +39,58 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       const Duration(seconds: 1),
       (_) => _checkSession(),
     );
+    // Supabase モード: アプリ起動時にサーバ自律発行されたクーポンを検知して
+    // 祝福画面を表示する。アプリを kill した状態で 15分達成 → 通知タップで開いた
+    // ケースをカバー。
+    if (useSupabase) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _checkUnseenEarnedCoupon(),
+      );
+    }
+  }
+
+  static const _lastSeenCouponKey = 'last_seen_earned_coupon_id_v1';
+
+  Future<void> _checkUnseenEarnedCoupon() async {
+    if (!mounted) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeen = prefs.getString(_lastSeenCouponKey);
+
+      // 最新の所有クーポンを取得
+      final coupons =
+          await ref.read(userCouponsProvider.future);
+      Coupon? newest;
+      for (final c in coupons) {
+        if (c.status != CouponStatus.owned) continue;
+        if (c.distanceTier == CouponDistanceTier.exchange) continue; // 交換クーポンは除外
+        if (newest == null || c.issuedAt.isAfter(newest.issuedAt)) {
+          newest = c;
+        }
+      }
+      if (newest == null) return;
+      if (lastSeen == newest.id) return; // 既に表示済み
+
+      // 5分以上前のクーポンは祝福しない（古い未消化を毎回出さない）
+      if (DateTime.now().difference(newest.issuedAt) >
+          const Duration(minutes: 5)) {
+        await prefs.setString(_lastSeenCouponKey, newest.id);
+        return;
+      }
+
+      await prefs.setString(_lastSeenCouponKey, newest.id);
+      // ポイント残高もリフレッシュ
+      ref.read(pointsProvider.notifier).refresh();
+
+      if (!mounted) return;
+      ref.read(latestEarnedCouponProvider.notifier).state = newest;
+      final navigator = Navigator.of(context, rootNavigator: true);
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => const CouponEarnedPage()),
+      );
+    } catch (_) {
+      // 起動時の失敗はサイレント（次回起動時に再試行）
+    }
   }
 
   @override

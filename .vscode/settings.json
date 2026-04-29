@@ -1,0 +1,10 @@
+{
+  "// Deno": "supabase/functions/ 以下は Deno LSP で型チェックする。Flutter 側には影響しない。",
+  "deno.enable": false,
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.lint": true,
+  "deno.unstable": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
+}
