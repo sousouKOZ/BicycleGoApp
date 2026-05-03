@@ -172,16 +172,14 @@ Deno.serve(async (req) => {
       errors.push(`session ${session.id}: tx insert failed: ${txErr.message}`);
     }
 
-    // d) 残高加算（read-modify-write、本番では PL/pgSQL の atomic 関数推奨）
-    const { data: pointsRow } = await supabase
-      .from("points")
-      .select("balance")
-      .eq("user_id", session.user_id)
-      .maybeSingle();
-    const newBalance = (pointsRow?.balance ?? 0) + EARN_POINTS_PER_SESSION;
-    await supabase
-      .from("points")
-      .upsert({ user_id: session.user_id, balance: newBalance });
+    // d) 残高加算（add_points RPC で原子的に処理 / race condition 対策）
+    const { error: pointsErr } = await supabase.rpc("add_points", {
+      p_user_id: session.user_id,
+      p_delta: EARN_POINTS_PER_SESSION,
+    });
+    if (pointsErr) {
+      errors.push(`session ${session.id}: add_points failed: ${pointsErr.message}`);
+    }
 
     issued += 1;
     console.log(

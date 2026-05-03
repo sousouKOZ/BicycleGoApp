@@ -1,6 +1,7 @@
 import '../../features/coupons/domain/coupon.dart';
 import '../../features/parking/domain/parking_lot.dart';
 import '../../features/parking/domain/parking_session.dart';
+import '../../features/parking/providers/session_providers.dart';
 import '../../features/stores/domain/store.dart';
 
 /// Flaskバックエンド仕様（§8.2）に対応するAPI契約。
@@ -62,4 +63,8 @@ abstract class ApiClient {
 
   /// 現在のアクティブセッション取得（NFCスキャン直後の計測画面復帰用）。
   Future<ParkingSession?> getActiveSession(String userId);
+
+  /// デバイスID から所属駐輪場の id と name を取得する。
+  /// アプリ kill 後の `activeParkingInfoProvider` 復元に使用。
+  Future<ActiveParkingInfo?> getParkingForDevice(String deviceId);
 }

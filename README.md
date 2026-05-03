@@ -84,10 +84,11 @@
 - 「15分駐輪で自動発行」の説明テキスト
 
 ### NFC認証シート [NfcLockSheet](lib/features/nfc/presentation/nfc_lock_sheet.dart)
-- NFCタグ読み取り（iOS未対応時はデモモードで自動進行）
+- NFCタグ読み取り（NFC 非対応端末ではデモモードで自動進行）
 - ステージ遷移：`待機中 → 認証中 → 成功／エラー`
 - 各ステージでアクセントカラーとアイコンが切り替わる
-- GPS位置情報とデバイスIDを組み合わせて認証
+- **NFC タグの ID（deviceId）一致のみで認証** — 屋内・隣接スタンド誤判定対策で GPS 照合は廃止
+- 本番では IoT 検知イベントとの紐付けで強化する想定（[docs/server_implementation.md §13](docs/server_implementation.md)）
 - エラー時は「もう一度」で再スキャン可能
 
 ### 計測中画面 [SessionTimerPage](lib/features/sessions/presentation/session_timer_page.dart)
@@ -108,6 +109,7 @@
 - 15分達成判定・`evaluateEarn` 呼び出し・獲得画面遷移は **HomeShellに集約** — どの画面からでもクーポン獲得画面に自動遷移
 - **`parked` モード** — クーポン獲得後も自転車を出していない間は緑グラデの「駐輪中（クーポン獲得済）」バーに切替、累計駐輪時間を表示
   - タップで [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart) を表示
+- **アプリ kill 後の状態復元**（Supabase モード）— [HomeShell](lib/features/home/presentation/home_shell.dart) の `_restoreFromServer` で起動時に `getActiveSession` を呼び、measuring / achieved / parked のセッションがあれば即時復元。kill → 再起動でもバーが消えない
 
 ### クーポン獲得画面 [CouponEarnedPage](lib/features/sessions/presentation/coupon_earned_page.dart)
 - 達成バナー（グラデーション + 祝福アイコン）
@@ -117,6 +119,7 @@
 - **入場時の触覚フィードバック** — `HapticFeedback.heavyImpact()` で達成感を物理的にも演出
 - **スパークルバースト** [_SparkleBurst](lib/features/sessions/presentation/coupon_earned_page.dart) — バナー周辺で14個のパーティクルが放射状に拡散（CustomPainter、外部依存なし）
 - **シェアボタン** — 達成バナー右肩のアイコン。タップで「#BicycleGo で15分駐輪したら ○○ の『△△』クーポンが届いた！」をクリップボードにコピー（追加パッケージ不要、SNS への貼り付けを想定）
+- **アプリ kill 状態でのクーポン受取り**（Supabase モード）— サーバの pg_cron が15分達成を検知して自律発行 → 通知タップでアプリ起動時、[HomeShell._checkUnseenEarnedCoupon](lib/features/home/presentation/home_shell.dart) が未表示の owned クーポンを検知して自動的にこの画面へ遷移
 
 ### 出庫シート [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart)
 - 駐輪場名・駐輪開始時刻・累計駐輪時間・ステータスを一覧表示
@@ -211,20 +214,34 @@
 
 ## 🔄 主要フロー
 
-### 駐輪 → クーポン獲得
+### 駐輪 → クーポン獲得（Supabase モード）
 ```
 駐輪場マーカー選択
   ↓ 「NFCで計測開始」
-NFC認証シート（タグ読み取り + GPS照合）
-  ↓ 認証成功
-計測中画面（15分カウントダウン）
-  ↓ 15分経過
+NFC認証シート（NFC タグ ID で認証 / 屋内対応のため GPS 照合は廃止）
+  ↓ 認証成功 → サーバ側 status='measuring'
+計測中画面（15分カウントダウン）+ ローカル通知予約
+
+  ┌── ここでアプリ kill されてもサーバは計測継続 ──┐
+  │                                                 │
+  │   pg_cron が毎分発火                            │
+  │     → status=measuring & 15分超過を検知         │
+  │     → 推薦ロジックで店舗選定                    │
+  │     → クーポン発行 + status='achieved'          │
+  │     → +10pt (point_transactions)                │
+  │                                                 │
+  └─────────────────────────────────────────────────┘
+  ↓ 15分経過 → 通知発火（OS レベル、kill 状態でも届く）
+  ↓ 通知タップで起動
+HomeShell._restoreFromServer
+  ├─ getActiveSession でセッション復元（ミニバー復活）
+  └─ _checkUnseenEarnedCoupon で未表示クーポンを検知 → 祝福画面遷移
 クーポン獲得画面（haptic + sparkle + share）
-  ↓ ① スワイプ消込 — 店舗で即利用、セッション完了
-  ↓ ② 「あとで使う（駐輪は継続中）」 — クーポン保存、セッションは parked
+  ↓ ① スワイプ消込 — redeem_coupon → status='used' + endSession
+  ↓ ② 「あとで使う（駐輪は継続中）」 — セッションは parked
 出庫タイミング：ミニバーから CheckoutSheet
-  ↓ 「自転車を出す」
-セッション完了（履歴の completedAt を実出庫時刻に上書き）
+  ↓ 「自転車を出す」 → end_session
+セッション完了（occupied -1 + 履歴の completedAt 上書き）
 ```
 
 ### ポイント交換
@@ -235,13 +252,16 @@ PointsExchangePage（カテゴリ絞り込み + 商品リスト）
   ↓ 商品タップ
 ExchangeConfirmSheet（残高検証）
   ↓ 「交換する」
-api.issueExchangeCoupon → 即時 owned クーポン発行 + 残高減算 + 履歴記録
+issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
+  ├─ 残高ロック取得 + 検証
+  ├─ クーポン INSERT (owned, distance_tier='exchange')
+  ├─ points 残高減算
+  └─ point_transactions に exchange 履歴
   ↓
 クーポン一覧の「利用可能」セクションに反映
 ```
 
-5分以内にNFC認証されなかった場合はセッション失効（`AuthGraceExpiredException`）。
-GPSが駐輪場から80m以上離れている場合は `GpsMismatchException`。
+5分以内にNFC認証されなかった場合は `expire_sessions` cron が `expired` 化（`AuthGraceExpiredException`）。
 
 ---
 
@@ -257,13 +277,43 @@ GPSが駐輪場から80m以上離れている場合は `GpsMismatchException`。
 ## 🧱 アーキテクチャ
 
 ```
+┌─────────────────────────────────────────────┐
+│  Flutter アプリ (lib/)                       │
+│   ├─ apiClientProvider (DI 切替ポイント)    │
+│   │   ├─ MockApiClient   (オフライン UI)    │
+│   │   └─ SupabaseApiClient (HTTP/Realtime)  │
+│   └─ Riverpod で状態管理                    │
+└─────────────────────────────────────────────┘
+                  │
+       ┌──────────┴──────────────┐
+       │ USE_SUPABASE=true 時のみ │
+       ▼                         ▼
+┌──────────────────┐   ┌──────────────────────┐
+│ ローカル Supabase │   │ クラウド Supabase    │
+│ (Docker)         │   │ (Tokyo region)       │
+│ 開発・テスト用   │   │ 本番運用             │
+└──────────────────┘   └──────────────────────┘
+       │                         │
+       └────────┬────────────────┘
+                ▼
+   ┌──────────────────────────────────────┐
+   │ supabase/                            │
+   │  ├─ migrations/  (5マイグレーション)  │
+   │  ├─ seed.sql     (駐輪場・店舗等)    │
+   │  └─ functions/   (7 Edge Functions)  │
+   └──────────────────────────────────────┘
+```
+
+### Flutter 側（lib/）
+
+```
 lib/
 ├── app.dart               # MaterialApp・テーマ適用
-├── main.dart              # エントリポイント（ProviderScope）
+├── main.dart              # ProviderScope + Supabase.initialize + Anonymous Sign-In
 ├── routes.dart            # ルート定義
 ├── core/
-│   ├── api/               # ApiClient抽象 + MockApiClient実装
-│   ├── config/            # APIキー読み込み等
+│   ├── api/               # ApiClient抽象 + MockApiClient + SupabaseApiClient
+│   ├── config/            # APIキー・USE_SUPABASE フラグ読み込み
 │   ├── recommendation/    # クーポン推薦スコアリング
 │   ├── theme/             # カラー・グラス装飾・テーマ
 │   └── widgets/, utils/   # 共通ウィジェット・ユーティリティ
@@ -275,16 +325,41 @@ lib/
     ├── nfc/               # NFC認証シート
     ├── points/            # ポイント残高・交換カタログ・交換履歴
     ├── alerts/            # 通知関連プロバイダ
-    ├── user/              # ユーザー情報
+    ├── user/              # ユーザー情報・プロフィール
     ├── mypage/            # マイページ
-    ├── settings/          # 設定（テーマ・通知）
+    ├── settings/          # 設定（テーマ・通知・サポート）
     ├── onboarding/        # 初回起動オンボーディング
-    └── home/              # ボトムナビシェル
+    └── home/              # ボトムナビシェル + サーバ状態復元
+```
+
+### サーバ側（supabase/）
+
+```
+supabase/
+├── config.toml                 # ローカル Supabase 設定（Anonymous Auth 有効）
+├── seed.sql                    # 駐輪場5・店舗5・デバイス5・カタログ6
+├── migrations/
+│   ├── initial_schema.sql      # 9テーブル + ENUM + index + auth トリガ
+│   ├── rls_policies.sql        # 全テーブル RLS（自分のデータのみ可視）
+│   ├── pg_cron_jobs.sql        # 毎分 issue_coupons / expire_sessions
+│   ├── exchange_rpc.sql        # ポイント交換アトミック関数
+│   └── cron_helper_for_cloud.sql  # Vault 経由で URL/キー解決
+└── functions/                  # Edge Functions（Deno + TypeScript）
+    ├── _shared/                # 定数・CORS・型・推薦ロジック
+    ├── parking_detect/         # IoT 検知 → unauthenticated session 作成
+    ├── parking_auth/           # NFC 認証 → measuring 遷移
+    ├── issue_coupons/          # 達成判定 + クーポン自律発行（cron 起動）
+    ├── expire_sessions/        # 認証猶予クリーンナップ（cron 起動）
+    ├── redeem_coupon/          # スワイプ消込
+    ├── end_session/            # 出庫 + occupied 減算
+    └── issue_exchange_coupon/  # ポイント交換（PL/pgSQL RPC 経由でアトミック）
 ```
 
 **状態管理** — Riverpod (`flutter_riverpod ^2.5.1`)
-**API層** — `ApiClient` 抽象 + `MockApiClient` 実装。`apiClientProvider` 1箇所を差し替えるだけでHTTP実装に移行可能
+**API層** — `ApiClient` 抽象 + 2実装（Mock / Supabase）。`apiClientProvider` 1箇所で切替
+**バックエンド** — Supabase（Postgres + Auth + Edge Functions + pg_cron + Realtime）
 **API契約ドキュメント** — [docs/api_contract.md](docs/api_contract.md)
+**サーバ実装ガイド** — [docs/server_implementation.md](docs/server_implementation.md)
 
 ---
 
@@ -293,6 +368,7 @@ lib/
 ### フロントエンド
 - **Flutter 3.x / Dart**（Material 3）
 - **flutter_riverpod** — 状態管理
+- **supabase_flutter** — Supabase Auth / DB / Realtime クライアント
 - **google_maps_flutter** — 地図表示
 - **geolocator** — 位置情報取得 + 設定アプリ起動
 - **nfc_manager** — NFCタグ読み取り（`third_party/` にローカルフォーク）
@@ -301,13 +377,17 @@ lib/
 - **url_launcher** — クーポン詳細から外部マップを起動
 - **google_fonts** — Inter / Noto Sans JP
 
-### バックエンド（現状）
-- **モック実装**（`MockApiClient`）でフロント開発を先行
-- データベース選定は未確定（Supabaseが候補）
+### バックエンド（Supabase）
+- **Postgres + Row Level Security** — 9テーブル、自分のデータのみ閲覧可
+- **Edge Functions（Deno + TypeScript）** — 認証・消込・出庫・交換ロジック
+- **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分スケジュール実行
+- **Vault** — Edge Function URL / service_role key を暗号化保管
+- **Anonymous Sign-In** — 端末ベースの匿名認証（後でメール認証にアップグレード可）
+- **モック実装**（`MockApiClient`）も維持 — オフライン UI 開発・テスト用
 
 ### デバイス連携（想定）
-- NFCタグ付き駐輪ロック装置
-- IoTデバイスから `/api/parking/detect` に検知イベント送信
+- NFCタグ付き駐輪スタンド（屋内対応のため GPS 照合は廃止、deviceId のみで認証）
+- IoTセンサーから `parking_detect` Edge Function に検知イベント送信
 
 ---
 
@@ -388,6 +468,77 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 1. GCP Console で該当キーを **Delete**（無効化）
 2. 新しいキーを発行して上記の手順で差し替え
 3. git 履歴から削除（`git filter-repo` など）— ただしキー自体は既に漏洩しているため、ローテーションが最優先
+
+---
+
+### Supabase ローカル / クラウド構築
+
+#### ローカル開発環境（初回のみ）
+
+```bash
+# Supabase CLI と Deno をインストール
+brew install supabase/tap/supabase
+curl -fsSL https://deno.land/install.sh | sh
+
+# プロジェクト直下で initialize（既に済み）
+# supabase init
+
+# Docker Desktop を起動した状態で:
+supabase start          # 初回 5〜10分（イメージ pull）
+
+# マイグレーション + シードを適用（手動リセット時）
+supabase db reset
+```
+
+[env/dev.json](env/dev.example.json) に以下を追加：
+
+```json
+{
+  "SUPABASE_URL": "http://127.0.0.1:54321",
+  "SUPABASE_ANON_KEY": "<supabase status の ANON_KEY>"
+}
+```
+
+#### クラウド本番環境（初回のみ）
+
+1. https://supabase.com で Organization に参加 → 新規 Project 作成（**Region: Tokyo** 必須）
+2. Project 作成時に設定した DB パスワードを保管
+3. CLI から認証 + リンク：
+
+```bash
+supabase login                                  # ブラウザ認証
+supabase link --project-ref <project-ref>       # DB パスワード入力
+```
+
+4. ローカルの成果物を本番に反映：
+
+```bash
+supabase db push                                # 5マイグレーション適用
+supabase db query --linked --file supabase/seed.sql   # シードデータ投入
+for fn in parking_detect parking_auth issue_coupons \
+          expire_sessions redeem_coupon end_session \
+          issue_exchange_coupon; do
+  supabase functions deploy "$fn" --no-verify-jwt
+done
+```
+
+5. クラウド側で手動設定（Studio）：
+   - **Authentication → Sign In / Up** → `Allow anonymous sign-ins` を **ON**
+   - **Database → Extensions** → `pg_cron` と `pg_net` を **Enable**
+   - **Vault** に2つのシークレットを登録：
+     - `edge_functions_url` → `https://<project-ref>.supabase.co/functions/v1`
+     - `edge_functions_service_role_key` → Project Settings → API の `service_role` key
+
+6. アプリ用に [env/prod.json](env/prod.example.json) を作成：
+
+```json
+{
+  "SUPABASE_URL": "https://<project-ref>.supabase.co",
+  "SUPABASE_ANON_KEY": "<anon public key>"
+}
+```
+
+詳細は [docs/server_implementation.md](docs/server_implementation.md) §11 を参照。
 
 ---
 
@@ -507,16 +658,15 @@ flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
 
 ## 🚧 未確定・今後の検討事項
 
-- データベース選定・バックエンド実装（Supabase想定・担当者別）
-- クーポン内容と距離のマッピングロジック確定
-- 交換商品ラインナップの最終版（現状はモックカタログ6種）
-- 実機駐輪場データの取得方法（API連携 or 手動登録）
+- **FCM プッシュ通知**：現状はローカル通知。サーバ自律発行と完全連動させるには [docs/server_implementation.md §7](docs/server_implementation.md) を実装
+- 交換商品ラインナップの最終版（現状はモックカタログ6種を seed 投入）
+- 実機駐輪場データの取得方法（公開 API 連携 or 手動登録 or IoT 連動）
 - 通知センター画面（[features/alerts](lib/features/alerts) は providers のみ存在）
 - 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
 - 駐輪場の混雑予測（時間帯別ヒートマップ）
-- 機種変更でも引き継げるユーザー認証（現状は端末ローカル）
-- ヘルプ／FAQ／利用規約／プライバシー
+- メール／Apple／Google 認証へのアップグレード（現状は Anonymous Sign-In のみ）
 - 多言語対応（i18n の土台）
+- アプリストア提出（iOS / Android）
 
 ---
 
@@ -542,8 +692,20 @@ flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
 - `parked` 中は HomeShell の `_checkSession` が再評価しない（重複発行防止）
 
 ### クーポン発行タイミング
-- **駐輪達成クーポン** — 15分経過後に `evaluateEarn` で発行（距離に応じて `near / far / exchange` tier）
+- **駐輪達成クーポン** — 15分経過後に発行（距離に応じて `near / far / exchange` tier）
   - 有効期限: 3日
-- **ポイント交換クーポン** — `issueExchangeCoupon` で**即時 `owned`** で発行
+  - **Mock モード**：アプリ側 `home_shell._checkSession` のポーリングで `evaluateEarn` を呼ぶ
+  - **Supabase モード**：サーバ pg_cron が毎分自律的に判定 → 発行 → アプリは `_restoreFromServer` / `_checkUnseenEarnedCoupon` で取得（**アプリ kill 状態でも発行される**）
+- **ポイント交換クーポン** — `issue_exchange_coupon` Edge Function（PL/pgSQL RPC 経由）で**即時 `owned`** 発行
   - 有効期限: 30日
   - `storeId = 'exchange-{itemId}'` のため地図検索には現れない（クーポン詳細の「店舗を地図で開く」も非表示）
+
+### サーバ × クライアントの責務分担
+
+| 機能 | Mock モード | Supabase モード |
+|---|---|---|
+| 達成判定（15分経過の検知） | アプリの `_checkSession` 1秒ポーリング | サーバの pg_cron 毎分実行 |
+| クーポン発行 | アプリ → MockApiClient（メモリ） | Edge Function `issue_coupons`（atomic） |
+| ポイント加算 | アプリでローカル計算 | Edge Function（point_transactions に履歴記録） |
+| アプリ kill 後も発行 | ❌（メモリ消失） | ✅（サーバ自律） |
+| 機種変更データ引き継ぎ | ❌ | △（同じ Anonymous user でログインできれば） |

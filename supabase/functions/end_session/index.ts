@@ -101,18 +101,12 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (device?.parking_lot_id) {
-    // SELECT してから UPDATE（read-modify-write）。MVP 用。
-    // 本番では atomic decrement 用の PL/pgSQL 関数を作るのが望ましい。
-    const { data: lot } = await supabase
-      .from("parking_lots")
-      .select("occupied")
-      .eq("id", device.parking_lot_id)
-      .maybeSingle();
-    if (lot && lot.occupied > 0) {
-      await supabase
-        .from("parking_lots")
-        .update({ occupied: lot.occupied - 1 })
-        .eq("id", device.parking_lot_id);
+    // decrement_parking_occupied RPC で原子的に -1（race condition 対策）
+    const { error: decErr } = await supabase.rpc("decrement_parking_occupied", {
+      p_parking_lot_id: device.parking_lot_id,
+    });
+    if (decErr) {
+      console.error("decrement_parking_occupied failed", decErr);
     }
   }
 

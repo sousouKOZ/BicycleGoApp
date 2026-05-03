@@ -5,6 +5,7 @@ import '../../features/parking/data/parking_mock_data.dart';
 import '../../features/parking/domain/device.dart';
 import '../../features/parking/domain/parking_lot.dart';
 import '../../features/parking/domain/parking_session.dart';
+import '../../features/parking/providers/session_providers.dart';
 import '../../features/stores/data/store_mock_data.dart';
 import '../../features/stores/domain/store.dart';
 import 'api_client.dart';
@@ -297,6 +298,20 @@ class MockApiClient implements ApiClient {
   Future<List<Store>> getStores() async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     return mockStores;
+  }
+
+  @override
+  Future<ActiveParkingInfo?> getParkingForDevice(String deviceId) async {
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final device = _devices.firstWhere(
+      (d) => d.id == deviceId,
+      orElse: () => throw DeviceNotFoundException('device $deviceId not found'),
+    );
+    final lot = mockParkingLots.firstWhere(
+      (p) => p.id == device.parkingLotId,
+      orElse: () => throw const ApiException('not_found', 'parking lot not found'),
+    );
+    return ActiveParkingInfo(parkingId: lot.id, parkingName: lot.name);
   }
 
   @override

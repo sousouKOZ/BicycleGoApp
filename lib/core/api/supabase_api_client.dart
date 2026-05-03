@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/coupons/domain/coupon.dart';
 import '../../features/parking/domain/parking_lot.dart';
 import '../../features/parking/domain/parking_session.dart';
+import '../../features/parking/providers/session_providers.dart';
 import '../../features/stores/domain/store.dart';
 import 'api_client.dart';
 import 'api_exceptions.dart';
@@ -135,6 +136,23 @@ class SupabaseApiClient implements ApiClient {
         .limit(1);
     if (rows.isEmpty) return null;
     return _parseSession(rows.first);
+  }
+
+  @override
+  Future<ActiveParkingInfo?> getParkingForDevice(String deviceId) async {
+    // device → parking_lot を1クエリで join 取得
+    final row = await _client
+        .from('devices')
+        .select('parking_lot_id, parking_lots(id, name)')
+        .eq('id', deviceId)
+        .maybeSingle();
+    if (row == null) return null;
+    final lot = row['parking_lots'];
+    if (lot is! Map<String, dynamic>) return null;
+    return ActiveParkingInfo(
+      parkingId: lot['id'] as String,
+      parkingName: lot['name'] as String,
+    );
   }
 
   // ---- クーポン --------------------------------------------------------

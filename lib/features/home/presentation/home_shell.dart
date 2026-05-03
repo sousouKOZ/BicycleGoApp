@@ -68,6 +68,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       final session = await api.getActiveSession(userId);
       if (session != null && mounted) {
         ref.read(activeSessionProvider.notifier).state = session;
+
+        // 駐輪場情報も復元（CheckoutSheet・履歴記録のため）
+        try {
+          final parkingInfo = await api.getParkingForDevice(session.deviceId);
+          if (parkingInfo != null && mounted) {
+            ref.read(activeParkingInfoProvider.notifier).state = parkingInfo;
+          }
+        } catch (_) {
+          // 取れなくてもセッション復元自体は継続
+        }
       }
 
       // セッション復元後にクーポン祝福チェックを実行
