@@ -15,6 +15,7 @@ import '../../parking/domain/parking_session.dart';
 import '../../parking/presentation/parking_map_page.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../points/providers/points_providers.dart';
+import '../../user/providers/user_providers.dart';
 import '../../sessions/domain/session_record.dart';
 import '../../sessions/presentation/coupon_earned_page.dart';
 import '../../sessions/presentation/session_mini_bar.dart';
@@ -39,17 +40,42 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       const Duration(seconds: 1),
       (_) => _checkSession(),
     );
-    // Supabase モード: アプリ起動時にサーバ自律発行されたクーポンを検知して
-    // 祝福画面を表示する。アプリを kill した状態で 15分達成 → 通知タップで開いた
-    // ケースをカバー。
+    // Supabase モード: アプリ起動時にサーバから状態を復元する。
+    //   1. 測定中／達成済／駐輪継続中のセッションがあれば activeSessionProvider に復元
+    //      → ミニバーが即時表示される（kill 後の再起動で進捗バーが消えるのを防ぐ）
+    //   2. 未表示の達成クーポンがあれば祝福画面に自動遷移
+    //      （kill 状態で15分達成 → 通知タップ→起動 のケース）
     if (useSupabase) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _checkUnseenEarnedCoupon(),
+        (_) => _restoreFromServer(),
       );
     }
   }
 
   static const _lastSeenCouponKey = 'last_seen_earned_coupon_id_v1';
+
+  Future<void> _restoreFromServer() async {
+    if (!mounted) return;
+    try {
+      // 既にメモリ上にセッションがある（hot reload 等）なら何もしない。
+      if (ref.read(activeSessionProvider) != null) {
+        await _checkUnseenEarnedCoupon();
+        return;
+      }
+
+      final api = ref.read(apiClientProvider);
+      final userId = ref.read(currentUserIdProvider);
+      final session = await api.getActiveSession(userId);
+      if (session != null && mounted) {
+        ref.read(activeSessionProvider.notifier).state = session;
+      }
+
+      // セッション復元後にクーポン祝福チェックを実行
+      await _checkUnseenEarnedCoupon();
+    } catch (_) {
+      // 起動時の失敗はサイレント（ネット不調・初回起動等）
+    }
+  }
 
   Future<void> _checkUnseenEarnedCoupon() async {
     if (!mounted) return;

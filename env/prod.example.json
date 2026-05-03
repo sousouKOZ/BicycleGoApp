@@ -1,0 +1,9 @@
+{
+  "GOOGLE_DIRECTIONS_API_KEY": "AIzaSy...",
+
+  "// 本番 Supabase プロジェクトの情報。": "",
+  "// SUPABASE_URL: Project Settings → API の Project URL": "",
+  "// SUPABASE_ANON_KEY: 同ページの anon public key": "",
+  "SUPABASE_URL": "https://<project_ref>.supabase.co",
+  "SUPABASE_ANON_KEY": "eyJh..."
+}

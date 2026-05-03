@@ -80,10 +80,13 @@ CREATE TABLE parking_lots (
 -- ============================================================
 -- 6. devices（NFC / IoT デバイス = 駐輪スタンド）
 -- ============================================================
+-- 提携店舗とは紐付けない（システム全体で全店舗を共通の提携先として扱い、
+-- 推薦は駐輪場座標と店舗座標の距離・重みで動的に決定する設計）。
+-- 「この駐輪場では特定の店舗だけ」という要件が出たら parking_lot_stores の
+-- 中間テーブルを後付けする。
 
 CREATE TABLE devices (
   id              text PRIMARY KEY,
-  store_id        text REFERENCES stores(id) ON DELETE SET NULL,
   parking_lot_id  text NOT NULL REFERENCES parking_lots(id) ON DELETE CASCADE,
   lat             double precision NOT NULL,
   lng             double precision NOT NULL,

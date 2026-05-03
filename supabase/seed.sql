@@ -28,12 +28,12 @@ INSERT INTO stores (id, name, category, lat, lng, benefit, recommend_weight) VAL
 -- デバイス（NFC タグ + IoT スタンド）
 -- ============================================================
 
-INSERT INTO devices (id, store_id, parking_lot_id, lat, lng, status, nfc_code) VALUES
-  ('d-p1-01', 's1', 'p1', 34.7025, 135.4959, 'idle', 'NFC-UMEDA-01'),
-  ('d-p2-01', 's2', 'p2', 34.7072, 135.5050, 'idle', 'NFC-NAKAZAKI-01'),
-  ('d-p3-01', 's3', 'p3', 34.7050, 135.5120, 'idle', 'NFC-OGIMACHI-01'),
-  ('d-p4-01', 's4', 'p4', 34.7078, 135.5134, 'idle', 'NFC-TENJIN-01'),
-  ('d-p5-01', 's5', 'p5', 34.7000, 135.4930, 'idle', 'NFC-UNIVERSITY-01');
+INSERT INTO devices (id, parking_lot_id, lat, lng, status, nfc_code) VALUES
+  ('d-p1-01', 'p1', 34.7025, 135.4959, 'idle', 'NFC-UMEDA-01'),
+  ('d-p2-01', 'p2', 34.7072, 135.5050, 'idle', 'NFC-NAKAZAKI-01'),
+  ('d-p3-01', 'p3', 34.7050, 135.5120, 'idle', 'NFC-OGIMACHI-01'),
+  ('d-p4-01', 'p4', 34.7078, 135.5134, 'idle', 'NFC-TENJIN-01'),
+  ('d-p5-01', 'p5', 34.7000, 135.4930, 'idle', 'NFC-UNIVERSITY-01');
 
 -- ============================================================
 -- ポイント交換カタログ
