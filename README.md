@@ -471,9 +471,27 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 
 ---
 
-### Supabase ローカル / クラウド構築
+## 🚦 開発ワークフロー（モード3種）
 
-#### ローカル開発環境（初回のみ）
+| モード | データ | 認証 | 用途 |
+| --- | --- | --- | --- |
+| **A. Mock のみ** | メモリ上のモック | 固定 ID | UI 修正・オフライン |
+| **B. Supabase 接続** | ローカル Postgres | Anonymous Sign-In | 統合テスト |
+| **C. Supabase + DEMO** | ローカル Postgres | Anonymous Sign-In | 撮影・短時間検証 |
+
+### モード A：Mock のみ（一番簡単・サーバ不要）
+
+サーバ起動不要。`apiClientProvider` が [MockApiClient](lib/core/api/mock_api_client.dart) を返す。
+
+```bash
+flutter run --dart-define-from-file=env/dev.json
+```
+
+これだけで UI 操作・地図表示・モックデータでの動作確認ができます。モード B/C を試したくなったら次の節へ進む（モード A しか使わない場合は読み飛ばし OK）。
+
+### Supabase 初回セットアップ（モード B/C の前に1回だけ）
+
+#### ローカル開発環境
 
 ```bash
 # Supabase CLI と Deno をインストール
@@ -499,7 +517,7 @@ supabase db reset
 }
 ```
 
-#### クラウド本番環境（初回のみ）
+#### クラウド本番環境
 
 1. https://supabase.com で Organization に参加 → 新規 Project 作成（**Region: Tokyo** 必須）
 2. Project 作成時に設定した DB パスワードを保管
@@ -540,48 +558,6 @@ done
 
 詳細は [docs/server_implementation.md](docs/server_implementation.md) §11 を参照。
 
----
-
-### 🎬 撮影モード（達成時間を短縮）
-
-プロトタイプ動画やデモ撮影用に、`--dart-define=DEMO=true` を付けて起動すると **15分の達成しきい値が30秒**になります。タイマー画面の円形プログレスも30秒で1周するので動画映えします。
-
-```bash
-# 撮影用（30秒で達成 → クーポン獲得画面へ）
-flutter run --dart-define-from-file=env/dev.json --dart-define=DEMO=true
-
-# 通常起動（15分達成、変更なし）
-flutter run --dart-define-from-file=env/dev.json
-```
-
-| タイミング | 撮影モード | 通常 |
-| --- | --- | --- |
-| NFCタップ → 認証完了 | 即時 | 即時 |
-| 経過リマインダ通知 | 20秒後「もう少しで…」 | 10分後 |
-| クーポン獲得画面に遷移 | **30秒後** | 15分後 |
-
-実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。スナックバー文言と通知予約も `earnThreshold` から動的に計算しているので、撮影モードでも整合します。
-
-> **Supabase モード（後述）と組み合わせる場合**は、サーバ側 Edge Function にも `EARN_THRESHOLD_SECONDS=30` を渡す必要があります（[supabase/functions/.env.demo](supabase/functions/.env.demo)）。クライアント・サーバ両方で短縮しないと cron が 15分を待ってしまいクーポンが出ません。
-
----
-
-## 🚦 開発ワークフロー（モード3種）
-
-| モード | データ | 認証 | 用途 |
-| --- | --- | --- | --- |
-| **A. Mock のみ** | メモリ上のモック | 固定 ID | UI 修正・オフライン |
-| **B. Supabase 接続** | ローカル Postgres | Anonymous Sign-In | 統合テスト |
-| **C. Supabase + DEMO** | ローカル Postgres | Anonymous Sign-In | 撮影・短時間検証 |
-
-### モード A：Mock のみ（一番簡単・サーバ不要）
-
-サーバ起動不要。`apiClientProvider` が [MockApiClient](lib/core/api/mock_api_client.dart) を返す。
-
-```bash
-flutter run --dart-define-from-file=env/dev.json
-```
-
 ### モード B：Supabase 接続（本番に近い動作）
 
 ターミナル3枚を並行で起動：
@@ -606,6 +582,13 @@ supabase functions serve --no-verify-jwt
 flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
 ```
 
+> **実機 Android で動かす場合** は `SUPABASE_URL` を Mac の LAN IP で上書きする。詳しくは [端末別の Supabase URL](#端末別の-supabase-url実機android-時の注意) を参照。
+> ```bash
+> flutter run --dart-define-from-file=env/dev.json \
+>   --dart-define=USE_SUPABASE=true \
+>   --dart-define=SUPABASE_URL=http://$(ipconfig getifaddr en0):54321
+> ```
+
 ### モード C：Supabase + DEMO（撮影用・30秒達成）
 
 ターミナル 1, 2 はモード B と同じ。3, 4 を以下に差し替え：
@@ -615,10 +598,12 @@ flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
 supabase functions serve --no-verify-jwt --env-file supabase/functions/.env.demo
 ```
 
-**ターミナル 4: Flutter アプリ（DEMO フラグ追加）**
+**ターミナル 4: Flutter アプリ（DEMO + 実機 Android 向けに Supabase URL を Mac の LAN IP で上書き）**
 ```bash
-flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true --dart-define=DEMO=true
+flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true --dart-define=DEMO=true --dart-define=SUPABASE_URL=http://10.77.97.163:54321
 ```
+
+> `10.77.97.163` は Mac の LAN IP（`ipconfig getifaddr en0` で確認）。Wi-Fi を切り替えると変わるので、その時はこの値を差し替える。シミュレータ／macOS から動かす場合は末尾の `--dart-define=SUPABASE_URL=...` を外せばよい（`env/dev.json` の `127.0.0.1` が使われる）。
 
 ### 動作確認 URL（モード B/C 時のみ）
 
@@ -663,6 +648,24 @@ flutter run \
 ```
 
 実機が同じ Wi-Fi に繋がっていない／macOS ファイアウォールで着信がブロックされている場合は、USB 接続中に限り `adb reverse tcp:54321 tcp:54321` でポート転送する方法もあります（この場合は `SUPABASE_URL` を `127.0.0.1` のまま使えます）。
+
+---
+
+## 🎬 撮影モード（DEMO=true の動作詳細）
+
+プロトタイプ動画やデモ撮影用に、`--dart-define=DEMO=true` を付けて起動すると **15分の達成しきい値が30秒**になります。タイマー画面の円形プログレスも30秒で1周するので動画映えします。モード C は最初からこれが有効です。
+
+| タイミング | 撮影モード | 通常 |
+| --- | --- | --- |
+| NFCタップ → 認証完了 | 即時 | 即時 |
+| 経過リマインダ通知 | 20秒後「もう少しで…」 | 10分後 |
+| クーポン獲得画面に遷移 | **30秒後** | 15分後 |
+
+実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。スナックバー文言と通知予約も `earnThreshold` から動的に計算しているので、撮影モードでも整合します。
+
+> **モード C（Supabase + DEMO）を使う場合**は、サーバ側 Edge Function にも `EARN_THRESHOLD_SECONDS=30` を渡す必要があります（[supabase/functions/.env.demo](supabase/functions/.env.demo)）。クライアント・サーバ両方で短縮しないと cron が 15分を待ってしまいクーポンが出ません — モード C の手順ではターミナル 3 で `--env-file supabase/functions/.env.demo` を渡しているので自動的に有効になります。
+>
+> Mock 単独で撮影したい場合は `flutter run --dart-define-from-file=env/dev.json --dart-define=DEMO=true`（USE_SUPABASE なし）でも30秒達成になります。
 
 ---
 
