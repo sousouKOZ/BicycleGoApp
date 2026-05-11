@@ -640,11 +640,29 @@ flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
 
 ### 端末別の Supabase URL（実機/Android 時の注意）
 
-[env/dev.json](env/dev.json) の `SUPABASE_URL` を実行端末によって書き換える：
+[env/dev.json](env/dev.json) の `SUPABASE_URL` は `127.0.0.1` 固定なので、実行端末によって参照先が変わります。`127.0.0.1` は **端末自身** を指すため、Android 実機やエミュレータから Mac 上のローカル Supabase には届きません。
 
-- **iOS シミュレータ・Mac から**: `http://127.0.0.1:54321`
-- **Android エミュレータから**: `http://10.0.2.2:54321`
-- **実機（同一Wi-Fi）から**: `http://<MacのLAN IP>:54321`
+| 実行端末 | 参照すべき URL |
+| --- | --- |
+| iOS シミュレータ・macOS・Chrome | `http://127.0.0.1:54321`（そのまま） |
+| Android エミュレータ | `http://10.0.2.2:54321` |
+| 実機（同一 Wi-Fi） | `http://<Mac の LAN IP>:54321` |
+
+`env/dev.json` を書き換えるのではなく、`--dart-define` で **後勝ち上書き** するのがおすすめです（JSON はコミット対象なので汚さずに済む）：
+
+```bash
+# Mac の LAN IP を確認
+ipconfig getifaddr en0   # 例: 10.77.97.163
+
+# 実機（Android）で起動
+flutter run \
+  --dart-define-from-file=env/dev.json \
+  --dart-define=USE_SUPABASE=true \
+  --dart-define=DEMO=true \
+  --dart-define=SUPABASE_URL=http://10.77.97.163:54321
+```
+
+実機が同じ Wi-Fi に繋がっていない／macOS ファイアウォールで着信がブロックされている場合は、USB 接続中に限り `adb reverse tcp:54321 tcp:54321` でポート転送する方法もあります（この場合は `SUPABASE_URL` を `127.0.0.1` のまま使えます）。
 
 ---
 

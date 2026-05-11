@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/api/api_providers.dart';
 import '../../../core/config/api_config.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/coupon_list_page.dart';
-import '../../coupons/providers/coupon_providers.dart';
 import '../../mypage/presentation/my_page.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/presentation/parking_map_page.dart';
@@ -52,14 +50,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     }
   }
 
-  static const _lastSeenCouponKey = 'last_seen_earned_coupon_id_v1';
-
   Future<void> _restoreFromServer() async {
     if (!mounted) return;
     try {
       // 既にメモリ上にセッションがある（hot reload 等）なら何もしない。
       if (ref.read(activeSessionProvider) != null) {
-        await _checkUnseenEarnedCoupon();
+        await _handleAchievedSession();
         return;
       }
 
@@ -80,52 +76,79 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         }
       }
 
-      // セッション復元後にクーポン祝福チェックを実行
-      await _checkUnseenEarnedCoupon();
+      // achieved 状態なら即時クーポン獲得画面に遷移
+      await _handleAchievedSession();
     } catch (_) {
       // 起動時の失敗はサイレント（ネット不調・初回起動等）
     }
   }
 
-  Future<void> _checkUnseenEarnedCoupon() async {
+  /// セッションが `achieved` のとき、対応するクーポンを取得して
+  /// CouponEarnedPage に遷移する。これがミニバーの「クーポン発行中」状態を解消する唯一の出口。
+  /// ユーザーが画面で「使う」or「あとで使う」を選ぶと session が次状態に遷移してバーが消える。
+  Future<void> _handleAchievedSession() async {
     if (!mounted) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastSeen = prefs.getString(_lastSeenCouponKey);
+    final session = ref.read(activeSessionProvider);
+    if (session == null ||
+        session.status != ParkingSessionStatus.achieved ||
+        session.issuedCouponId == null) {
+      return;
+    }
 
-      // 最新の所有クーポンを取得
-      final coupons =
-          await ref.read(userCouponsProvider.future);
-      Coupon? newest;
+    try {
+      final api = ref.read(apiClientProvider);
+      final userId = ref.read(currentUserIdProvider);
+      final coupons = await api.getUserCoupons(userId);
+
+      Coupon? matched;
       for (final c in coupons) {
-        if (c.status != CouponStatus.owned) continue;
-        if (c.distanceTier == CouponDistanceTier.exchange) continue; // 交換クーポンは除外
-        if (newest == null || c.issuedAt.isAfter(newest.issuedAt)) {
-          newest = c;
+        if (c.id == session.issuedCouponId) {
+          matched = c;
+          break;
         }
       }
-      if (newest == null) return;
-      if (lastSeen == newest.id) return; // 既に表示済み
-
-      // 5分以上前のクーポンは祝福しない（古い未消化を毎回出さない）
-      if (DateTime.now().difference(newest.issuedAt) >
-          const Duration(minutes: 5)) {
-        await prefs.setString(_lastSeenCouponKey, newest.id);
+      if (matched == null) {
+        // クーポンレコードが取れない異常系：セッションは parked に倒してバー解消
+        ref.read(activeSessionProvider.notifier).state =
+            session.copyWith(status: ParkingSessionStatus.parked);
         return;
       }
 
-      await prefs.setString(_lastSeenCouponKey, newest.id);
-      // ポイント残高もリフレッシュ
-      ref.read(pointsProvider.notifier).refresh();
+      // 既に消込済みのクーポンならフローを進めるだけ（祝福画面は出さない）
+      if (matched.status == CouponStatus.used) {
+        ref.read(activeSessionProvider.notifier).state =
+            session.copyWith(status: ParkingSessionStatus.parked);
+        return;
+      }
+
+      // 駐輪履歴を追加（_checkSession のローカル発行経路を通らない場合の取りこぼし対策）。
+      // 同じ session.id で既に登録済みなら addIfAbsent が no-op。
+      final parkingInfo = ref.read(activeParkingInfoProvider);
+      if (parkingInfo != null && session.authenticatedAt != null) {
+        await ref.read(sessionHistoryProvider.notifier).addIfAbsent(
+              SessionRecord(
+                id: session.id,
+                parkingId: parkingInfo.parkingId,
+                parkingName: parkingInfo.parkingName,
+                startedAt: session.authenticatedAt!,
+                completedAt: matched.issuedAt,
+                earnedPoints: 10,
+                issuedCouponId: matched.id,
+                couponBenefit: matched.benefit,
+              ),
+            );
+      }
 
       if (!mounted) return;
-      ref.read(latestEarnedCouponProvider.notifier).state = newest;
+      ref.read(latestEarnedCouponProvider.notifier).state = matched;
+      ref.read(pointsProvider.notifier).refresh();
+
       final navigator = Navigator.of(context, rootNavigator: true);
       await navigator.push(
         MaterialPageRoute(builder: (_) => const CouponEarnedPage()),
       );
     } catch (_) {
-      // 起動時の失敗はサイレント（次回起動時に再試行）
+      // ネット不調等：次回起動時に再試行される
     }
   }
 
@@ -162,7 +185,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ref.read(latestEarnedCouponProvider.notifier).state = coupon;
       final parkingInfo = ref.read(activeParkingInfoProvider);
       if (parkingInfo != null) {
-        await ref.read(sessionHistoryProvider.notifier).add(
+        await ref.read(sessionHistoryProvider.notifier).addIfAbsent(
               SessionRecord(
                 id: session.id,
                 parkingId: parkingInfo.parkingId,

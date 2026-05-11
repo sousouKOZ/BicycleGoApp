@@ -43,6 +43,13 @@ class SessionHistory extends StateNotifier<List<SessionRecord>> {
     await _save();
   }
 
+  /// 同じ id のレコードが既に存在すれば何もしない（重複防止）。
+  /// サーバ自律発行を後追いで履歴に反映する場面で使う。
+  Future<void> addIfAbsent(SessionRecord record) async {
+    if (state.any((r) => r.id == record.id)) return;
+    await add(record);
+  }
+
   /// 出庫が確定した際に、該当履歴の completedAt を実際の出庫時刻に上書きする。
   Future<void> updateCompletedAt(String recordId, DateTime completedAt) async {
     final next = state
