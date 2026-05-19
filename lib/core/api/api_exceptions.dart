@@ -16,6 +16,12 @@ class AuthGraceExpiredException extends ApiException {
       : super('auth_grace_expired', message);
 }
 
+/// MCU からの parking_detect 自体が無い（自転車が検知されていない）。
+class NoRecentDetectionException extends ApiException {
+  const NoRecentDetectionException(String message)
+      : super('no_recent_detection', message);
+}
+
 class DeviceNotFoundException extends ApiException {
   const DeviceNotFoundException(String message)
       : super('device_not_found', message);

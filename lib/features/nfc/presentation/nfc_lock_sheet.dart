@@ -107,10 +107,15 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
       Navigator.of(context).pop(session);
+    } on NoRecentDetectionException catch (_) {
+      _showError(
+        '自転車がスタンドに置かれていないようです。'
+        'しっかり置いてから、もう一度タッチしてください。',
+      );
     } on AuthGraceExpiredException catch (_) {
       _showError(
-        '自転車が置かれていないようです。'
-        'スタンドにしっかり置いたあと、5分以内にもう一度タッチしてください。',
+        'タッチが遅かったようです。'
+        '自転車を一度離してから置き直し、すぐにタッチしてください。',
       );
     } on DeviceNotFoundException catch (_) {
       _showError('このスタンドは BicycleGo に登録されていません。');

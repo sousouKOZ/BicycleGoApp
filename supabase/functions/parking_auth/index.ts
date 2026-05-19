@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
   }
 
   // 4. 5分以内の unauthenticated セッションを取得。MCU が parking_detect で
-  //    作成済みの行のみが正規の証拠。無ければ auth_grace_expired を返す。
+  //    作成済みの行のみが正規の証拠。
   const graceCutoff = new Date(
     Date.now() - AUTH_GRACE_SECONDS * 1000,
   ).toISOString();
@@ -86,10 +86,29 @@ Deno.serve(async (req) => {
     return errorResponse(500, "internal_error", pendingErr.message);
   }
   if (!pending) {
+    // MCU 検知が無いのか、検知はあったが認証猶予を超過したのかを区別する。
+    // 直近30分以内に expired または猶予超過した unauthenticated が同じデバイス
+    // で見つかれば「タッチが遅かった」、何も無ければ「そもそも検知が無い」。
+    const lookback = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: stale } = await supabase
+      .from("parking_sessions")
+      .select("id")
+      .eq("device_id", deviceId)
+      .gte("detected_at", lookback)
+      .or(`status.eq.expired,and(status.eq.unauthenticated,detected_at.lt.${graceCutoff})`)
+      .limit(1)
+      .maybeSingle();
+    if (stale) {
+      return errorResponse(
+        410,
+        "auth_grace_expired",
+        "detection found but auth grace window has passed",
+      );
+    }
     return errorResponse(
       410,
-      "auth_grace_expired",
-      "no unauthenticated session within grace window; MCU detection required",
+      "no_recent_detection",
+      "no parking_detect event for this device within recent window",
     );
   }
 

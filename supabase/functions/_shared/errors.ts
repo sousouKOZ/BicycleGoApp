@@ -11,6 +11,7 @@ export type ErrorCode =
   | "device_not_found"
   | "session_not_found"
   | "auth_grace_expired"
+  | "no_recent_detection"
   | "already_used"
   | "expired"
   | "insufficient_points"
