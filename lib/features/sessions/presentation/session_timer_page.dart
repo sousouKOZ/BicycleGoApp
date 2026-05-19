@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,8 +10,6 @@ import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
-import '../data/notification_service.dart';
-import '../providers/notification_permission_providers.dart';
 
 class SessionTimerPage extends ConsumerStatefulWidget {
   const SessionTimerPage({super.key});
@@ -129,7 +126,6 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
                 ss: ss,
                 isAchieving: isAchieving,
               ),
-              const _NotificationHint(),
               const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.only(left: 4),
@@ -215,7 +211,6 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     );
     if (confirm != true) return;
     await ref.read(apiClientProvider).endSession(session.id);
-    await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
     ref.read(activeParkingInfoProvider.notifier).state = null;
     if (!mounted) return;
@@ -452,66 +447,3 @@ class _StoreCard extends StatelessWidget {
   }
 }
 
-class _NotificationHint extends ConsumerWidget {
-  const _NotificationHint();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(notificationPermissionProvider);
-    if (status != NotificationGateStatus.denied) {
-      return const SizedBox.shrink();
-    }
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Container(
-        decoration: GlassDecoration.light(context, radius: 14),
-        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-        child: Row(
-          children: [
-            Icon(Icons.notifications_off_rounded,
-                size: 18, color: AppColors.warning),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '通知がオフです。アプリを閉じても発行通知を受け取れます。',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.textSecondary,
-                  height: 1.3,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                final ok = await NotificationService.instance
-                    .requestPermissions();
-                final notifier =
-                    ref.read(notificationPermissionProvider.notifier);
-                if (ok) {
-                  notifier.markGranted();
-                  return;
-                }
-                notifier.markDenied();
-                await Geolocator.openAppSettings();
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Text(
-                '許可',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.accent,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

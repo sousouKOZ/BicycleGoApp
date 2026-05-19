@@ -2,6 +2,7 @@ import '../../features/coupons/domain/coupon.dart';
 import '../../features/parking/domain/parking_lot.dart';
 import '../../features/parking/domain/parking_session.dart';
 import '../../features/parking/providers/session_providers.dart';
+import '../../features/sessions/domain/session_record.dart';
 import '../../features/stores/domain/store.dart';
 
 /// Flaskバックエンド仕様（§8.2）に対応するAPI契約。
@@ -22,14 +23,6 @@ abstract class ApiClient {
     required String deviceId,
     required double lat,
     required double lng,
-  });
-
-  /// 15分経過判定およびハイブリッド・レコメンド実行。
-  /// 達成時、最適なクーポンを発行し session.issuedCouponId に紐付ける。
-  Future<Coupon?> evaluateEarn({
-    required String sessionId,
-    required double userLat,
-    required double userLng,
   });
 
   /// GET /api/user/coupons
@@ -67,4 +60,8 @@ abstract class ApiClient {
   /// デバイスID から所属駐輪場の id と name を取得する。
   /// アプリ kill 後の `activeParkingInfoProvider` 復元に使用。
   Future<ActiveParkingInfo?> getParkingForDevice(String deviceId);
+
+  /// 駐輪履歴を取得する。サーバ側 `parking_sessions` を真実の源として
+  /// 自分のクーポン発行済みセッションを完了時刻降順で返す。
+  Future<List<SessionRecord>> getSessionHistory(String userId);
 }

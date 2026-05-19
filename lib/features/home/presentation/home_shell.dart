@@ -1,11 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/api/api_providers.dart';
-import '../../../core/config/api_config.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/coupon_list_page.dart';
 import '../../mypage/presentation/my_page.dart';
@@ -14,7 +11,6 @@ import '../../parking/presentation/parking_map_page.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../points/providers/points_providers.dart';
 import '../../user/providers/user_providers.dart';
-import '../../sessions/domain/session_record.dart';
 import '../../sessions/presentation/coupon_earned_page.dart';
 import '../../sessions/presentation/session_mini_bar.dart';
 import '../../sessions/providers/session_history_providers.dart';
@@ -26,34 +22,36 @@ class HomeShell extends ConsumerStatefulWidget {
   ConsumerState<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends ConsumerState<HomeShell> {
+class _HomeShellState extends ConsumerState<HomeShell>
+    with WidgetsBindingObserver {
   int index = 0;
-  Timer? _sessionTicker;
-  bool _issuing = false;
+  RealtimeChannel? _sessionChannel;
 
   @override
   void initState() {
     super.initState();
-    _sessionTicker = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _checkSession(),
-    );
-    // Supabase モード: アプリ起動時にサーバから状態を復元する。
-    //   1. 測定中／達成済／駐輪継続中のセッションがあれば activeSessionProvider に復元
-    //      → ミニバーが即時表示される（kill 後の再起動で進捗バーが消えるのを防ぐ）
-    //   2. 未表示の達成クーポンがあれば祝福画面に自動遷移
-    //      （kill 状態で15分達成 → 通知タップ→起動 のケース）
-    if (useSupabase) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _restoreFromServer(),
-      );
+    WidgetsBinding.instance.addObserver(this);
+    // サーバ側 issue_coupons (pg_cron) が15分達成を自律検知するため、
+    // クライアントポーリングは不要。Realtime で achieved 遷移を待つ。
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _restoreFromServer();
+      _subscribeToSessionUpdates();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // バックグラウンドから戻ったとき、Realtime WebSocket が OS に切られて
+    // achieved 遷移を取りこぼしている可能性があるためサーバ状態を再取得する。
+    // FCM 通知タップで起動した場合もこの経路で祝福画面が出る。
+    if (state == AppLifecycleState.resumed) {
+      _restoreFromServer();
     }
   }
 
   Future<void> _restoreFromServer() async {
     if (!mounted) return;
     try {
-      // 既にメモリ上にセッションがある（hot reload 等）なら何もしない。
       if (ref.read(activeSessionProvider) != null) {
         await _handleAchievedSession();
         return;
@@ -76,7 +74,6 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         }
       }
 
-      // achieved 状態なら即時クーポン獲得画面に遷移
       await _handleAchievedSession();
     } catch (_) {
       // 起動時の失敗はサイレント（ネット不調・初回起動等）
@@ -108,40 +105,21 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         }
       }
       if (matched == null) {
-        // クーポンレコードが取れない異常系：セッションは parked に倒してバー解消
         ref.read(activeSessionProvider.notifier).state =
             session.copyWith(status: ParkingSessionStatus.parked);
         return;
       }
 
-      // 既に消込済みのクーポンならフローを進めるだけ（祝福画面は出さない）
       if (matched.status == CouponStatus.used) {
         ref.read(activeSessionProvider.notifier).state =
             session.copyWith(status: ParkingSessionStatus.parked);
         return;
       }
 
-      // 駐輪履歴を追加（_checkSession のローカル発行経路を通らない場合の取りこぼし対策）。
-      // 同じ session.id で既に登録済みなら addIfAbsent が no-op。
-      final parkingInfo = ref.read(activeParkingInfoProvider);
-      if (parkingInfo != null && session.authenticatedAt != null) {
-        await ref.read(sessionHistoryProvider.notifier).addIfAbsent(
-              SessionRecord(
-                id: session.id,
-                parkingId: parkingInfo.parkingId,
-                parkingName: parkingInfo.parkingName,
-                startedAt: session.authenticatedAt!,
-                completedAt: matched.issuedAt,
-                earnedPoints: 10,
-                issuedCouponId: matched.id,
-                couponBenefit: matched.benefit,
-              ),
-            );
-      }
-
       if (!mounted) return;
       ref.read(latestEarnedCouponProvider.notifier).state = matched;
       ref.read(pointsProvider.notifier).refresh();
+      ref.invalidate(sessionHistoryProvider);
 
       final navigator = Navigator.of(context, rootNavigator: true);
       await navigator.push(
@@ -154,61 +132,48 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   void dispose() {
-    _sessionTicker?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    if (_sessionChannel != null) {
+      Supabase.instance.client.removeChannel(_sessionChannel!);
+      _sessionChannel = null;
+    }
     super.dispose();
   }
 
-  Future<void> _checkSession() async {
-    if (_issuing || !mounted) return;
-    final session = ref.read(activeSessionProvider);
-    if (session == null ||
-        session.authenticatedAt == null ||
-        session.status != ParkingSessionStatus.measuring) {
-      return;
-    }
-    final elapsed = DateTime.now().difference(session.authenticatedAt!);
-    if (elapsed < ParkingSession.earnThreshold) return;
+  /// parking_sessions の自分の行が UPDATE されたら祝福画面遷移を判定する。
+  /// サーバ側 issue_coupons が status を 'achieved' に書き換えた瞬間に発火する。
+  void _subscribeToSessionUpdates() {
+    if (!mounted || _sessionChannel != null) return;
+    final userId = ref.read(currentUserIdProvider);
+    final client = Supabase.instance.client;
+    _sessionChannel = client
+        .channel('home_session_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'parking_sessions',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (payload) => _onSessionUpdated(payload.newRecord),
+        )
+        .subscribe();
+  }
 
-    _issuing = true;
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+  Future<void> _onSessionUpdated(Map<String, dynamic> row) async {
+    if (!mounted) return;
+    if (row['status'] != 'achieved') return;
+
+    final current = ref.read(activeSessionProvider);
+    if (current != null && current.id == row['id']) {
+      ref.read(activeSessionProvider.notifier).state = current.copyWith(
+        status: ParkingSessionStatus.achieved,
+        issuedCouponId: row['issued_coupon_id'] as String?,
       );
-      final coupon = await ref.read(apiClientProvider).evaluateEarn(
-            sessionId: session.id,
-            userLat: pos.latitude,
-            userLng: pos.longitude,
-          );
-      if (coupon == null || !mounted) return;
-      ref.read(activeSessionProvider.notifier).state =
-          session.copyWith(status: ParkingSessionStatus.achieved);
-      ref.read(latestEarnedCouponProvider.notifier).state = coupon;
-      final parkingInfo = ref.read(activeParkingInfoProvider);
-      if (parkingInfo != null) {
-        await ref.read(sessionHistoryProvider.notifier).addIfAbsent(
-              SessionRecord(
-                id: session.id,
-                parkingId: parkingInfo.parkingId,
-                parkingName: parkingInfo.parkingName,
-                startedAt: session.authenticatedAt!,
-                completedAt: DateTime.now(),
-                earnedPoints: 10,
-                issuedCouponId: coupon.id,
-                couponBenefit: coupon.benefit,
-              ),
-            );
-      }
-      if (!mounted) return;
-      final navigator = Navigator.of(context, rootNavigator: true);
-      navigator.popUntil((r) => r.isFirst);
-      await navigator.push(
-        MaterialPageRoute(builder: (_) => const CouponEarnedPage()),
-      );
-    } catch (_) {
-      // ignore; retry on next tick
-    } finally {
-      _issuing = false;
     }
+    await _handleAchievedSession();
   }
 
   @override

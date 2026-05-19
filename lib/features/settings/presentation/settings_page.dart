@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_providers.dart';
-import '../../sessions/data/notification_service.dart';
-import '../../sessions/providers/notification_permission_providers.dart';
 import 'help_page.dart';
 import 'legal_page.dart';
 
@@ -28,44 +26,6 @@ class SettingsPage extends ConsumerWidget {
               selected: mode,
               onChanged: (m) =>
                   ref.read(themeModeProvider.notifier).set(m),
-            ),
-            const SizedBox(height: 24),
-            _SectionLabel(label: '通知'),
-            const SizedBox(height: 10),
-            _SettingsCard(
-              children: [
-                ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  leading: Icon(Icons.notifications_active_rounded,
-                      color: AppColors.accent),
-                  title: const Text('通知権限を確認'),
-                  subtitle: Text(
-                    'クーポン発行タイミングの通知を受け取るか確認します',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () async {
-                    final ok = await NotificationService.instance
-                        .requestPermissions();
-                    final permNotifier =
-                        ref.read(notificationPermissionProvider.notifier);
-                    if (ok) {
-                      permNotifier.markGranted();
-                    } else {
-                      permNotifier.markDenied();
-                    }
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          ok ? '通知権限はオンです' : '通知権限がオフです。設定アプリから許可してください。',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ],
             ),
             const SizedBox(height: 24),
             _SectionLabel(label: 'サポート'),

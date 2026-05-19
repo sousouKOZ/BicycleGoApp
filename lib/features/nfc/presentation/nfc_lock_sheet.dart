@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nfc_manager/nfc_manager.dart';
@@ -10,8 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
-import '../../sessions/data/notification_service.dart';
-import '../../sessions/providers/notification_permission_providers.dart';
 import '../../user/providers/user_providers.dart';
 
 enum _Stage { waitingTag, verifying, success, error }
@@ -83,29 +79,6 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     );
   }
 
-  Future<void> _scheduleSessionNotifications(ParkingSession session) async {
-    final startedAt = session.authenticatedAt ?? DateTime.now();
-    final notifier = NotificationService.instance;
-    final granted = await notifier.requestPermissions();
-    if (mounted) {
-      final permNotifier = ref.read(notificationPermissionProvider.notifier);
-      if (granted) {
-        permNotifier.markGranted();
-      } else {
-        permNotifier.markDenied();
-      }
-    }
-    // 達成しきい値を撮影モードでも反映できるよう、scheduleSessionReminders に
-    // earnThreshold ベースの値を渡す。
-    final totalSec = ParkingSession.earnThreshold.inSeconds;
-    await notifier.scheduleSessionReminders(
-      sessionStartAt: startedAt,
-      reminderSeconds: (totalSec * 2 / 3).round(),
-      achievedSeconds: totalSec,
-      parkingName: widget.parkingName,
-    );
-  }
-
   Future<void> _authenticate() async {
     try {
       final api = ref.read(apiClientProvider);
@@ -132,7 +105,6 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
         parkingId: widget.parkingId,
         parkingName: widget.parkingName,
       );
-      unawaited(_scheduleSessionNotifications(session));
       setState(() {
         _stage = _Stage.success;
         _message = '認証完了・15分計測を開始しました';

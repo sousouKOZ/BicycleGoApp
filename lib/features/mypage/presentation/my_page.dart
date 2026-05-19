@@ -129,8 +129,11 @@ class MyPage extends ConsumerWidget {
                 children: [
                   Consumer(
                     builder: (context, ref, _) {
-                      final count =
-                          ref.watch(sessionHistoryProvider).length;
+                      final count = ref
+                              .watch(sessionHistoryProvider)
+                              .valueOrNull
+                              ?.length ??
+                          0;
                       return _MenuTile(
                         icon: Icons.history_rounded,
                         title: '駐輪履歴',

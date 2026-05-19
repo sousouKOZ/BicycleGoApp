@@ -29,6 +29,15 @@
       "toolArgs": [
         "--dart-define-from-file=env/dev.json"
       ]
+    },
+    {
+      "name": "BicycleGo (prod Supabase)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define-from-file=env/prod.json"
+      ]
     }
   ]
 }

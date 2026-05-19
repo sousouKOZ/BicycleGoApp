@@ -6,14 +6,11 @@
 const directionsApiKey =
     String.fromEnvironment('GOOGLE_DIRECTIONS_API_KEY', defaultValue: '');
 
-/// Supabase バックエンドへの接続を有効化するフラグ。
-/// 未指定なら MockApiClient を使う（オフラインで UI 開発可能）。
-const useSupabase = bool.fromEnvironment('USE_SUPABASE', defaultValue: false);
-
-/// Supabase プロジェクト URL。`USE_SUPABASE=true` 時のみ参照される。
+/// Supabase プロジェクト URL。
 ///   - iOS シミュレータ: http://127.0.0.1:54321
 ///   - Android エミュレータ: http://10.0.2.2:54321
 ///   - 実機: http://<MacのLAN IP>:54321
+///   - 本番: env/prod.json の値
 const supabaseUrl =
     String.fromEnvironment('SUPABASE_URL', defaultValue: '');
 

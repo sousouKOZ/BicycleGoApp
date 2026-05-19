@@ -52,5 +52,9 @@ app.*.map.json
 /ios/Flutter/Secrets.xcconfig
 !/ios/Flutter/Secrets.example.xcconfig
 /android/secrets.properties
+
+# Firebase (メンバーごとに別プロジェクトを使う想定。チーム共有なら外す)
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
 !/android/secrets.example.properties
 supabase/functions/.env*

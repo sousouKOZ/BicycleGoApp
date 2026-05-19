@@ -13,7 +13,6 @@ import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
-import '../data/notification_service.dart';
 import '../providers/session_history_providers.dart';
 
 class CouponEarnedPage extends ConsumerStatefulWidget {
@@ -119,11 +118,9 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
     final session = ref.read(activeSessionProvider);
     if (session != null) {
       await api.endSession(session.id);
-      await ref
-          .read(sessionHistoryProvider.notifier)
-          .updateCompletedAt(session.id, DateTime.now());
+      // 履歴はサーバ parking_sessions が真実の源。exited_at が書き換わったので再 fetch。
+      ref.invalidate(sessionHistoryProvider);
     }
-    await NotificationService.instance.cancelSessionReminders();
     ref.read(activeSessionProvider.notifier).state = null;
     ref.read(activeParkingInfoProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
@@ -149,7 +146,6 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
   /// クーポンは保存し、駐輪セッションを `parked` 状態として継続する。
   /// 自転車を出すタイミングでミニバーから出庫操作（CheckoutSheet）を行う。
   void _keepParkedAndExit(BuildContext context, WidgetRef ref) {
-    NotificationService.instance.cancelSessionReminders();
     final session = ref.read(activeSessionProvider);
     if (session != null) {
       ref.read(activeSessionProvider.notifier).state =

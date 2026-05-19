@@ -1,75 +1,26 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/api/api_providers.dart';
+import '../../user/providers/user_providers.dart';
 import '../domain/session_record.dart';
 
-/// セッション履歴を端末ローカルに永続化するプロバイダ。
-class SessionHistory extends StateNotifier<List<SessionRecord>> {
-  SessionHistory() : super(const <SessionRecord>[]) {
-    _load();
-  }
-
-  static const _key = 'session_history_v1';
-  static const _maxRecords = 200;
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getStringList(_key) ?? const <String>[];
-    final records = <SessionRecord>[];
-    for (final s in raw) {
-      try {
-        final map = jsonDecode(s) as Map<String, Object?>;
-        records.add(SessionRecord.fromJson(map));
-      } catch (_) {}
-    }
-    records.sort((a, b) => b.completedAt.compareTo(a.completedAt));
-    state = records;
-  }
-
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = state.map((r) => jsonEncode(r.toJson())).toList();
-    await prefs.setStringList(_key, list);
-  }
-
-  Future<void> add(SessionRecord record) async {
-    final next = [record, ...state];
-    if (next.length > _maxRecords) {
-      next.removeRange(_maxRecords, next.length);
-    }
-    state = next;
-    await _save();
-  }
-
-  /// 同じ id のレコードが既に存在すれば何もしない（重複防止）。
-  /// サーバ自律発行を後追いで履歴に反映する場面で使う。
-  Future<void> addIfAbsent(SessionRecord record) async {
-    if (state.any((r) => r.id == record.id)) return;
-    await add(record);
-  }
-
-  /// 出庫が確定した際に、該当履歴の completedAt を実際の出庫時刻に上書きする。
-  Future<void> updateCompletedAt(String recordId, DateTime completedAt) async {
-    final next = state
-        .map((r) => r.id == recordId ? r.copyWith(completedAt: completedAt) : r)
-        .toList()
-      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-    state = next;
-    await _save();
-  }
-
-  Future<void> clear() async {
-    state = const <SessionRecord>[];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+/// 駐輪履歴プロバイダ。
+///
+/// サーバ `parking_sessions` を真実の源として、自分の発行済みセッションを
+/// `ApiClient.getSessionHistory` 経由で取得する。出庫やクーポン発行で
+/// 状態が変わった後は `ref.invalidate(sessionHistoryProvider)` で再 fetch する。
+class SessionHistory extends AsyncNotifier<List<SessionRecord>> {
+  @override
+  Future<List<SessionRecord>> build() async {
+    final api = ref.watch(apiClientProvider);
+    final userId = ref.watch(currentUserIdProvider);
+    return api.getSessionHistory(userId);
   }
 }
 
 final sessionHistoryProvider =
-    StateNotifierProvider<SessionHistory, List<SessionRecord>>(
-  (_) => SessionHistory(),
+    AsyncNotifierProvider<SessionHistory, List<SessionRecord>>(
+  SessionHistory.new,
 );
 
 /// 履歴の集計サマリ。マイページのサマリカードやグラフに使う。
@@ -88,7 +39,8 @@ class SessionHistoryStats {
 }
 
 final sessionHistoryStatsProvider = Provider<SessionHistoryStats>((ref) {
-  final history = ref.watch(sessionHistoryProvider);
+  final history =
+      ref.watch(sessionHistoryProvider).valueOrNull ?? const <SessionRecord>[];
   final now = DateTime.now();
   var monthSessions = 0;
   var monthPoints = 0;

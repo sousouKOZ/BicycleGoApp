@@ -8,7 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
-import '../data/notification_service.dart';
 import '../providers/session_history_providers.dart';
 
 /// 出庫操作のボトムシート。
@@ -197,11 +196,9 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
     try {
       if (session != null) {
         await ref.read(apiClientProvider).endSession(session.id);
-        await ref
-            .read(sessionHistoryProvider.notifier)
-            .updateCompletedAt(session.id, completedAt);
+        // 履歴はサーバ parking_sessions が真実の源。exited_at が書き換わったので再 fetch。
+        ref.invalidate(sessionHistoryProvider);
       }
-      await NotificationService.instance.cancelSessionReminders();
       ref.read(activeSessionProvider.notifier).state = session?.copyWith(
         status: ParkingSessionStatus.completed,
         exitedAt: completedAt,

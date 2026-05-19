@@ -10,26 +10,24 @@ class SessionHistoryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(sessionHistoryProvider);
+    final historyAsync = ref.watch(sessionHistoryProvider);
     final stats = ref.watch(sessionHistoryStatsProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('駐輪履歴'),
-        actions: [
-          if (history.isNotEmpty)
-            IconButton(
-              tooltip: '履歴を削除',
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () => _confirmClear(context, ref),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('駐輪履歴')),
       body: SafeArea(
-        child: history.isEmpty
-            ? _EmptyState()
-            : ListView(
+        child: historyAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => _ErrorState(
+            message: e.toString(),
+            onRetry: () => ref.invalidate(sessionHistoryProvider),
+          ),
+          data: (history) {
+            if (history.isEmpty) return _EmptyState();
+            return RefreshIndicator(
+              onRefresh: () async => ref.invalidate(sessionHistoryProvider),
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
                   _SummaryCard(stats: stats),
@@ -49,34 +47,11 @@ class SessionHistoryPage extends ConsumerWidget {
                       )),
                 ],
               ),
+            );
+          },
+        ),
       ),
     );
-  }
-
-  Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('履歴を削除しますか？'),
-        content: const Text('端末に保存されている駐輪履歴がすべて削除されます。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await ref.read(sessionHistoryProvider.notifier).clear();
   }
 }
 
@@ -338,6 +313,47 @@ class _HistoryTile extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _ErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_off_rounded,
+                size: 48, color: context.textSecondary),
+            const SizedBox(height: 12),
+            Text(
+              '履歴の取得に失敗しました',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('再試行'),
+            ),
+          ],
+        ),
       ),
     );
   }

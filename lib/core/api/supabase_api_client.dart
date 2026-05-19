@@ -5,6 +5,7 @@ import '../../features/coupons/domain/coupon.dart';
 import '../../features/parking/domain/parking_lot.dart';
 import '../../features/parking/domain/parking_session.dart';
 import '../../features/parking/providers/session_providers.dart';
+import '../../features/sessions/domain/session_record.dart';
 import '../../features/stores/domain/store.dart';
 import 'api_client.dart';
 import 'api_exceptions.dart';
@@ -101,23 +102,6 @@ class SupabaseApiClient implements ApiClient {
   }
 
   @override
-  Future<Coupon?> evaluateEarn({
-    required String sessionId,
-    required double userLat,
-    required double userLng,
-  }) async {
-    // サーバ側は pg_cron + issue_coupons で自律発行に切り替え済み。
-    // クライアント側からこのメソッドが呼ばれても、最新クーポン一覧を返すだけにする。
-    final session = await getActiveSession(_currentUserIdOrThrow());
-    if (session?.issuedCouponId == null) return null;
-    final coupons = await getUserCoupons(_currentUserIdOrThrow());
-    for (final c in coupons) {
-      if (c.id == session!.issuedCouponId) return c;
-    }
-    return null;
-  }
-
-  @override
   Future<ParkingSession> endSession(String sessionId) async {
     final json = await _invoke('end_session', body: {
       'sessionId': sessionId,
@@ -153,6 +137,47 @@ class SupabaseApiClient implements ApiClient {
       parkingId: lot['id'] as String,
       parkingName: lot['name'] as String,
     );
+  }
+
+  @override
+  Future<List<SessionRecord>> getSessionHistory(String userId) async {
+    // クーポン発行済み（issued_coupon_id が入っている）セッションのみ履歴対象とする。
+    // device → parking_lot で駐輪場名、coupons で特典を1クエリで取得。
+    final rows = await _client
+        .from('parking_sessions')
+        .select(
+          'id, authenticated_at, exited_at, status, issued_coupon_id, '
+          'devices(parking_lot_id, parking_lots(id, name)), '
+          'coupons!parking_sessions_issued_coupon_fk(benefit)',
+        )
+        .eq('user_id', userId)
+        .not('issued_coupon_id', 'is', null)
+        .order('authenticated_at', ascending: false)
+        .limit(200);
+
+    final records = <SessionRecord>[];
+    for (final r in rows) {
+      final device = r['devices'] as Map<String, dynamic>?;
+      final lot = device?['parking_lots'] as Map<String, dynamic>?;
+      if (lot == null) continue;
+      final coupon = r['coupons'] as Map<String, dynamic>?;
+      final authAt = r['authenticated_at'] as String?;
+      if (authAt == null) continue;
+      final exitedAt = r['exited_at'] as String?;
+      records.add(SessionRecord(
+        id: r['id'] as String,
+        parkingId: lot['id'] as String,
+        parkingName: lot['name'] as String,
+        startedAt: DateTime.parse(authAt),
+        completedAt: exitedAt != null
+            ? DateTime.parse(exitedAt)
+            : DateTime.parse(authAt),
+        earnedPoints: 10,
+        issuedCouponId: r['issued_coupon_id'] as String?,
+        couponBenefit: coupon?['benefit'] as String?,
+      ));
+    }
+    return records;
   }
 
   // ---- クーポン --------------------------------------------------------
@@ -336,11 +361,4 @@ class SupabaseApiClient implements ApiClient {
     }
   }
 
-  String _currentUserIdOrThrow() {
-    final user = _client.auth.currentUser;
-    if (user == null) {
-      throw const ApiException('unauthorized', 'not signed in');
-    }
-    return user.id;
-  }
 }
