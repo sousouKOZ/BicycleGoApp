@@ -18,6 +18,7 @@ import {
   EARN_COUPON_VALIDITY_DAYS,
   EARN_POINTS_PER_SESSION,
   EARN_THRESHOLD_SECONDS,
+  PRESENCE_TOLERANCE_SECONDS,
 } from "../_shared/constants.ts";
 import {
   distanceTierFor,
@@ -59,18 +60,32 @@ Deno.serve(async (req) => {
   const typedSessions = sessions as SessionRow[];
 
   // 2. デバイス → 駐輪場 のマップを作成（複数セッションが同じデバイスを使う可能性あり）
+  //    last_seen_at も合わせて取得し、在席チェックに使う。
   const deviceIds = [...new Set(typedSessions.map((s: SessionRow) => s.device_id))];
   const { data: devices, error: devErr } = await supabase
     .from("devices")
-    .select("id, parking_lot_id")
+    .select("id, parking_lot_id, last_seen_at")
     .in("id", deviceIds);
   if (devErr || !devices) {
     return errorResponse(500, "internal_error", devErr?.message ?? "no devices");
   }
-  type DeviceRow = { id: string; parking_lot_id: string };
+  type DeviceRow = {
+    id: string;
+    parking_lot_id: string;
+    last_seen_at: string | null;
+  };
   const typedDevices = devices as DeviceRow[];
   const deviceToParkingLotId = new Map<string, string>(
     typedDevices.map((d: DeviceRow) => [d.id, d.parking_lot_id]),
+  );
+  const deviceToLastSeen = new Map<string, string | null>(
+    typedDevices.map((d: DeviceRow) => [d.id, d.last_seen_at]),
+  );
+
+  // 在席チェックのカットオフ。これより古い last_seen_at のデバイスは
+  // 「自転車取り出し済み」とみなして該当セッションの発行をスキップする。
+  const presenceCutoff = new Date(
+    Date.now() - PRESENCE_TOLERANCE_SECONDS * 1000,
   );
 
   // 3. 駐輪場マスタを取得
@@ -95,6 +110,7 @@ Deno.serve(async (req) => {
   }
 
   let issued = 0;
+  let skippedAbsent = 0;
   const errors: string[] = [];
 
   for (const session of sessions) {
@@ -106,6 +122,29 @@ Deno.serve(async (req) => {
     const parkingLot = parkingLotMap.get(parkingLotId);
     if (!parkingLot) {
       errors.push(`session ${session.id}: parking lot ${parkingLotId} not found`);
+      continue;
+    }
+
+    // 在席チェック: マイコンからの最終 ping が古ければ自転車取り出し済みとみなす。
+    // 該当セッションは measuring → expired に倒し、クーポンを発行しない。
+    const lastSeenAt = deviceToLastSeen.get(session.device_id);
+    const lastSeenDate = lastSeenAt ? new Date(lastSeenAt) : null;
+    if (!lastSeenDate || lastSeenDate < presenceCutoff) {
+      const { error: expireErr } = await supabase
+        .from("parking_sessions")
+        .update({ status: "expired" })
+        .eq("id", session.id)
+        .eq("status", "measuring");
+      if (expireErr) {
+        errors.push(
+          `session ${session.id}: presence stale and expire update failed: ${expireErr.message}`,
+        );
+      } else {
+        skippedAbsent += 1;
+        console.log(
+          `session ${session.id}: bike absent (last_seen_at=${lastSeenAt ?? "null"}), marked expired`,
+        );
+      }
       continue;
     }
 
@@ -216,5 +255,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ issued, total: sessions.length, errors }, 200);
+  return jsonResponse(
+    { issued, skippedAbsent, total: sessions.length, errors },
+    200,
+  );
 });

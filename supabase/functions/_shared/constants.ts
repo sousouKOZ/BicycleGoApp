@@ -35,3 +35,12 @@ export const TIER_FAR_METERS = 800;
 
 /** 推薦時の重み計算で使うベースライン（重み 0 の店舗にも最低限の選択確率） */
 export const RECOMMEND_WEIGHT_FLOOR = 0.05;
+
+/**
+ * 在席通知の許容遅延（秒）。マイコンから parking_ping / parking_detect が
+ * この時間以上途絶しているデバイスは「自転車が取り出された」とみなし、
+ * issue_coupons はそのセッションへのクーポン発行をスキップする。
+ *
+ * マイコン側の推奨 ping 間隔は 30秒。3倍の余裕で 90秒を許容する。
+ */
+export const PRESENCE_TOLERANCE_SECONDS = 90;

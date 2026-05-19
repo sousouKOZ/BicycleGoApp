@@ -75,6 +75,11 @@ Deno.serve(async (req) => {
     return errorResponse(500, "internal_error", existingErr.message);
   }
   if (existing) {
+    // 既存セッション返却時も在席は更新する（冪等な検知通知＝在席シグナル）。
+    await supabase
+      .from("devices")
+      .update({ last_seen_at: detectedAt })
+      .eq("id", deviceId);
     return jsonResponse(existing, 200);
   }
 
@@ -94,6 +99,17 @@ Deno.serve(async (req) => {
   if (insertErr) {
     console.error("session insert failed", insertErr);
     return errorResponse(500, "internal_error", insertErr.message);
+  }
+
+  // 検知も「在席通知」の一種として devices.last_seen_at を更新。
+  // これにより最初の検知直後に issue_coupons が在席チェックを掛けても通る。
+  // 失敗してもクーポン発行ロジック自体は parking_ping で別途維持されるためログだけ残す。
+  const { error: seenErr } = await supabase
+    .from("devices")
+    .update({ last_seen_at: detectedAt })
+    .eq("id", deviceId);
+  if (seenErr) {
+    console.error("devices.last_seen_at update failed", seenErr);
   }
 
   return jsonResponse(created, 201);
