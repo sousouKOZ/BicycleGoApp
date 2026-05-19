@@ -23,6 +23,7 @@ import {
   distanceTierFor,
   pickStoreWeighted,
 } from "../_shared/recommendation.ts";
+import { sendToToken } from "../_shared/fcm.ts";
 import type { ParkingLot, Store } from "../_shared/types.ts";
 
 Deno.serve(async (req) => {
@@ -186,7 +187,33 @@ Deno.serve(async (req) => {
       `issued ${couponId} for session ${session.id} (store=${store.name}, tier=${tier})`,
     );
 
-    // TODO Phase 4: ここで FCM push を送る
+    // e) FCM push 送信。fcm_token が未登録 / FCM 未設定なら静かに skip。
+    //    送信失敗はログに残すだけで業務処理（クーポン発行）の成功は変えない。
+    const { data: userRow, error: userErr } = await supabase
+      .from("users")
+      .select("fcm_token")
+      .eq("id", session.user_id)
+      .maybeSingle();
+    if (userErr) {
+      console.error(`[FCM] users lookup failed for ${session.user_id}:`, userErr);
+    } else {
+      const fcmToken = (userRow as { fcm_token: string | null } | null)?.fcm_token;
+      if (fcmToken) {
+        const ok = await sendToToken(
+          fcmToken,
+          {
+            title: "🎉 クーポンが発行されました！",
+            body: `${store.name} で使える特典が届きました`,
+          },
+          {
+            type: "coupon_issued",
+            coupon_id: couponId,
+            session_id: session.id,
+          },
+        );
+        if (!ok) console.warn(`[FCM] push failed for ${session.user_id}`);
+      }
+    }
   }
 
   return jsonResponse({ issued, total: sessions.length, errors }, 200);
