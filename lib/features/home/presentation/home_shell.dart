@@ -164,10 +164,24 @@ class _HomeShellState extends ConsumerState<HomeShell>
 
   Future<void> _onSessionUpdated(Map<String, dynamic> row) async {
     if (!mounted) return;
-    if (row['status'] != 'achieved') return;
-
+    final status = row['status'] as String?;
     final current = ref.read(activeSessionProvider);
-    if (current != null && current.id == row['id']) {
+    final isOwnSession = current != null && current.id == row['id'];
+
+    // 自転車取り出しや猶予超過でセッションが終了した場合、
+    // アクティブセッション表示（ミニバー等）を即時クリアする。
+    if (status == 'expired' || status == 'completed') {
+      if (isOwnSession) {
+        ref.read(activeSessionProvider.notifier).state = null;
+        ref.read(activeParkingInfoProvider.notifier).state = null;
+        ref.invalidate(sessionHistoryProvider);
+      }
+      return;
+    }
+
+    if (status != 'achieved') return;
+
+    if (isOwnSession) {
       ref.read(activeSessionProvider.notifier).state = current.copyWith(
         status: ParkingSessionStatus.achieved,
         issuedCouponId: row['issued_coupon_id'] as String?,
