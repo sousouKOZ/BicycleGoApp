@@ -97,19 +97,16 @@
 - 対象店舗カード（特典プレビュー付き）
 - **最小化ボタン** — 画面を閉じてもセッションは背景で継続、ミニバーから再展開可能
 - 「計測を中止する」で確認ダイアログ → セッション破棄
-- **通知OFF時の誘導カード** [_NotificationHint](lib/features/sessions/presentation/session_timer_page.dart)
-  - [NotificationPermissionNotifier](lib/features/sessions/providers/notification_permission_providers.dart) を監視
-  - 「許可」タップで再リクエスト、再拒否なら設定アプリへ自動遷移
 
 ### セッションミニバー [SessionMiniBar](lib/features/sessions/presentation/session_mini_bar.dart)
 - 計測中は**ボトムナビゲーションの上に常駐**するグラデーションバー
 - 残り時間・プログレスをリアルタイム表示
 - **全タブから進捗確認可能**（地図／クーポン／マイページ切替時も表示継続）
 - タップで計測画面を再展開
-- 15分達成判定・`evaluateEarn` 呼び出し・獲得画面遷移は **HomeShellに集約** — どの画面からでもクーポン獲得画面に自動遷移
+- 達成検知は **サーバ pg_cron が判定 → Realtime / FCM でアプリへ通知 → HomeShell が祝福画面に遷移**
 - **`parked` モード** — クーポン獲得後も自転車を出していない間は緑グラデの「駐輪中（クーポン獲得済）」バーに切替、累計駐輪時間を表示
   - タップで [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart) を表示
-- **アプリ kill 後の状態復元**（Supabase モード）— [HomeShell](lib/features/home/presentation/home_shell.dart) の `_restoreFromServer` で起動時に `getActiveSession` を呼び、measuring / achieved / parked のセッションがあれば即時復元。kill → 再起動でもバーが消えない
+- **アプリ kill 後の状態復元** — [HomeShell](lib/features/home/presentation/home_shell.dart) の `_restoreFromServer` で起動時に `getActiveSession` を呼び、measuring / achieved / parked のセッションがあれば即時復元。kill → 再起動でもバーが消えない
 
 ### クーポン獲得画面 [CouponEarnedPage](lib/features/sessions/presentation/coupon_earned_page.dart)
 - 達成バナー（グラデーション + 祝福アイコン）
@@ -119,11 +116,11 @@
 - **入場時の触覚フィードバック** — `HapticFeedback.heavyImpact()` で達成感を物理的にも演出
 - **スパークルバースト** [_SparkleBurst](lib/features/sessions/presentation/coupon_earned_page.dart) — バナー周辺で14個のパーティクルが放射状に拡散（CustomPainter、外部依存なし）
 - **シェアボタン** — 達成バナー右肩のアイコン。タップで「#BicycleGo で15分駐輪したら ○○ の『△△』クーポンが届いた！」をクリップボードにコピー（追加パッケージ不要、SNS への貼り付けを想定）
-- **アプリ kill 状態でのクーポン受取り**（Supabase モード）— サーバの pg_cron が15分達成を検知して自律発行 → 通知タップでアプリ起動時、[HomeShell._checkUnseenEarnedCoupon](lib/features/home/presentation/home_shell.dart) が未表示の owned クーポンを検知して自動的にこの画面へ遷移
+- **アプリ kill 状態でのクーポン受取り** — サーバの pg_cron が15分達成を検知して自律発行 + FCM push 配信 → 通知タップでアプリ起動 → [HomeShell._restoreFromServer](lib/features/home/presentation/home_shell.dart) が achieved セッションを検知して自動的にこの画面へ遷移
 
 ### 出庫シート [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart)
 - 駐輪場名・駐輪開始時刻・累計駐輪時間・ステータスを一覧表示
-- 「自転車を出す」で `api.endSession` を呼び、履歴の `completedAt` を**実際の出庫時刻**に上書き（[SessionHistory.updateCompletedAt](lib/features/sessions/providers/session_history_providers.dart)）
+- 「自転車を出す」で `api.endSession` を呼び、サーバ `parking_sessions.exited_at` を確定。アプリ側は `sessionHistoryProvider` を invalidate して履歴を再 fetch
 - セッションを `completed` に遷移しミニバーを消去、駐輪場の空き情報更新トリガとなる
 - 「まだ出さない」でシートだけ閉じる（セッションは継続）
 
@@ -167,15 +164,14 @@
 - 右上の履歴アイコンから [ExchangeHistoryPage](lib/features/points/presentation/exchange_history_page.dart) — 商品名・交換日時・消費pt を時系列表示
 
 ### 駐輪履歴 [SessionHistoryPage](lib/features/sessions/presentation/session_history_page.dart)
-- 15分達成（クーポン獲得）時に自動記録され、端末ローカルに永続化（キー: `session_history_v1`、最大200件）
+- サーバ `parking_sessions` をクエリして発行済みセッションを表示（直近200件）
 - 今月の駐輪回数・今月の獲得ポイント・累計のサマリカード（グラデーションヒーロー）
 - 各履歴カード — 駐輪場名・日時・所要分・獲得ポイント・発行クーポンの特典文
-- 一括削除ダイアログ付き
+- pull-to-refresh で再 fetch
 - 未獲得時はイラスト付きの空ステート
 
 ### 設定 [SettingsPage](lib/features/settings/presentation/settings_page.dart)
 - **テーマモード切替** — 端末設定に合わせる／ライト／ダーク の3択。選択は `shared_preferences` に永続化（キー: `app_theme_mode_v1`）
-- **通知権限確認** — NotificationService 経由で権限状態を取得してスナックバー表示。結果は [NotificationPermissionNotifier](lib/features/sessions/providers/notification_permission_providers.dart) にも反映され、計測中のヒントカードと同期
 - **アプリバージョン**表示
 - [ダークテーマ実装](lib/core/theme/app_theme.dart) — `ColorScheme.fromSeed(brightness: dark)` ベース、[GlassDecoration](lib/core/theme/glass_decoration.dart) もcontext経由でダーク配色に追従
 
@@ -192,14 +188,12 @@
 - 完了フラグを `shared_preferences` に保存（キー: `onboarding_completed_v1`）し、2回目以降はスキップ
 - [app.dart](lib/app.dart) が `onboardingCompletedProvider` を監視して `OnboardingPage` / `HomeShell` を出し分け
 
-### プッシュ通知（ローカル通知）
-- 駐輪セッション中、アプリを閉じていてもクーポン発行タイミングを通知
-- **10分経過時** — 「もう少しでクーポンが届きます」
-- **15分達成時** — 「🎉 クーポンが発行されました」
-- セッション開始時（NFC認証成功時）に[NotificationService](lib/features/sessions/data/notification_service.dart)で2本同時予約
-- 計測中止・クーポン消込・「あとで使う」で予約キャンセル
-- 初回セッション開始時に通知権限を自動リクエスト（iOS / Android 13+）
-- `flutter_local_notifications` + `timezone` でサーバー不要 — 後で FCM への差し替えも容易
+### プッシュ通知（FCM）
+- クーポン発行時に **サーバ自律で** Android プッシュを配信（アプリ kill 中でも届く）
+- 送信タイミング：`issue_coupons` Edge Function が 15分達成を検知した瞬間
+- アプリ側 [FcmService](lib/core/notifications/fcm_service.dart) が起動時にトークンを取得 → `users.fcm_token` に upsert
+- 通知タップで起動した場合、HomeShell の `AppLifecycleState.resumed` 経由で `_restoreFromServer` が動き、`achieved` セッションがあれば祝福画面に自動遷移
+- iOS は未対応（後追いで APNs / GoogleService-Info.plist 設定が必要）
 
 ### セキュリティ構成
 - **APIキーの用途別分離** — Maps SDK キー（iOS/Android ネイティブ）と Directions API キー（Dart）を別々に管理
@@ -214,13 +208,13 @@
 
 ## 🔄 主要フロー
 
-### 駐輪 → クーポン獲得（Supabase モード）
+### 駐輪 → クーポン獲得
 ```
 駐輪場マーカー選択
   ↓ 「NFCで計測開始」
 NFC認証シート（NFC タグ ID で認証 / 屋内対応のため GPS 照合は廃止）
   ↓ 認証成功 → サーバ側 status='measuring'
-計測中画面（15分カウントダウン）+ ローカル通知予約
+計測中画面（15分カウントダウン）
 
   ┌── ここでアプリ kill されてもサーバは計測継続 ──┐
   │                                                 │
@@ -229,19 +223,25 @@ NFC認証シート（NFC タグ ID で認証 / 屋内対応のため GPS 照合�
   │     → 推薦ロジックで店舗選定                    │
   │     → クーポン発行 + status='achieved'          │
   │     → +10pt (point_transactions)                │
+  │     → users.fcm_token に FCM push 配信          │
   │                                                 │
   └─────────────────────────────────────────────────┘
-  ↓ 15分経過 → 通知発火（OS レベル、kill 状態でも届く）
-  ↓ 通知タップで起動
-HomeShell._restoreFromServer
-  ├─ getActiveSession でセッション復元（ミニバー復活）
-  └─ _checkUnseenEarnedCoupon で未表示クーポンを検知 → 祝福画面遷移
+  ↓ 達成通知のルートは2系統が並行
+  │
+  ├─ アプリ起動中：Supabase Realtime が parking_sessions.UPDATE を
+  │  WebSocket 配信 → home_shell._onSessionUpdated が祝福画面 push
+  │
+  └─ アプリ kill / バックグラウンド：FCM 通知を OS が表示
+     → ユーザがタップして起動
+     → AppLifecycleState.resumed で _restoreFromServer が走り
+       achieved セッションがあれば祝福画面 push
+
 クーポン獲得画面（haptic + sparkle + share）
   ↓ ① スワイプ消込 — redeem_coupon → status='used' + endSession
   ↓ ② 「あとで使う（駐輪は継続中）」 — セッションは parked
 出庫タイミング：ミニバーから CheckoutSheet
   ↓ 「自転車を出す」 → end_session
-セッション完了（occupied -1 + 履歴の completedAt 上書き）
+セッション完了（occupied -1、parking_sessions.exited_at 確定）
 ```
 
 ### ポイント交換
@@ -279,28 +279,23 @@ issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
 ```
 ┌─────────────────────────────────────────────┐
 │  Flutter アプリ (lib/)                       │
-│   ├─ apiClientProvider (DI 切替ポイント)    │
-│   │   ├─ MockApiClient   (オフライン UI)    │
-│   │   └─ SupabaseApiClient (HTTP/Realtime)  │
+│   ├─ SupabaseApiClient (HTTP/Realtime)      │
+│   ├─ FcmService        (Android push 受信)  │
 │   └─ Riverpod で状態管理                    │
 └─────────────────────────────────────────────┘
                   │
-       ┌──────────┴──────────────┐
-       │ USE_SUPABASE=true 時のみ │
-       ▼                         ▼
-┌──────────────────┐   ┌──────────────────────┐
-│ ローカル Supabase │   │ クラウド Supabase    │
-│ (Docker)         │   │ (Tokyo region)       │
-│ 開発・テスト用   │   │ 本番運用             │
-└──────────────────┘   └──────────────────────┘
-       │                         │
-       └────────┬────────────────┘
-                ▼
+                  ▼
    ┌──────────────────────────────────────┐
-   │ supabase/                            │
-   │  ├─ migrations/  (5マイグレーション)  │
-   │  ├─ seed.sql     (駐輪場・店舗等)    │
-   │  └─ functions/   (7 Edge Functions)  │
+   │ クラウド Supabase (Tokyo region)      │
+   │  ├─ Postgres + RLS + pg_cron          │
+   │  ├─ Edge Functions (Deno)             │
+   │  └─ Realtime (parking_sessions 配信)  │
+   └──────────────────────────────────────┘
+                  │ FCM HTTP v1
+                  ▼
+   ┌──────────────────────────────────────┐
+   │ Firebase Cloud Messaging              │
+   │  → Android 端末にプッシュ通知         │
    └──────────────────────────────────────┘
 ```
 
@@ -309,11 +304,12 @@ issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
 ```
 lib/
 ├── app.dart               # MaterialApp・テーマ適用
-├── main.dart              # ProviderScope + Supabase.initialize + Anonymous Sign-In
+├── main.dart              # ProviderScope + Supabase.initialize + Anonymous Sign-In + FCM init
 ├── routes.dart            # ルート定義
 ├── core/
-│   ├── api/               # ApiClient抽象 + MockApiClient + SupabaseApiClient
-│   ├── config/            # APIキー・USE_SUPABASE フラグ読み込み
+│   ├── api/               # ApiClient抽象 + SupabaseApiClient
+│   ├── config/            # APIキー・接続先 URL 読み込み
+│   ├── notifications/     # FcmService (Firebase Messaging 受信)
 │   ├── recommendation/    # クーポン推薦スコアリング
 │   ├── theme/             # カラー・グラス装飾・テーマ
 │   └── widgets/, utils/   # 共通ウィジェット・ユーティリティ
@@ -321,15 +317,15 @@ lib/
     ├── parking/           # 駐輪場・地図・位置情報パーミッション
     ├── stores/            # 提携店舗
     ├── coupons/           # クーポン・詳細ページ・フィルタ・スワイプ消込
-    ├── sessions/          # 計測タイマー・獲得演出・出庫シート・通知パーミッション
+    ├── sessions/          # 計測タイマー・獲得演出・出庫シート・履歴
     ├── nfc/               # NFC認証シート
     ├── points/            # ポイント残高・交換カタログ・交換履歴
     ├── alerts/            # 通知関連プロバイダ
     ├── user/              # ユーザー情報・プロフィール
     ├── mypage/            # マイページ
-    ├── settings/          # 設定（テーマ・通知・サポート）
+    ├── settings/          # 設定（テーマ・サポート）
     ├── onboarding/        # 初回起動オンボーディング
-    └── home/              # ボトムナビシェル + サーバ状態復元
+    └── home/              # ボトムナビシェル + サーバ状態復元 + Realtime 購読
 ```
 
 ### サーバ側（supabase/）
@@ -356,8 +352,9 @@ supabase/
 ```
 
 **状態管理** — Riverpod (`flutter_riverpod ^2.5.1`)
-**API層** — `ApiClient` 抽象 + 2実装（Mock / Supabase）。`apiClientProvider` 1箇所で切替
+**API層** — `ApiClient` 抽象 + `SupabaseApiClient` 実装。`apiClientProvider` で DI
 **バックエンド** — Supabase（Postgres + Auth + Edge Functions + pg_cron + Realtime）
+**プッシュ通知** — Firebase Cloud Messaging（Android のみ・iOS は後追い）
 **API契約ドキュメント** — [docs/api_contract.md](docs/api_contract.md)
 **サーバ実装ガイド** — [docs/server_implementation.md](docs/server_implementation.md)
 
@@ -372,18 +369,22 @@ supabase/
 - **google_maps_flutter** — 地図表示
 - **geolocator** — 位置情報取得 + 設定アプリ起動
 - **nfc_manager** — NFCタグ読み取り（`third_party/` にローカルフォーク）
-- **flutter_local_notifications + timezone** — セッション通知の予約
-- **shared_preferences** — お気に入り／履歴／オンボーディング状態の永続化
+- **firebase_core + firebase_messaging** — FCM 受信（Android）
+- **shared_preferences** — お気に入り／オンボーディング状態の永続化
 - **url_launcher** — クーポン詳細から外部マップを起動
 - **google_fonts** — Inter / Noto Sans JP
 
 ### バックエンド（Supabase）
 - **Postgres + Row Level Security** — 9テーブル、自分のデータのみ閲覧可
-- **Edge Functions（Deno + TypeScript）** — 認証・消込・出庫・交換ロジック
+- **Edge Functions（Deno + TypeScript）** — 認証・消込・出庫・交換・FCM 送信
 - **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分スケジュール実行
+- **Realtime** — `parking_sessions` の UPDATE をクライアントに WebSocket 配信
 - **Vault** — Edge Function URL / service_role key を暗号化保管
 - **Anonymous Sign-In** — 端末ベースの匿名認証（後でメール認証にアップグレード可）
-- **モック実装**（`MockApiClient`）も維持 — オフライン UI 開発・テスト用
+
+### 通知配信
+- **Firebase Cloud Messaging (HTTP v1 API)** — `issue_coupons` Edge Function から
+  サービスアカウント JWT で OAuth トークンを取得して直接送信
 
 ### デバイス連携（想定）
 - NFCタグ付き駐輪スタンド（屋内対応のため GPS 照合は廃止、deviceId のみで認証）
@@ -471,201 +472,77 @@ Dart 側では [api_config.dart](lib/core/config/api_config.dart) の `direction
 
 ---
 
-## 🚦 開発ワークフロー（モード3種）
+## 🚦 開発ワークフロー
 
-| モード | データ | 認証 | 用途 |
-| --- | --- | --- | --- |
-| **A. Mock のみ** | メモリ上のモック | 固定 ID | UI 修正・オフライン |
-| **B. Supabase 接続** | ローカル Postgres | Anonymous Sign-In | 統合テスト |
-| **C. Supabase + DEMO** | ローカル Postgres | Anonymous Sign-In | 撮影・短時間検証 |
+開発・テスト・本番運用の **全てクラウド Supabase 1 本** で行います。ローカル Docker Supabase は撤去済み（スキーマ実験など隔離が必要なときだけ `supabase start` で起動する選択肢は残っている）。
 
-### モード A：Mock のみ（一番簡単・サーバ不要）
+### 通常起動
 
-サーバ起動不要。`apiClientProvider` が [MockApiClient](lib/core/api/mock_api_client.dart) を返す。
+VS Code から **"BicycleGo (prod Supabase)"** 構成を選んで F5、またはコマンドラインで：
 
 ```bash
-flutter run --dart-define-from-file=env/dev.json
+flutter run --dart-define-from-file=env/prod.json
 ```
 
-これだけで UI 操作・地図表示・モックデータでの動作確認ができます。モード B/C を試したくなったら次の節へ進む（モード A しか使わない場合は読み飛ばし OK）。
+これで [env/prod.json](env/prod.example.json) の本番 Supabase に接続して起動します。
 
-### Supabase 初回セットアップ（モード B/C の前に1回だけ）
+> **実機 Android で push まで含めて動かす場合** は `android/app/google-services.json` の配置が必要。未配置でも FCM 初期化は黙ってスキップされ、アプリ自体は起動します（[FcmService](lib/core/notifications/fcm_service.dart) の try/catch 参照）。
 
-#### ローカル開発環境
+15分達成しきい値を 30 秒に短縮するには `DEMO=true` を渡します：
 
 ```bash
-# Supabase CLI と Deno をインストール
-brew install supabase/tap/supabase
-curl -fsSL https://deno.land/install.sh | sh
-
-# プロジェクト直下で initialize（既に済み）
-# supabase init
-
-# Docker Desktop を起動した状態で:
-supabase start          # 初回 5〜10分（イメージ pull）
-
-# マイグレーション + シードを適用（手動リセット時）
-supabase db reset
+flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 ```
 
-[env/dev.json](env/dev.example.json) に以下を追加：
+> **サーバ側の短縮も必要**。`issue_coupons` Edge Function に `EARN_THRESHOLD_SECONDS=30` を環境変数で渡してデプロイし直す必要があります。クライアントだけ短縮しても pg_cron が 15 分待ってしまうため。
 
-```json
-{
-  "SUPABASE_URL": "http://127.0.0.1:54321",
-  "SUPABASE_ANON_KEY": "<supabase status の ANON_KEY>"
-}
-```
+### 初回セットアップ（プロジェクトに新規参加する人向け）
 
-#### クラウド本番環境
+1. **リポジトリ取得 + 依存解決**
+   ```bash
+   flutter pub get
+   cd ios && pod install && cd ..
+   ```
+2. **API キーの配置** — [APIキーの設定](#apiキーの設定用途別に2種類) 参照
+3. **Supabase 接続情報**
+   ```bash
+   cp env/prod.example.json env/prod.json
+   # SUPABASE_URL / SUPABASE_ANON_KEY を実値に書き換え
+   ```
+4. **Firebase 設定**（push 通知が要る場合のみ）
+   - Firebase コンソールから `google-services.json` を取得 → `android/app/google-services.json` に配置
 
-1. https://supabase.com で Organization に参加 → 新規 Project 作成（**Region: Tokyo** 必須）
-2. Project 作成時に設定した DB パスワードを保管
-3. CLI から認証 + リンク：
-
-```bash
-supabase login                                  # ブラウザ認証
-supabase link --project-ref <project-ref>       # DB パスワード入力
-```
-
-4. ローカルの成果物を本番に反映：
-
-```bash
-supabase db push                                # 5マイグレーション適用
-supabase db query --linked --file supabase/seed.sql   # シードデータ投入
-for fn in parking_detect parking_auth issue_coupons \
-          expire_sessions redeem_coupon end_session \
-          issue_exchange_coupon; do
-  supabase functions deploy "$fn" --no-verify-jwt
-done
-```
-
-5. クラウド側で手動設定（Studio）：
-   - **Authentication → Sign In / Up** → `Allow anonymous sign-ins` を **ON**
-   - **Database → Extensions** → `pg_cron` と `pg_net` を **Enable**
-   - **Vault** に2つのシークレットを登録：
-     - `edge_functions_url` → `https://<project-ref>.supabase.co/functions/v1`
-     - `edge_functions_service_role_key` → Project Settings → API の `service_role` key
-
-6. アプリ用に [env/prod.json](env/prod.example.json) を作成：
-
-```json
-{
-  "SUPABASE_URL": "https://<project-ref>.supabase.co",
-  "SUPABASE_ANON_KEY": "<anon public key>"
-}
-```
-
-詳細は [docs/server_implementation.md](docs/server_implementation.md) §11 を参照。
-
-### モード B：Supabase 接続（本番に近い動作）
-
-ターミナル3枚を並行で起動：
-
-**ターミナル 1: Docker Desktop を起動**
-```bash
-open -a Docker   # クジラアイコンが緑になるまで30秒〜1分待つ
-```
-
-**ターミナル 2: Supabase ローカルスタック**
-```bash
-supabase start   # 初回 5〜10分（イメージpull）、2回目以降は20秒
-```
-
-**ターミナル 3: Edge Functions（起動中ずっと開いたままにする）**
-```bash
-supabase functions serve --no-verify-jwt
-```
-
-**ターミナル 4: Flutter アプリ**
-```bash
-flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true
-```
-
-> **実機 Android で動かす場合** は `SUPABASE_URL` を Mac の LAN IP で上書きする。詳しくは [端末別の Supabase URL](#端末別の-supabase-url実機android-時の注意) を参照。
-> ```bash
-> flutter run --dart-define-from-file=env/dev.json \
->   --dart-define=USE_SUPABASE=true \
->   --dart-define=SUPABASE_URL=http://$(ipconfig getifaddr en0):54321
-> ```
-
-### モード C：Supabase + DEMO（撮影用・30秒達成）
-
-ターミナル 1, 2 はモード B と同じ。3, 4 を以下に差し替え：
-
-**ターミナル 3: Edge Functions（DEMO 設定で起動）**
-```bash
-supabase functions serve --no-verify-jwt --env-file supabase/functions/.env.demo
-```
-
-**ターミナル 4: Flutter アプリ（DEMO + 実機 Android 向けに Supabase URL を Mac の LAN IP で上書き）**
-```bash
-flutter run --dart-define-from-file=env/dev.json --dart-define=USE_SUPABASE=true --dart-define=DEMO=true --dart-define=SUPABASE_URL=http://10.77.97.163:54321
-```
-
-> `10.77.97.163` は Mac の LAN IP（`ipconfig getifaddr en0` で確認）。Wi-Fi を切り替えると変わるので、その時はこの値を差し替える。シミュレータ／macOS から動かす場合は末尾の `--dart-define=SUPABASE_URL=...` を外せばよい（`env/dev.json` の `127.0.0.1` が使われる）。
-
-### 動作確認 URL（モード B/C 時のみ）
+### Supabase Dashboard アクセス
 
 | 何を見るか | URL |
 | --- | --- |
-| Supabase Studio（DB/Auth/Edge を GUI で操作） | http://127.0.0.1:54323 |
-| メールテスト用 (Mailpit) | http://127.0.0.1:54324 |
-| Edge Function 直接呼び出し | http://127.0.0.1:54321/functions/v1/<関数名> |
+| Tables / Auth / Functions / Logs（GUI） | https://supabase.com/dashboard/project/&lt;project-ref&gt; |
 
-### 終了方法
+### クラウド Supabase / Firebase 側の初期構築（プロジェクト立ち上げ時のみ）
 
-| 終わらせるもの | 操作 |
-| --- | --- |
-| Flutter アプリ | ターミナル 4 で `q`（または Ctrl+C） |
-| Edge Functions | ターミナル 3 で `Ctrl+C` |
-| Supabase スタック（DB データ保持） | `supabase stop` |
-| Supabase スタック + データ初期化 | `supabase stop --no-backup` |
-| Docker Desktop | クジラアイコン → Quit |
+新規プロジェクトを立ち上げる際に必要。日常開発ではすでに完了済みなので読み飛ばし OK。
 
-### 端末別の Supabase URL（実機/Android 時の注意）
+- Supabase プロジェクト作成（Tokyo region）+ `supabase link` + `supabase db push` + `supabase functions deploy` 一式
+- `Allow anonymous sign-ins` を ON、`pg_cron` / `pg_net` Extensions 有効化、Vault に `edge_functions_url` / `edge_functions_service_role_key` 登録
+- Firebase プロジェクト作成 + Android アプリ追加（パッケージ名 `com.example.bicycle_go`）
+- Firebase サービスアカウント JSON を Supabase の env var `FCM_SERVICE_ACCOUNT_JSON` に登録
 
-[env/dev.json](env/dev.json) の `SUPABASE_URL` は `127.0.0.1` 固定なので、実行端末によって参照先が変わります。`127.0.0.1` は **端末自身** を指すため、Android 実機やエミュレータから Mac 上のローカル Supabase には届きません。
-
-| 実行端末 | 参照すべき URL |
-| --- | --- |
-| iOS シミュレータ・macOS・Chrome | `http://127.0.0.1:54321`（そのまま） |
-| Android エミュレータ | `http://10.0.2.2:54321` |
-| 実機（同一 Wi-Fi） | `http://<Mac の LAN IP>:54321` |
-
-`env/dev.json` を書き換えるのではなく、`--dart-define` で **後勝ち上書き** するのがおすすめです（JSON はコミット対象なので汚さずに済む）：
-
-```bash
-# Mac の LAN IP を確認
-ipconfig getifaddr en0   # 例: 10.77.97.163
-
-# 実機（Android）で起動
-flutter run \
-  --dart-define-from-file=env/dev.json \
-  --dart-define=USE_SUPABASE=true \
-  --dart-define=DEMO=true \
-  --dart-define=SUPABASE_URL=http://10.77.97.163:54321
-```
-
-実機が同じ Wi-Fi に繋がっていない／macOS ファイアウォールで着信がブロックされている場合は、USB 接続中に限り `adb reverse tcp:54321 tcp:54321` でポート転送する方法もあります（この場合は `SUPABASE_URL` を `127.0.0.1` のまま使えます）。
+詳細は [docs/server_implementation.md](docs/server_implementation.md) を参照。
 
 ---
 
 ## 🎬 撮影モード（DEMO=true の動作詳細）
 
-プロトタイプ動画やデモ撮影用に、`--dart-define=DEMO=true` を付けて起動すると **15分の達成しきい値が30秒**になります。タイマー画面の円形プログレスも30秒で1周するので動画映えします。モード C は最初からこれが有効です。
+プロトタイプ動画やデモ撮影用に、`--dart-define=DEMO=true` を付けて起動すると **15分の達成しきい値が30秒**になります。タイマー画面の円形プログレスも30秒で1周するので動画映えします。
 
 | タイミング | 撮影モード | 通常 |
 | --- | --- | --- |
 | NFCタップ → 認証完了 | 即時 | 即時 |
-| 経過リマインダ通知 | 20秒後「もう少しで…」 | 10分後 |
 | クーポン獲得画面に遷移 | **30秒後** | 15分後 |
 
-実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。スナックバー文言と通知予約も `earnThreshold` から動的に計算しているので、撮影モードでも整合します。
+実装は [parking_session.dart](lib/features/parking/domain/parking_session.dart) の `_isDemoMode = bool.fromEnvironment('DEMO')` で `earnThreshold` を切り替え。本番ビルドには影響しません（環境変数を渡さなければ常に 15 分）。
 
-> **モード C（Supabase + DEMO）を使う場合**は、サーバ側 Edge Function にも `EARN_THRESHOLD_SECONDS=30` を渡す必要があります（[supabase/functions/.env.demo](supabase/functions/.env.demo)）。クライアント・サーバ両方で短縮しないと cron が 15分を待ってしまいクーポンが出ません — モード C の手順ではターミナル 3 で `--env-file supabase/functions/.env.demo` を渡しているので自動的に有効になります。
->
-> Mock 単独で撮影したい場合は `flutter run --dart-define-from-file=env/dev.json --dart-define=DEMO=true`（USE_SUPABASE なし）でも30秒達成になります。
+> **サーバ側にも短縮設定が必要**。`issue_coupons` Edge Function に `EARN_THRESHOLD_SECONDS=30` を環境変数で渡してデプロイし直す必要があります（[supabase/functions/.env.demo](supabase/functions/.env.demo)）。クライアントだけ短縮しても pg_cron が 15 分を待ってしまうため。
 
 ---
 
@@ -679,8 +556,8 @@ flutter run \
 
 ## 🚧 未確定・今後の検討事項
 
-- **FCM プッシュ通知**：現状はローカル通知。サーバ自律発行と完全連動させるには [docs/server_implementation.md §7](docs/server_implementation.md) を実装
-- 交換商品ラインナップの最終版（現状はモックカタログ6種を seed 投入）
+- **iOS への FCM 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
+- 交換商品ラインナップの最終版（現状はモックカタログ 6 種を seed 投入）
 - 実機駐輪場データの取得方法（公開 API 連携 or 手動登録 or IoT 連動）
 - 通知センター画面（[features/alerts](lib/features/alerts) は providers のみ存在）
 - 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
@@ -710,23 +587,23 @@ flutter run \
 - `parked` → クーポン獲得後も自転車を出していない（ミニバーは緑モード）
 - `completed` → 出庫完了
 - `expired` → 5分以内に認証されなかった
-- `parked` 中は HomeShell の `_checkSession` が再評価しない（重複発行防止）
 
 ### クーポン発行タイミング
-- **駐輪達成クーポン** — 15分経過後に発行（距離に応じて `near / far / exchange` tier）
+- **駐輪達成クーポン** — 15分経過後にサーバ自律発行（pg_cron が毎分判定 → `issue_coupons` Edge Function が発行 → Realtime / FCM でアプリに通知）。距離に応じて `near / far / exchange` tier
   - 有効期限: 3日
-  - **Mock モード**：アプリ側 `home_shell._checkSession` のポーリングで `evaluateEarn` を呼ぶ
-  - **Supabase モード**：サーバ pg_cron が毎分自律的に判定 → 発行 → アプリは `_restoreFromServer` / `_checkUnseenEarnedCoupon` で取得（**アプリ kill 状態でも発行される**）
+  - **アプリ kill 状態でも発行される**
 - **ポイント交換クーポン** — `issue_exchange_coupon` Edge Function（PL/pgSQL RPC 経由）で**即時 `owned`** 発行
   - 有効期限: 30日
   - `storeId = 'exchange-{itemId}'` のため地図検索には現れない（クーポン詳細の「店舗を地図で開く」も非表示）
 
 ### サーバ × クライアントの責務分担
 
-| 機能 | Mock モード | Supabase モード |
-|---|---|---|
-| 達成判定（15分経過の検知） | アプリの `_checkSession` 1秒ポーリング | サーバの pg_cron 毎分実行 |
-| クーポン発行 | アプリ → MockApiClient（メモリ） | Edge Function `issue_coupons`（atomic） |
-| ポイント加算 | アプリでローカル計算 | Edge Function（point_transactions に履歴記録） |
-| アプリ kill 後も発行 | ❌（メモリ消失） | ✅（サーバ自律） |
-| 機種変更データ引き継ぎ | ❌ | △（同じ Anonymous user でログインできれば） |
+| 機能 | 担当 |
+|---|---|
+| 達成判定（15分経過の検知） | サーバ pg_cron 毎分実行 |
+| クーポン発行 | Edge Function `issue_coupons`（atomic） |
+| ポイント加算 | Edge Function（`point_transactions` に履歴記録）|
+| 達成通知 | Edge Function → FCM（kill 中） / Realtime → アプリ（前面） |
+| 駐輪履歴の保持 | `parking_sessions` テーブル（クライアントは fetch のみ） |
+| アプリ kill 後も発行 | ✅ |
+| 機種変更データ引き継ぎ | △（同じ Anonymous user でログインできれば） |
