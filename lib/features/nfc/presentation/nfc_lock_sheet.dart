@@ -107,14 +107,23 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       await Future<void>.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
       Navigator.of(context).pop(session);
-    } on AuthGraceExpiredException catch (e) {
-      _showError(e.message);
+    } on AuthGraceExpiredException catch (_) {
+      _showError(
+        '自転車が置かれていないようです。'
+        'スタンドにしっかり置いたあと、5分以内にもう一度タッチしてください。',
+      );
     } on DeviceNotFoundException catch (_) {
-      _showError('スタンドIDが見つかりませんでした。NFCタグをご確認ください。');
-    } on ApiException catch (e) {
-      _showError('認証に失敗しました（${e.code}）');
-    } catch (e) {
-      _showError('認証に失敗しました（$e）');
+      _showError('このスタンドは BicycleGo に登録されていません。');
+    } on ApiException catch (_) {
+      _showError(
+        '通信がうまくいきませんでした。'
+        '少し時間をおいて、もう一度お試しください。',
+      );
+    } catch (_) {
+      _showError(
+        '通信できませんでした。'
+        '電波の良い場所でもう一度お試しください。',
+      );
     }
   }
 
