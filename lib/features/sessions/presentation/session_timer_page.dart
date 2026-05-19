@@ -46,12 +46,30 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
 
   @override
   Widget build(BuildContext context) {
+    // セッションが何らかの理由で消えたら（マイコンの出庫検知 → expired、
+    // 出庫操作で completed 等）この画面を自動で閉じてホームに戻す。
+    ref.listen<ParkingSession?>(activeSessionProvider, (prev, next) {
+      if (prev != null && next == null && mounted) {
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('自転車が出されたため計測を終了しました'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
     final session = ref.watch(activeSessionProvider);
     final theme = Theme.of(context);
     if (session == null || session.authenticatedAt == null) {
-      return const Scaffold(
-        body: SafeArea(
-          child: Center(child: Text('有効なセッションがありません')),
+      // listen 側で pop するまでの一瞬だけ表示される。手動で戻れるように
+      // 戻るボタン付きの空 Scaffold にしておく。
+      return Scaffold(
+        appBar: AppBar(),
+        body: const SafeArea(
+          child: Center(child: Text('計測を終了しました')),
         ),
       );
     }

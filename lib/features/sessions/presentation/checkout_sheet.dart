@@ -51,13 +51,20 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // セッションが消えたら（マイコンの出庫検知など）シートを自動で閉じる。
+    ref.listen<ParkingSession?>(activeSessionProvider, (prev, next) {
+      if (prev != null && next == null && mounted) {
+        Navigator.of(context).pop();
+      }
+    });
+
     final theme = Theme.of(context);
     final session = ref.watch(activeSessionProvider);
     final parkingInfo = ref.watch(activeParkingInfoProvider);
     if (session == null || session.authenticatedAt == null) {
       return const Padding(
         padding: EdgeInsets.all(24),
-        child: Center(child: Text('有効なセッションがありません')),
+        child: Center(child: Text('計測を終了しました')),
       );
     }
 
