@@ -67,7 +67,8 @@ Deno.serve(async (req) => {
     return errorResponse(404, "device_not_found", `device ${deviceId} not found`);
   }
 
-  // 4. 5分以内の unauthenticated セッションを取得（無ければ作成 → IoT 未配備時の救済）
+  // 4. 5分以内の unauthenticated セッションを取得。MCU が parking_detect で
+  //    作成済みの行のみが正規の証拠。無ければ auth_grace_expired を返す。
   const graceCutoff = new Date(
     Date.now() - AUTH_GRACE_SECONDS * 1000,
   ).toISOString();
@@ -84,30 +85,12 @@ Deno.serve(async (req) => {
   if (pendingErr) {
     return errorResponse(500, "internal_error", pendingErr.message);
   }
-
-  let sessionId: string;
-
-  if (pending) {
-    sessionId = pending.id;
-  } else {
-    // IoT 未配備のため検知イベントが無い場合の救済:
-    // 認証時に detected_at=now() の unauthenticated を即時作成する。
-    // 本番では IoT 検知必須にしてこのフォールバックを撤去する想定。
-    const newId = `ses-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-    const { data: created, error: createErr } = await supabase
-      .from("parking_sessions")
-      .insert({
-        id: newId,
-        device_id: deviceId,
-        detected_at: new Date().toISOString(),
-        status: "unauthenticated",
-      })
-      .select("id")
-      .single();
-    if (createErr) {
-      return errorResponse(500, "internal_error", createErr.message);
-    }
-    sessionId = created.id;
+  if (!pending) {
+    return errorResponse(
+      410,
+      "auth_grace_expired",
+      "no unauthenticated session within grace window; MCU detection required",
+    );
   }
 
   // 5. 認証成立 → measuring に遷移
@@ -119,7 +102,7 @@ Deno.serve(async (req) => {
       authenticated_at: now,
       status: "measuring",
     })
-    .eq("id", sessionId)
+    .eq("id", pending.id)
     .select("*")
     .single();
 
