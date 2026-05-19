@@ -84,14 +84,9 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       final api = ref.read(apiClientProvider);
       final userId = ref.read(currentUserIdProvider);
 
-      // 屋内・隣接スタンド誤判定対策のため GPS 照合は廃止し、
-      // スタンドに紐付けたNFCタグの ID（deviceId）のみで認証する。
-      // 本番では IoT 検知イベントとの紐付けで強化する想定（docs/api_contract.md §2.1）。
-      await api.postParkingDetect(
-        deviceId: widget.deviceId,
-        detectedAt: DateTime.now(),
-      );
-
+      // 物理駐輪は MCU の parking_detect が先に作る unauthenticated セッションが
+      // 唯一の証拠。アプリは認証だけを行う。5分以内に該当 deviceId の
+      // unauthenticated セッションが無ければサーバが auth_grace_expired を返す。
       final session = await api.postParkingAuth(
         userId: userId,
         deviceId: widget.deviceId,
