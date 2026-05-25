@@ -63,7 +63,7 @@ class _HomeShellState extends ConsumerState<HomeShell>
       if (session != null && mounted) {
         ref.read(activeSessionProvider.notifier).state = session;
 
-        // 駐輪場情報も復元（CheckoutSheet・履歴記録のため）
+        // 駐輪場情報も復元（履歴記録・achieved 画面表示のため）
         try {
           final parkingInfo = await api.getParkingForDevice(session.deviceId);
           if (parkingInfo != null && mounted) {

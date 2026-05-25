@@ -144,7 +144,7 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
   }
 
   /// クーポンは保存し、駐輪セッションを `parked` 状態として継続する。
-  /// 自転車を出すタイミングでミニバーから出庫操作（CheckoutSheet）を行う。
+  /// 自転車を取り出すとマイコンの出庫検知でサーバが自動的に completed にする。
   void _keepParkedAndExit(BuildContext context, WidgetRef ref) {
     final session = ref.read(activeSessionProvider);
     if (session != null) {
