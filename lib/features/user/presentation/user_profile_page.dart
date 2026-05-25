@@ -4,6 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../auth/domain/account_status.dart';
+import '../../auth/presentation/email_login_page.dart';
+import '../../auth/presentation/email_signup_page.dart';
+import '../../auth/providers/auth_controller.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../providers/user_providers.dart';
 
 class UserProfilePage extends ConsumerWidget {
@@ -151,71 +156,7 @@ class UserProfilePage extends ConsumerWidget {
             const SizedBox(height: 22),
             const _SectionLabel(label: 'アカウント'),
             const SizedBox(height: 10),
-            Container(
-              decoration: GlassDecoration.light(context, radius: 18),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentAlt.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.cloud_sync_outlined,
-                        color: AppColors.accentAlt),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'アカウント連携',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '機種変更時にポイント・履歴・お気に入りを引き継げます',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: context.textSecondary,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: context.subtleBorder,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '準備中',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: context.textSecondary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                '※ 現在は端末ローカルにすべてのデータを保存しています。アプリ削除や機種変更でデータが消失します。',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ),
+            _AccountCard(status: ref.watch(accountStatusProvider)),
           ],
         ),
       ),
@@ -278,5 +219,149 @@ class _SectionLabel extends StatelessWidget {
             ),
       ),
     );
+  }
+}
+
+/// アカウント連携状態カード。ゲストなら作成/ログイン導線、連携済みなら
+/// メール/Google 表示とログアウト。
+class _AccountCard extends ConsumerWidget {
+  final AccountStatus status;
+  const _AccountCard({required this.status});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isGuest = status.isGuest;
+
+    final String title;
+    final IconData icon;
+    if (isGuest) {
+      title = 'ゲストとして利用中';
+      icon = Icons.person_outline_rounded;
+    } else if (status.kind == AccountKind.googleLinked) {
+      title = 'Google で連携済み';
+      icon = Icons.verified_user_outlined;
+    } else {
+      title = 'メールで連携済み';
+      icon = Icons.verified_user_outlined;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: GlassDecoration.light(context, radius: 18),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.accentAlt.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.accentAlt),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (!isGuest && status.email != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        status.email!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (isGuest) ...[
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const EmailSignupPage()),
+            ),
+            child: const Text('アカウントを作成'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const EmailLoginPage()),
+            ),
+            child: const Text('ログイン'),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'ゲストのデータ（ポイント・クーポン・駐輪履歴）は一時アカウントに保存されています。'
+              'アカウントを作成すると、機種変更後も同じデータを引き継げます。'
+              'なお、お気に入り駐輪場はこの端末のみに保存され、引き継がれません。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ] else ...[
+          OutlinedButton.icon(
+            onPressed: () => _confirmSignOut(context, ref),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('ログアウト'),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'ポイント・クーポン・駐輪履歴はアカウントに保存されています。'
+              '別の端末でも同じアカウントでログインすれば引き継げます。'
+              'なお、お気に入り駐輪場はこの端末のみに保存され、引き継がれません。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ログアウトしますか？'),
+        content: const Text(
+          'ログアウトしてもデータはアカウントに保存されています。'
+          '再度ログインすればいつでも復元できます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('ログアウト'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ref.read(authControllerProvider).signOut();
   }
 }

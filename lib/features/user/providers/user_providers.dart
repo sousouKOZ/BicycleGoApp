@@ -5,13 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../auth/providers/auth_providers.dart';
 import '../domain/user_profile.dart';
 
-/// 現在のユーザーID（Supabase Auth の anonymous user id UUID）。
+/// 現在のユーザーID（Supabase Auth の user id UUID）。
 ///
 /// アプリ全体でこのプロバイダ経由でユーザー ID を取得する。
 /// main.dart で signInAnonymously 済みなので currentUser は通常非 null。
+/// authStateProvider を watch して、ログイン/ログアウトでユーザーが切り替わった
+/// 際に再評価され、別端末ログイン後も新しい uid を返す。
 final currentUserIdProvider = Provider<String>((ref) {
+  ref.watch(authStateProvider);
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) {
     throw StateError('Supabase user not signed in');
