@@ -13,7 +13,6 @@ import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
-import '../providers/session_history_providers.dart';
 
 class CouponEarnedPage extends ConsumerStatefulWidget {
   const CouponEarnedPage({super.key});
@@ -115,14 +114,13 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
     final api = ref.read(apiClientProvider);
     final userId = ref.read(currentUserIdProvider);
     await api.redeemCoupon(userId: userId, couponId: coupon.id);
+    // クーポン消込と出庫は分離。自転車はまだスタンドにあるためセッションは
+    // parked のまま継続し、取り出し時のマイコン出庫検知で completed にする。
     final session = ref.read(activeSessionProvider);
     if (session != null) {
-      await api.endSession(session.id);
-      // 履歴はサーバ parking_sessions が真実の源。exited_at が書き換わったので再 fetch。
-      ref.invalidate(sessionHistoryProvider);
+      ref.read(activeSessionProvider.notifier).state =
+          session.copyWith(status: ParkingSessionStatus.parked);
     }
-    ref.read(activeSessionProvider.notifier).state = null;
-    ref.read(activeParkingInfoProvider.notifier).state = null;
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
     if (!context.mounted) return;
