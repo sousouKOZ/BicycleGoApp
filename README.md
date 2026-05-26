@@ -23,6 +23,8 @@
 
 ## 🗺 アプリ構成
 
+起動フローは **オンボーディング → ログイン/ゲスト選択（AuthLanding）→ ホーム**。
+ログイン済み or ゲスト承認済みなら AuthLanding はスキップされます。ホームは
 ボトムナビゲーションで3タブ構成です。
 
 | タブ | 画面 | 役割 |
@@ -104,25 +106,23 @@
 - **全タブから進捗確認可能**（地図／クーポン／マイページ切替時も表示継続）
 - タップで計測画面を再展開
 - 達成検知は **サーバ pg_cron が判定 → Realtime / FCM でアプリへ通知 → HomeShell が祝福画面に遷移**
-- **`parked` モード** — クーポン獲得後も自転車を出していない間は緑グラデの「駐輪中（クーポン獲得済）」バーに切替、累計駐輪時間を表示
-  - タップで [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart) を表示
+- **`parked` モード** — クーポン獲得後も自転車を出していない間は緑グラデの「駐輪中（クーポン獲得済）」バーに切替、累計駐輪時間を表示（情報表示のみ。出庫はマイコンの検知で自動完了）
 - **アプリ kill 後の状態復元** — [HomeShell](lib/features/home/presentation/home_shell.dart) の `_restoreFromServer` で起動時に `getActiveSession` を呼び、measuring / achieved / parked のセッションがあれば即時復元。kill → 再起動でもバーが消えない
 
 ### クーポン獲得画面 [CouponEarnedPage](lib/features/sessions/presentation/coupon_earned_page.dart)
 - 達成バナー（グラデーション + 祝福アイコン）
 - 発行されたクーポンの大型カード表示（店舗・特典・有効期限）
 - **スワイプto消込**（`SwipeToUse`ウィジェット・店舗スタッフ面前で利用）
-- 「あとで使う（駐輪は継続中）」 — クーポンを保存しつつセッションを `parked` 状態に遷移、ミニバーから出庫操作を継続できる
+- 「あとで使う（駐輪は継続中）」 — クーポンを保存しつつセッションを `parked` 状態に遷移。出庫は自転車取り出し時にマイコンが検知して自動完了
 - **入場時の触覚フィードバック** — `HapticFeedback.heavyImpact()` で達成感を物理的にも演出
 - **スパークルバースト** [_SparkleBurst](lib/features/sessions/presentation/coupon_earned_page.dart) — バナー周辺で14個のパーティクルが放射状に拡散（CustomPainter、外部依存なし）
 - **シェアボタン** — 達成バナー右肩のアイコン。タップで「#BicycleGo で15分駐輪したら ○○ の『△△』クーポンが届いた！」をクリップボードにコピー（追加パッケージ不要、SNS への貼り付けを想定）
 - **アプリ kill 状態でのクーポン受取り** — サーバの pg_cron が15分達成を検知して自律発行 + FCM push 配信 → 通知タップでアプリ起動 → [HomeShell._restoreFromServer](lib/features/home/presentation/home_shell.dart) が achieved セッションを検知して自動的にこの画面へ遷移
 
-### 出庫シート [CheckoutSheet](lib/features/sessions/presentation/checkout_sheet.dart)
-- 駐輪場名・駐輪開始時刻・累計駐輪時間・ステータスを一覧表示
-- 「自転車を出す」で `api.endSession` を呼び、サーバ `parking_sessions.exited_at` を確定。アプリ側は `sessionHistoryProvider` を invalidate して履歴を再 fetch
-- セッションを `completed` に遷移しミニバーを消去、駐輪場の空き情報更新トリガとなる
-- 「まだ出さない」でシートだけ閉じる（セッションは継続）
+### 出庫（自動・マイコン検知）
+- ユーザーのアプリ操作は不要。**自転車をスタンドから取り出すとマイコンが `parking_detect`（status=exit）を送信**し、サーバがセッションを `completed`（`exited_at` 確定 + 駐輪場 `occupied` -1）に遷移
+- アプリは Realtime で `completed`/`expired` 遷移を受信し、ミニバーを自動的に消去・履歴を再 fetch
+- クーポン消込（スワイプ）と出庫は分離。クーポンを使ってもセッションは取り出すまで `parked` のまま
 
 ### クーポン一覧 [CouponListPage](lib/features/coupons/presentation/coupon_list_page.dart)
 - セクション別表示：**配信中 / 利用可能 / 使用済み / 期限切れ**
@@ -186,7 +186,16 @@
   2. 「NFCでサッと計測開始」 — 使い方の説明
   3. 「15分停めるだけでクーポン獲得」 — インセンティブ訴求
 - 完了フラグを `shared_preferences` に保存（キー: `onboarding_completed_v1`）し、2回目以降はスキップ
-- [app.dart](lib/app.dart) が `onboardingCompletedProvider` を監視して `OnboardingPage` / `HomeShell` を出し分け
+- [app.dart](lib/app.dart) が `appGateProvider` を監視して `OnboardingPage` / `AuthLandingPage` / `HomeShell` を出し分け
+
+### ログイン / アカウント [features/auth](lib/features/auth/)
+- **メール+パスワード認証 + ゲスト利用**。オンボーディング後に [AuthLandingPage](lib/features/auth/presentation/auth_landing_page.dart) を表示し、「アカウント作成」「ログイン」「ゲストで続ける」を選べる
+- **ゲート判定** [appGateProvider](lib/features/auth/providers/auth_providers.dart) — `onboarding / authLanding / home` を返すソフトゲート。匿名（`isAnonymous`）かつゲスト未承認なら AuthLanding、非匿名 or ゲスト承認済みなら HomeShell
+- **匿名 → 永続アカウント昇格** — ゲストが「アカウント作成」すると `updateUser(email, password)` で昇格。**uid 不変**のためポイント・クーポン・履歴を保持したままアカウント化（[server_implementation.md §3.3](docs/server_implementation.md)）
+- **別端末ログイン復元** — `signInWithPassword` で auth ユーザーが切替わると [AuthController](lib/features/auth/providers/auth_controller.dart) が `authSessionKeyProvider` をバンプして HomeShell をフル再マウント（Realtime チャンネル `home_session_$uid` を dispose→再 init）+ user スコープ provider を invalidate + FCM トークン再登録
+- **パスワード再設定**（Phase 2）— [PasswordResetPage](lib/features/auth/presentation/password_reset_page.dart) で `resetPasswordForEmail` → メールのリンク（`io.supabase.bicyclego://login-callback`）→ SDK が `passwordRecovery` 発火 → [SetNewPasswordPage](lib/features/auth/presentation/set_new_password_page.dart)
+- **サインアウト** — プロフィールのアカウントカードから。匿名ユーザーは自動再生成しない（AuthLanding に戻る）
+- お気に入り駐輪場は端末ローカル（`shared_preferences`）保存のため、ログインしても**引き継がれない**
 
 ### プッシュ通知（FCM）
 - クーポン発行時に **サーバ自律で** Android プッシュを配信（アプリ kill 中でも届く）
@@ -237,11 +246,12 @@ NFC認証シート（NFC タグ ID で認証 / 屋内対応のため GPS 照合�
        achieved セッションがあれば祝福画面 push
 
 クーポン獲得画面（haptic + sparkle + share）
-  ↓ ① スワイプ消込 — redeem_coupon → status='used' + endSession
+  ↓ ① スワイプ消込 — redeem_coupon → status='used'（セッションは parked 継続）
   ↓ ② 「あとで使う（駐輪は継続中）」 — セッションは parked
-出庫タイミング：ミニバーから CheckoutSheet
-  ↓ 「自転車を出す」 → end_session
-セッション完了（occupied -1、parking_sessions.exited_at 確定）
+自転車を取り出す
+  ↓ マイコンが parking_detect（status=exit）を送信
+セッション完了（status=completed、occupied -1、exited_at 確定）
+  ↓ Realtime でアプリのミニバーが自動消去
 ```
 
 ### ポイント交換
@@ -303,7 +313,7 @@ issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
 
 ```
 lib/
-├── app.dart               # MaterialApp・テーマ適用
+├── app.dart               # MaterialApp + appGate でゲート出し分け + AuthController watch
 ├── main.dart              # ProviderScope + Supabase.initialize + Anonymous Sign-In + FCM init
 ├── routes.dart            # ルート定義
 ├── core/
@@ -314,10 +324,11 @@ lib/
 │   ├── theme/             # カラー・グラス装飾・テーマ
 │   └── widgets/, utils/   # 共通ウィジェット・ユーティリティ
 └── features/
+    ├── auth/              # ログイン/新規登録/ゲスト・昇格・パスワード再設定
     ├── parking/           # 駐輪場・地図・位置情報パーミッション
     ├── stores/            # 提携店舗
     ├── coupons/           # クーポン・詳細ページ・フィルタ・スワイプ消込
-    ├── sessions/          # 計測タイマー・獲得演出・出庫シート・履歴
+    ├── sessions/          # 計測タイマー・獲得演出・履歴
     ├── nfc/               # NFC認証シート
     ├── points/            # ポイント残高・交換カタログ・交換履歴
     ├── alerts/            # 通知関連プロバイダ
@@ -380,7 +391,7 @@ supabase/
 - **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分スケジュール実行
 - **Realtime** — `parking_sessions` の UPDATE をクライアントに WebSocket 配信
 - **Vault** — Edge Function URL / service_role key を暗号化保管
-- **Anonymous Sign-In** — 端末ベースの匿名認証（後でメール認証にアップグレード可）
+- **Supabase Auth** — 匿名サインイン + メール/パスワード認証。匿名→永続アカウント昇格で uid 不変・データ保持。パスワード再設定はディープリンク（SMTP は Resend）
 
 ### 通知配信
 - **Firebase Cloud Messaging (HTTP v1 API)** — `issue_coupons` Edge Function から
@@ -556,13 +567,16 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 
 ## 🚧 未確定・今後の検討事項
 
+- **Google ログイン**（Phase 3。`signInWithOAuth` / 昇格は `linkIdentity`。サーバで Google プロバイダ有効化 + Manual Linking 必要）
+- **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要）
 - **iOS への FCM 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
+- `applicationId` を正式な逆ドメインへ（現状はテンプレ既定 `com.example.bicycle_go`。Google OAuth / ストア提出前）
+- 孤児匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に空の匿名行が増える）
 - 交換商品ラインナップの最終版（現状はモックカタログ 6 種を seed 投入）
 - 実機駐輪場データの取得方法（公開 API 連携 or 手動登録 or IoT 連動）
 - 通知センター画面（[features/alerts](lib/features/alerts) は providers のみ存在）
 - 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
 - 駐輪場の混雑予測（時間帯別ヒートマップ）
-- メール／Apple／Google 認証へのアップグレード（現状は Anonymous Sign-In のみ）
 - 多言語対応（i18n の土台）
 - アプリストア提出（iOS / Android）
 
