@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../coupons/domain/coupon.dart';
 import '../../coupons/presentation/coupon_detail_page.dart';
+import '../../coupons/presentation/widgets/coupon_ticket.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/domain/parking_lot.dart';
 import '../../parking/presentation/parking_detail_sheet.dart';
@@ -49,8 +50,8 @@ class MyPage extends ConsumerWidget {
               error: (e, _) => Text('読み込み失敗: $e'),
               data: (list) {
                 final usable = list
-                    .where((c) =>
-                        c.status == CouponStatus.owned && !c.isExpired)
+                    .where(
+                        (c) => c.status == CouponStatus.owned && !c.isExpired)
                     .toList();
                 if (usable.isEmpty) {
                   return Container(
@@ -70,9 +71,8 @@ class MyPage extends ConsumerWidget {
                   );
                 }
                 return Column(
-                  children: usable
-                      .map((c) => _OwnedCouponTile(coupon: c))
-                      .toList(),
+                  children:
+                      usable.map((c) => _OwnedCouponTile(coupon: c)).toList(),
                 );
               },
             ),
@@ -84,8 +84,8 @@ class MyPage extends ConsumerWidget {
                 final recentlyUsed = list
                     .where((c) => c.status == CouponStatus.used)
                     .toList()
-                  ..sort((a, b) =>
-                      (b.usedAt ?? b.issuedAt).compareTo(a.usedAt ?? a.issuedAt));
+                  ..sort((a, b) => (b.usedAt ?? b.issuedAt)
+                      .compareTo(a.usedAt ?? a.issuedAt));
                 final top = recentlyUsed.take(3).toList();
                 if (top.isEmpty) return const SizedBox.shrink();
                 return Column(
@@ -93,10 +93,10 @@ class MyPage extends ConsumerWidget {
                   children: [
                     _SectionHeader(
                       title: '最近使ったクーポン',
-                      subtitle: list.where((c) =>
-                                  c.status == CouponStatus.used)
-                              .length >
-                          3
+                      subtitle: list
+                                  .where((c) => c.status == CouponStatus.used)
+                                  .length >
+                              3
                           ? 'クーポンタブで全件確認できます'
                           : 'ご利用ありがとうございました',
                       accent: AppColors.onSurfaceSecondary,
@@ -354,61 +354,18 @@ class _OwnedCouponTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final expires = coupon.expiresAt;
     final expiresLabel =
         '${expires.month}/${expires.day.toString().padLeft(2, '0')}まで';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: GlassDecoration.light(context, radius: 18),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CouponDetailPage(coupon: coupon),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(Icons.confirmation_number_rounded,
-                      color: AppColors.accent, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        coupon.benefit,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${coupon.storeName}・$expiresLabel',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.arrow_forward_ios_rounded,
-                    size: 14, color: context.textSecondary),
-              ],
-            ),
-          ),
+    return MiniCouponTicket(
+      stubIcon: Icons.confirmation_number_rounded,
+      stubLabel: coupon.distanceTier.label,
+      stubColor: AppColors.success,
+      benefit: coupon.benefit,
+      subtitle: '${coupon.storeName}・$expiresLabel',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CouponDetailPage(coupon: coupon),
         ),
       ),
     );
@@ -421,68 +378,20 @@ class _UsedCouponTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final usedAt = coupon.usedAt;
     final usedLabel = usedAt == null
         ? '使用済み'
         : '${usedAt.month}/${usedAt.day.toString().padLeft(2, '0')} 使用';
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: GlassDecoration.light(context, radius: 18, opacity: 0.72),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => CouponDetailPage(coupon: coupon),
-            ),
-          ),
-          child: Opacity(
-            opacity: 0.78,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: context.subtleBorder,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.check_circle_rounded,
-                        color: context.textSecondary, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          coupon.benefit,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: context.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${coupon.storeName}・$usedLabel',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: context.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios_rounded,
-                      size: 14, color: context.textSecondary),
-                ],
-              ),
-            ),
-          ),
+    return MiniCouponTicket(
+      stubIcon: Icons.check_circle_rounded,
+      stubLabel: '使用済',
+      stubColor: context.textSecondary,
+      benefit: coupon.benefit,
+      subtitle: '${coupon.storeName}・$usedLabel',
+      dimmed: true,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CouponDetailPage(coupon: coupon),
         ),
       ),
     );
@@ -519,8 +428,7 @@ class _MenuTile extends StatelessWidget {
                   color: context.subtleBorder,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    Icon(icon, size: 18, color: context.textPrimary),
+                child: Icon(icon, size: 18, color: context.textPrimary),
               ),
               const SizedBox(width: 12),
               Expanded(

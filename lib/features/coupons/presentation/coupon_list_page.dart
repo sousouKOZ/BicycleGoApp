@@ -12,6 +12,7 @@ import '../domain/coupon.dart';
 import '../providers/coupon_filter_providers.dart';
 import '../providers/coupon_providers.dart';
 import 'coupon_detail_page.dart';
+import 'widgets/coupon_ticket.dart';
 import 'widgets/swipe_to_use.dart';
 
 class CouponListPage extends ConsumerWidget {
@@ -54,8 +55,7 @@ class CouponListPage extends ConsumerWidget {
                 .toList()
               ..sort(compare);
             final used = coupons
-                .where((c) =>
-                    c.status == CouponStatus.used && matchesQuery(c))
+                .where((c) => c.status == CouponStatus.used && matchesQuery(c))
                 .toList()
               ..sort((a, b) =>
                   (b.usedAt ?? b.issuedAt).compareTo(a.usedAt ?? a.issuedAt));
@@ -200,60 +200,17 @@ class _DistributingCouponCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: GlassDecoration.accentCard(context, radius: 22),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            showDragHandle: true,
-            builder: (_) => StorePreviewSheet(store: store),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _CategoryChip(label: store.category.label),
-                    const SizedBox(width: 8),
-                    _StatusChip(
-                      icon: Icons.local_offer,
-                      label: '配信中',
-                      color: AppColors.accent,
-                    ),
-                    const Spacer(),
-                    Icon(Icons.arrow_forward_ios_rounded,
-                        size: 14, color: context.textSecondary),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  store.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  store.benefit,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.accent,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+    return MiniCouponTicket(
+      stubIcon: Icons.local_offer_rounded,
+      stubLabel: '配信中',
+      stubColor: AppColors.accent,
+      benefit: store.benefit,
+      subtitle: '${store.name} ・ ${store.category.label}',
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => StorePreviewSheet(store: store),
       ),
     );
   }
@@ -303,104 +260,107 @@ class _CouponCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final isUsable = coupon.isUsable;
     final remaining = _formatRemaining(coupon.expiresAt);
+    final benefitColor = isUsable ? context.textPrimary : context.textSecondary;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: isUsable
-          ? GlassDecoration.accentCard(context, radius: 22)
-          : GlassDecoration.light(context, radius: 22, opacity: 0.72),
-      clipBehavior: Clip.antiAlias,
-      child: Opacity(
-        opacity: isUsable ? 1.0 : 0.7,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 詳細遷移用のタップ領域。SwipeToUse とジェスチャーが衝突しないよう
-            // Material/InkWell はカード上部のみに限定する。
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => CouponDetailPage(coupon: coupon),
+    // チケット上部（特典本体）。タップで詳細へ。
+    final body = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => CouponDetailPage(coupon: coupon),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(coupon.storeName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: context.textSecondary,
+                          fontWeight: FontWeight.w700,
+                        )),
                   ),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      18, 16, 18, isUsable ? 12 : 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(coupon.storeName,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                )),
-                          ),
-                          _DistanceChip(
-                            label: coupon.distanceTier.label,
-                            isUsable: isUsable,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(coupon.benefit,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.2,
-                            color: isUsable
-                                ? AppColors.accent
-                                : context.textSecondary,
-                          )),
-                      const SizedBox(height: 4),
-                      Text(coupon.title,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: context.textSecondary,
-                          )),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Icon(Icons.schedule_rounded,
-                              size: 15,
-                              color: isUsable
-                                  ? context.textSecondary
-                                  : AppColors.danger),
-                          const SizedBox(width: 6),
-                          Text(
-                            coupon.status == CouponStatus.used
-                                ? '使用済み'
-                                : coupon.isExpired
-                                    ? '期限切れ'
-                                    : '期限：$remaining',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: isUsable
-                                  ? context.textSecondary
-                                  : AppColors.danger,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  _DistanceChip(
+                    label: coupon.distanceTier.label,
+                    isUsable: isUsable,
                   ),
-                ),
+                ],
               ),
-            ),
-            if (isUsable)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-                child: SwipeToUse(
-                  label: 'スワイプして使用',
-                  completedLabel: '使用済み ✓',
-                  onCompleted: () => _redeem(context, ref),
-                ),
-              ),
-          ],
+              const SizedBox(height: 10),
+              Text(coupon.benefit,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    height: 1.15,
+                    color: benefitColor,
+                  )),
+              const SizedBox(height: 6),
+              Text(coupon.title,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.textSecondary,
+                  )),
+            ],
+          ),
         ),
       ),
     );
+
+    // チケット下部（半券）。利用可能ならスワイプ、それ以外は状態表示。
+    final Widget stub;
+    if (isUsable) {
+      stub = Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, left: 2),
+              child: Text('有効期限  $remaining',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  )),
+            ),
+            SwipeToUse(
+              label: 'スワイプして使用',
+              completedLabel: '使用済み ✓',
+              onCompleted: () => _redeem(context, ref),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final label = coupon.status == CouponStatus.used ? '使用済み' : '期限切れ';
+      stub = Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              coupon.status == CouponStatus.used
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.block_rounded,
+              size: 15,
+              color: context.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                )),
+          ],
+        ),
+      );
+    }
+
+    return _TicketCard(body: body, stub: stub, dimmed: !isUsable);
   }
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
@@ -411,69 +371,6 @@ class _CouponCard extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${coupon.storeName}で使用しました')),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  final String label;
-  const _CategoryChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: context.subtleBorder,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: theme.textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: context.textPrimary,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _StatusChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -500,6 +397,76 @@ class _DistanceChip extends StatelessWidget {
           fontWeight: FontWeight.w800,
           fontSize: 11,
           letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+/// 物理的なクーポン券に見せるカード。上部（特典）と下部（半券）を
+/// 両端の切り欠き + 破線（ミシン目）で区切る。
+class _TicketCard extends StatelessWidget {
+  final Widget body;
+  final Widget stub;
+  final bool dimmed;
+  const _TicketCard({
+    required this.body,
+    required this.stub,
+    this.dimmed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardColor = couponCardColor(context);
+    final pageColor = theme.scaffoldBackgroundColor;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Opacity(
+        opacity: dimmed ? 0.6 : 1.0,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 14,
+                spreadRadius: -4,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: PaperTexturePainter(
+                      dark: theme.brightness == Brightness.dark,
+                    ),
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    body,
+                    SizedBox(
+                      height: 18,
+                      child: CustomPaint(
+                        painter: PerforationPainter(
+                          notchColor: pageColor,
+                          dashColor: context.subtleBorder,
+                        ),
+                      ),
+                    ),
+                    stub,
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -610,8 +577,7 @@ class _CouponFilterBarState extends ConsumerState<_CouponFilterBar> {
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               hintText: '店名・特典で検索',
-              prefixIcon:
-                  Icon(Icons.search, color: context.textSecondary),
+              prefixIcon: Icon(Icons.search, color: context.textSecondary),
               suffixIcon: query.isEmpty
                   ? null
                   : IconButton(
@@ -623,16 +589,15 @@ class _CouponFilterBarState extends ConsumerState<_CouponFilterBar> {
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 14),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             ),
           ),
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            Icon(Icons.sort_rounded,
-                size: 16, color: context.textSecondary),
+            Icon(Icons.sort_rounded, size: 16, color: context.textSecondary),
             const SizedBox(width: 6),
             Text(
               '並び順',
@@ -688,8 +653,7 @@ class _SortChip extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
                 ? AppColors.accent.withValues(alpha: 0.12)
