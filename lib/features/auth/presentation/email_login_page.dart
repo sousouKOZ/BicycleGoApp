@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/auth_controller.dart';
+import 'password_reset_page.dart';
 
 /// メールアドレス + パスワードでログインする画面。
 /// 成功すると onAuthStateChange(signedIn) が AuthController で処理され、
@@ -121,6 +122,17 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('ログイン'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const PasswordResetPage(),
+                              ),
+                            ),
+                    child: const Text('パスワードを忘れた場合'),
                   ),
                 ],
               ),

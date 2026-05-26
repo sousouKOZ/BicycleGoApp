@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_mode_providers.dart';
 import 'features/auth/presentation/auth_landing_page.dart';
+import 'features/auth/presentation/set_new_password_page.dart';
 import 'features/auth/providers/auth_controller.dart';
 import 'features/auth/providers/auth_providers.dart';
 import 'features/home/presentation/home_shell.dart';
@@ -16,6 +18,16 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // AuthController をアプリ生存期間維持（onAuthStateChange の購読・再マウント制御）。
     ref.watch(authControllerProvider);
+
+    // パスワード再設定リンクを開くと passwordRecovery が発火。
+    // 復元セッション中に新パスワード設定画面を最前面に出す。
+    ref.listen<AsyncValue<AuthState>>(authStateProvider, (_, next) {
+      if (next.valueOrNull?.event == AuthChangeEvent.passwordRecovery) {
+        rootNavigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const SetNewPasswordPage()),
+        );
+      }
+    });
 
     final gate = ref.watch(appGateProvider);
     final themeMode = ref.watch(themeModeProvider);
@@ -39,6 +51,7 @@ class App extends ConsumerWidget {
 
     return MaterialApp(
       title: 'BicycleGo',
+      navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

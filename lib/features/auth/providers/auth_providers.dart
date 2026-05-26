@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +8,11 @@ import '../domain/account_status.dart';
 
 /// アプリのトップレベルで表示すべき画面。
 enum AppGate { onboarding, authLanding, home }
+
+/// MaterialApp の Navigator にアタッチするキー。
+/// パスワード再設定リンク（passwordRecovery）など、ウィジェット context の外から
+/// 画面遷移したいケースで使う。
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// Supabase の認証状態ストリーム。サインイン/アウト/トークン更新で発火する。
 final authStateProvider = StreamProvider<AuthState>((ref) {

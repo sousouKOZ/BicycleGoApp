@@ -51,5 +51,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.supabase.bicyclego</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.supabase.bicyclego</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -8,6 +8,7 @@ import '../../coupons/providers/coupon_providers.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/providers/session_history_providers.dart';
 import '../../user/providers/user_providers.dart';
+import '../auth_constants.dart';
 import 'auth_providers.dart';
 
 /// onAuthStateChange を購読し、認証状態の変化に応じて
@@ -97,6 +98,19 @@ class AuthController {
 
   Future<void> signOut() async {
     await _client.auth.signOut();
+  }
+
+  /// パスワード再設定メールを送信。リンクは kAuthRedirectUrl に戻る。
+  Future<void> sendPasswordReset(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email,
+      redirectTo: kAuthRedirectUrl,
+    );
+  }
+
+  /// 復元セッション中に新しいパスワードを設定する。
+  Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   /// ゲストとして利用を続行。匿名ユーザーが無ければ作成し、承認フラグを立てる。
