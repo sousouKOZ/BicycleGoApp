@@ -363,5 +363,11 @@ class _AccountCard extends ConsumerWidget {
     );
     if (ok != true) return;
     await ref.read(authControllerProvider).signOut();
+    // サインアウトでゲートが authLanding に切り替わる。プロフィール画面は
+    // HomeShell の上に push されているため、ルートまで戻して背後の
+    // AuthLanding を表に出す。
+    if (context.mounted) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 }
