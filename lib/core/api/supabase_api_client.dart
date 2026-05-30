@@ -84,6 +84,7 @@ class SupabaseApiClient implements ApiClient {
     final json = await _invoke('parking_detect', body: {
       'deviceId': deviceId,
       'detectedAt': detectedAt.toUtc().toIso8601String(),
+      'is_demo': ParkingSession.isDemoMode,
     });
     return _parseSession(json);
   }
@@ -182,7 +183,24 @@ class SupabaseApiClient implements ApiClient {
     return records;
   }
 
-  // ---- クーポン --------------------------------------------------------
+  @override
+  Future<void> triggerDemoCouponIssue() async {
+    // 戻り値は捨て、 Edge Function を呼び出す
+    await _invoke('issue_coupons');
+  }
+
+  @override
+  Future<List<Store>> getRecommendations(double lat, double lng) async {
+    final response = await _invoke('get_recommendations', body: {
+      'lat': lat,
+      'lng': lng,
+    });
+    
+    final recommendations = response['recommendations'] as List<dynamic>? ?? [];
+    return recommendations.map((json) => Store.fromJson(json)).toList();
+  }
+
+  // ---- ヘルパー --------------------------------------------------------
 
   @override
   Future<List<Coupon>> getUserCoupons(String userId) async {
@@ -263,18 +281,25 @@ class SupabaseApiClient implements ApiClient {
 
   // ---- パース --------------------------------------------------------
 
+  DateTime _parseTimestamp(String s) {
+    if (!s.endsWith('Z') && !s.contains('+') && !s.contains('-')) {
+      s = '${s}Z';
+    }
+    return DateTime.parse(s).toLocal();
+  }
+
   ParkingSession _parseSession(Map<String, dynamic> r) {
     return ParkingSession(
       id: r['id'] as String,
       deviceId: r['device_id'] as String,
       userId: r['user_id'] as String?,
-      detectedAt: DateTime.parse(r['detected_at'] as String),
+      detectedAt: _parseTimestamp(r['detected_at'] as String),
       authenticatedAt: r['authenticated_at'] == null
           ? null
-          : DateTime.parse(r['authenticated_at'] as String),
+          : _parseTimestamp(r['authenticated_at'] as String),
       exitedAt: r['exited_at'] == null
           ? null
-          : DateTime.parse(r['exited_at'] as String),
+          : _parseTimestamp(r['exited_at'] as String),
       status: _parseSessionStatus(r['status'] as String),
       issuedCouponId: r['issued_coupon_id'] as String?,
     );
@@ -287,11 +312,11 @@ class SupabaseApiClient implements ApiClient {
       storeName: r['store_name'] as String,
       title: r['title'] as String,
       benefit: r['benefit'] as String,
-      issuedAt: DateTime.parse(r['issued_at'] as String),
-      expiresAt: DateTime.parse(r['expires_at'] as String),
+      issuedAt: _parseTimestamp(r['issued_at'] as String),
+      expiresAt: _parseTimestamp(r['expires_at'] as String),
       usedAt: r['used_at'] == null
           ? null
-          : DateTime.parse(r['used_at'] as String),
+          : _parseTimestamp(r['used_at'] as String),
       status: _parseCouponStatus(r['status'] as String),
       distanceTier: _parseDistanceTier(r['distance_tier'] as String),
     );

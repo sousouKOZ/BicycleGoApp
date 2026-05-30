@@ -90,15 +90,28 @@ Deno.serve(async (req) => {
     // 直近30分以内に expired または猶予超過した unauthenticated が同じデバイス
     // で見つかれば「タッチが遅かった」、何も無ければ「そもそも検知が無い」。
     const lookback = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { data: stale } = await supabase
+    // 1. 直近30分以内の expired を探す
+    const { data: expiredStale } = await supabase
       .from("parking_sessions")
       .select("id")
       .eq("device_id", deviceId)
+      .eq("status", "expired")
       .gte("detected_at", lookback)
-      .or(`status.eq.expired,and(status.eq.unauthenticated,detected_at.lt.${graceCutoff})`)
       .limit(1)
       .maybeSingle();
-    if (stale) {
+
+    // 2. 直近30分以内で猶予を超過した unauthenticated を探す
+    const { data: unauthStale } = await supabase
+      .from("parking_sessions")
+      .select("id")
+      .eq("device_id", deviceId)
+      .eq("status", "unauthenticated")
+      .gte("detected_at", lookback)
+      .lt("detected_at", graceCutoff)
+      .limit(1)
+      .maybeSingle();
+
+    if (expiredStale || unauthStale) {
       return errorResponse(
         410,
         "auth_grace_expired",

@@ -26,6 +26,7 @@ interface DetectBody {
   deviceId?: string;
   detectedAt?: string;
   status?: string;
+  is_demo?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -86,13 +87,14 @@ Deno.serve(async (req) => {
   if (eventStatus === "exit") {
     return handleExit(supabase, deviceId, detectedAt);
   }
-  return handleEntry(supabase, deviceId, detectedAt);
+  return handleEntry(supabase, deviceId, detectedAt, body.is_demo === true);
 });
 
 async function handleEntry(
   supabase: ReturnType<typeof serviceClient>,
   deviceId: string,
   detectedAt: string,
+  isDemo: boolean,
 ): Promise<Response> {
   // 同 deviceId の既存 unauthenticated セッションがあれば返す（重複検知の冪等性）
   const { data: existing, error: existingErr } = await supabase
@@ -111,7 +113,8 @@ async function handleEntry(
     return jsonResponse(existing, 200);
   }
 
-  const sessionId = `ses-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+  const prefix = isDemo ? "demo-" : "ses-";
+  const sessionId = `${prefix}${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
   const { data: created, error: insertErr } = await supabase
     .from("parking_sessions")
     .insert({

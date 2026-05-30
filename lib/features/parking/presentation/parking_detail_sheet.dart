@@ -138,10 +138,14 @@ class ParkingDetailSheet extends ConsumerWidget {
             ? null
             : (distanceMeters / 250.0).round().clamp(1, 999);
     final usageColor = _usageColor(usage);
-    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final recommendedStoresAsync = currentLocation != null 
+        ? ref.watch(recommendedStoresProvider(currentLocation!))
+        : const AsyncValue.data(<Store>[]);
+    final recommendedStores = recommendedStoresAsync.asData?.value ?? const <Store>[];
+    
     final recommendation = computeRecommendation(
       parking: parking,
-      stores: stores,
+      recommendedStores: recommendedStores,
       userLocation: currentLocation,
     );
 
@@ -556,11 +560,12 @@ class _NearbyCouponsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Column(
             children: recommendation.nearbyStores
-                .map((s) => _NearbyStoreChip(store: s))
+                .map((s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: _NearbyStoreChip(store: s),
+                    ))
                 .toList(),
           ),
         ],
@@ -592,20 +597,45 @@ class _NearbyStoreChip extends StatelessWidget {
           builder: (_) => StorePreviewSheet(store: store),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.local_offer_rounded,
-                  size: 12, color: AppColors.accent),
-              const SizedBox(width: 6),
-              Text(
-                store.name,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: context.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.local_offer_rounded,
+                      size: 14, color: AppColors.accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    store.name,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: context.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
+              if (store.recommendReason != null && store.recommendReason!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 12, color: context.textSecondary),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        store.recommendReason!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

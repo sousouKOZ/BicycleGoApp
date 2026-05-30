@@ -21,6 +21,7 @@ class SessionTimerPage extends ConsumerStatefulWidget {
 class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
+  bool _demoTriggered = false;
 
   @override
   void initState() {
@@ -34,8 +35,22 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
       return;
     }
     if (!mounted) return;
-    final elapsed = DateTime.now().difference(session.authenticatedAt!);
+    // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
+    // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
+    final basis = ParkingSession.isDemoMode ? session.detectedAt : session.authenticatedAt!;
+    final elapsed = DateTime.now().difference(basis);
     setState(() => _elapsed = elapsed);
+
+    // デモモード用：タイマーが0になった瞬間に手動で発行バッチを叩く
+    if (ParkingSession.isDemoMode && !_demoTriggered) {
+      final total = ParkingSession.earnThreshold;
+      if (elapsed >= total) {
+        _demoTriggered = true;
+        ref.read(apiClientProvider).triggerDemoCouponIssue().catchError((e) {
+          debugPrint('Demo mode manual coupon trigger failed: $e');
+        });
+      }
+    }
   }
 
   @override

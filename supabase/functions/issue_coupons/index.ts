@@ -17,7 +17,8 @@ import { serviceClient } from "../_shared/supabase.ts";
 import {
   EARN_COUPON_VALIDITY_DAYS,
   EARN_POINTS_PER_SESSION,
-  EARN_THRESHOLD_SECONDS,
+  EARN_THRESHOLD_PROD_SECONDS,
+  EARN_THRESHOLD_DEMO_SECONDS,
 } from "../_shared/constants.ts";
 import {
   distanceTierFor,
@@ -32,28 +33,52 @@ Deno.serve(async (req) => {
 
   const supabase = serviceClient();
 
-  // 1. 達成済み（15分超過 + 未発行）の measuring セッションを抽出
-  const cutoff = new Date(
-    Date.now() - EARN_THRESHOLD_SECONDS * 1000,
-  ).toISOString();
+  // 1. 達成済み（15分超過 または デモは30秒超過）で未発行の measuring セッションを抽出
+  const prodCutoff = new Date(Date.now() - EARN_THRESHOLD_PROD_SECONDS * 1000).toISOString();
+  const demoCutoff = new Date(Date.now() - EARN_THRESHOLD_DEMO_SECONDS * 1000).toISOString();
+  console.log(`[DEBUG] prodCutoff: ${prodCutoff}, demoCutoff: ${demoCutoff}`);
 
-  const { data: sessions, error: queryErr } = await supabase
+  // 1-A. デモ用セッションの抽出（30秒超過）
+  const { data: demoSessions, error: demoErr } = await supabase
     .from("parking_sessions")
     .select("id, user_id, device_id")
     .eq("status", "measuring")
     .is("issued_coupon_id", null)
-    .lte("authenticated_at", cutoff)
     .not("user_id", "is", null)
-    .limit(100);
+    .like("id", "demo-%")
+    .lte("authenticated_at", demoCutoff)
+    .limit(50);
 
-  if (queryErr) {
-    console.error("measuring sessions query failed", queryErr);
-    return errorResponse(500, "internal_error", queryErr.message);
+  if (demoErr) {
+    console.error("demo sessions query failed", demoErr);
+    return errorResponse(500, "internal_error", demoErr.message);
   }
+
+  // 1-B. 本番用セッションの抽出（15分超過）
+  const { data: prodSessions, error: prodErr } = await supabase
+    .from("parking_sessions")
+    .select("id, user_id, device_id")
+    .eq("status", "measuring")
+    .is("issued_coupon_id", null)
+    .not("user_id", "is", null)
+    .not("id", "like", "demo-%")
+    .lte("authenticated_at", prodCutoff)
+    .limit(50);
+
+  if (prodErr) {
+    console.error("prod sessions query failed", prodErr);
+    return errorResponse(500, "internal_error", prodErr.message);
+  }
+
+  // 両方の結果を結合
+  const sessions = [...(demoSessions || []), ...(prodSessions || [])];
 
   if (!sessions || sessions.length === 0) {
+    console.log(`[DEBUG] No eligible sessions found.`);
     return jsonResponse({ issued: 0, message: "no eligible sessions" }, 200);
   }
+  
+  console.log(`[DEBUG] Found ${sessions.length} eligible sessions.`);
 
   type SessionRow = { id: string; user_id: string; device_id: string };
   const typedSessions = sessions as SessionRow[];
@@ -112,12 +137,45 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    // 店舗を選定
-    const store = pickStoreWeighted(
-      parkingLot.lat,
-      parkingLot.lng,
-      stores as Store[],
-    );
+    // Python APIを呼び出して店舗を選定
+    const pythonApiUrl = Deno.env.get("PYTHON_API_URL") || "http://host.docker.internal:5001";
+    let store: Store | undefined;
+    let recommendReason: string | undefined;
+    
+    try {
+      const pyReq = await fetch(`${pythonApiUrl}/api/v2/recommend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: session.user_id,
+          lat: parkingLot.lat,
+          lng: parkingLot.lng,
+        }),
+      });
+      if (pyReq.ok) {
+        const pyResponse = await pyReq.json();
+        const pyRecs = pyResponse.recommendations || [];
+        if (pyRecs.length > 0) {
+          const topVenueId = pyRecs[0].venue_id;
+          store = (stores as Store[]).find(s => s.id === topVenueId);
+          recommendReason = pyRecs[0].reason;
+        }
+      } else {
+        console.warn(`[issue_coupons] Python API returned ${pyReq.status}`);
+      }
+    } catch(e) {
+      console.error(`[issue_coupons] Python API Error:`, e);
+    }
+    
+    // フォールバック（APIが落ちている、対象が見つからない等）
+    if (!store) {
+      store = pickStoreWeighted(
+        parkingLot.lat,
+        parkingLot.lng,
+        stores as Store[],
+      );
+    }
+
     const tier = distanceTierFor(parkingLot.lat, parkingLot.lng, store);
 
     const couponId = `cp-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;

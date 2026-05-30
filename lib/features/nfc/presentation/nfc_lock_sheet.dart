@@ -39,6 +39,16 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     _startNfc();
   }
 
+  Future<void> _stopNfcSafe() async {
+    try {
+      if (await NfcManager.instance.isAvailable()) {
+        await NfcManager.instance.stopSession();
+      }
+    } catch (_) {
+      // 無視する
+    }
+  }
+
   Future<void> _startNfc() async {
     final isAvailable = await NfcManager.instance.isAvailable();
     if (!isAvailable) {
@@ -59,7 +69,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
     NfcManager.instance.startSession(
       onDiscovered: (NfcTag tag) async {
         if (!mounted || _isCancelled) return;
-        await NfcManager.instance.stopSession();
+        await _stopNfcSafe();
         if (!mounted || _isCancelled) return;
         setState(() {
           _stage = _Stage.verifying;
@@ -69,7 +79,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       },
       onError: (error) async {
         if (!mounted || _isCancelled) return;
-        await NfcManager.instance.stopSession();
+        await _stopNfcSafe();
         if (!mounted) return;
         setState(() {
           _stage = _Stage.error;
@@ -87,6 +97,21 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       // 物理駐輪は MCU の parking_detect が先に作る unauthenticated セッションが
       // 唯一の証拠。アプリは認証だけを行う。5分以内に該当 deviceId の
       // unauthenticated セッションが無ければサーバが auth_grace_expired を返す。
+      
+      // 【デバッグ/デモ用】MCUデバイス（ハードウェア）からの検知をここでモック送信する
+      if (ParkingSession.isDemoMode) {
+        try {
+          await api.postParkingDetect(
+            deviceId: widget.deviceId,
+            detectedAt: DateTime.now(),
+          );
+          // データベース反映までのタイムラグを考慮して少し待つ
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+        } catch (e) {
+          debugPrint('Demo mode postParkingDetect error: $e');
+        }
+      }
+
       final session = await api.postParkingAuth(
         userId: userId,
         deviceId: widget.deviceId,
@@ -143,7 +168,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
   @override
   void dispose() {
     _isCancelled = true;
-    NfcManager.instance.stopSession();
+    _stopNfcSafe();
     super.dispose();
   }
 
@@ -285,7 +310,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
             TextButton(
               onPressed: () {
                 _isCancelled = true;
-                NfcManager.instance.stopSession();
+                _stopNfcSafe();
                 Navigator.of(context).pop<ParkingSession?>(null);
               },
               child: Text(

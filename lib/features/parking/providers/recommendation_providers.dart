@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api_providers.dart';
 import '../../stores/domain/store.dart';
 import '../domain/parking_lot.dart';
 
@@ -35,15 +37,24 @@ double _haversineMeters(LatLng a, LatLng b) {
   return earth * 2 * math.asin(math.sqrt(h.toDouble()));
 }
 
+/// ユーザーの現在地周辺のおすすめ店舗一覧をPython APIから取得するプロバイダ
+final recommendedStoresProvider = FutureProvider.family<List<Store>, LatLng>((ref, userLocation) async {
+  final apiClient = ref.watch(apiClientProvider);
+  return await apiClient.getRecommendations(userLocation.latitude, userLocation.longitude);
+});
+
+/// 指定した駐輪場に対するレコメンドスコアを計算する関数（APIからのデータを使用）
 ParkingRecommendation computeRecommendation({
   required ParkingLot parking,
-  required List<Store> stores,
+  required List<Store> recommendedStores, // APIから返ってきたおすすめ店舗
   required LatLng? userLocation,
 }) {
-  final nearby = stores
+  // 駐輪場から300m以内のおすすめ店舗を抽出
+  final nearby = recommendedStores
       .where((s) =>
           _haversineMeters(parking.position, s.position) <= _couponRadiusMeters)
       .toList();
+
   if (nearby.isEmpty) {
     return const ParkingRecommendation(
       score: 0,
@@ -51,8 +62,10 @@ ParkingRecommendation computeRecommendation({
       bonusPointsPercent: 0,
     );
   }
+
+  // Python APIから付与された finalScore を利用（無ければ recommendWeight にフォールバック）
   final couponScore = nearby
-      .map((s) => s.recommendWeight)
+      .map((s) => s.finalScore ?? s.recommendWeight)
       .fold<double>(0, (acc, w) => acc + w)
       .clamp(0, 5.0);
   final normalizedCoupon = couponScore / 5.0;
