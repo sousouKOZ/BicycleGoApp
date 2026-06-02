@@ -61,7 +61,8 @@ class DataStore:
             name AS "Name", 
             category::text AS "Venue Category Name", 
             lat AS "Latitude", 
-            lng AS "Longitude"
+            lng AS "Longitude",
+            TRUE AS "is_partner"
         FROM stores
         UNION ALL
         SELECT 
@@ -69,7 +70,8 @@ class DataStore:
             name AS "Name", 
             category AS "Venue Category Name", 
             lat AS "Latitude", 
-            lng AS "Longitude"
+            lng AS "Longitude",
+            FALSE AS "is_partner"
         FROM seed_stores
         WHERE id NOT IN (SELECT id FROM stores)
         """

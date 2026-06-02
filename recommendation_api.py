@@ -107,8 +107,8 @@ def recommend():
     ])
     is_stay_oriented = food_count > travel_shop_count
 
-    # ----- 3. 近隣店舗の抽出（半径1km） -----
-    RADIUS_M = 1000
+    # ----- 3. 近隣店舗の抽出（半径2km） -----
+    RADIUS_M = 2000
     nearby_venues = store.get_nearby_venues(current_lat, current_lng, radius_m=RADIUS_M)
 
     # 訪問済み店舗も含めて推薦候補とする（ペナルティで優先度を制御する）
@@ -116,8 +116,12 @@ def recommend():
     # ----- 4. 最終スコアの計算 -----
     final_candidates = []
     for venue in nearby_venues:
+        # クーポン対象となるのは提携店舗（storesテーブルのデータ）のみ
+        if not venue.get('is_partner', False):
+            continue
+
         vid = venue['Venue ID']
-        cat_name = str(venue.get('Category', ''))
+        cat_name = str(venue.get('Venue Category Name', ''))
 
         # 1. 店舗ベース協調スコア (0.0~1.0)
         s_item_cf = min(candidate_scores.get(vid, 0.0), 1.0)
@@ -176,9 +180,9 @@ def recommend():
         venue_copy['reason'] = reason_text
         final_candidates.append(venue_copy)
 
-    # スコア順にソートし上位3件を返却
+    # スコア順にソートし上位10件を返却（抽選用）
     final_candidates.sort(key=lambda x: x['final_score'], reverse=True)
-    top_recommendations = final_candidates[:3]
+    top_recommendations = final_candidates[:10]
 
     # ----- 5. レスポンスの組み立て -----
     res = []
@@ -186,7 +190,7 @@ def recommend():
         res.append({
             'venue_id': r['Venue ID'],
             'name': r['Name'],
-            'category': r['Category'],
+            'category': r['Venue Category Name'],
             'lat': r['Latitude'],
             'lng': r['Longitude'],
             'distance': round(r['distance']),

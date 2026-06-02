@@ -138,9 +138,7 @@ class ParkingDetailSheet extends ConsumerWidget {
             ? null
             : (distanceMeters / 250.0).round().clamp(1, 999);
     final usageColor = _usageColor(usage);
-    final recommendedStoresAsync = currentLocation != null 
-        ? ref.watch(recommendedStoresProvider(currentLocation!))
-        : const AsyncValue.data(<Store>[]);
+    final recommendedStoresAsync = ref.watch(recommendedStoresProvider(parking.position));
     final recommendedStores = recommendedStoresAsync.asData?.value ?? const <Store>[];
     
     final recommendation = computeRecommendation(

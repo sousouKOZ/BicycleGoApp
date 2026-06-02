@@ -156,9 +156,28 @@ Deno.serve(async (req) => {
         const pyResponse = await pyReq.json();
         const pyRecs = pyResponse.recommendations || [];
         if (pyRecs.length > 0) {
-          const topVenueId = pyRecs[0].venue_id;
+          // スコアの3乗を重みとした確率的ランダム抽選
+          let totalWeight = 0;
+          const weightedStores = pyRecs.map((r: any) => {
+            // pyRecs には score フィールドが含まれる前提。もしなければ0.1とする。
+            const weight = Math.pow(r.score || 0.1, 3);
+            totalWeight += weight;
+            return { ...r, weight };
+          });
+
+          let random = Math.random() * totalWeight;
+          let selected = weightedStores[0];
+          for (const s of weightedStores) {
+            random -= s.weight;
+            if (random <= 0) {
+              selected = s;
+              break;
+            }
+          }
+
+          const topVenueId = selected.venue_id;
           store = (stores as Store[]).find(s => s.id === topVenueId);
-          recommendReason = pyRecs[0].reason;
+          recommendReason = selected.reason;
         }
       } else {
         console.warn(`[issue_coupons] Python API returned ${pyReq.status}`);

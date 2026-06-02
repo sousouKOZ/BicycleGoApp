@@ -22,8 +22,8 @@ class ParkingRecommendation {
   bool get isRecommended => score >= 0.45;
 }
 
-const _couponRadiusMeters = 300.0;
-const _distanceBonusFullAt = 800.0; // 800m以上離れていればボーナス最大
+const _couponRadiusMeters = 2000.0;
+const _distanceBonusFullAt = 2000.0; // 2000m以上離れていればボーナス最大
 
 double _haversineMeters(LatLng a, LatLng b) {
   const earth = 6371000.0;
@@ -49,11 +49,15 @@ ParkingRecommendation computeRecommendation({
   required List<Store> recommendedStores, // APIから返ってきたおすすめ店舗
   required LatLng? userLocation,
 }) {
-  // 駐輪場から300m以内のおすすめ店舗を抽出
-  final nearby = recommendedStores
+  // 駐輪場から2000m以内のおすすめ店舗を抽出し、UI表示用には上位3件に絞る
+  var nearby = recommendedStores
       .where((s) =>
           _haversineMeters(parking.position, s.position) <= _couponRadiusMeters)
       .toList();
+      
+  if (nearby.length > 3) {
+    nearby = nearby.sublist(0, 3);
+  }
 
   if (nearby.isEmpty) {
     return const ParkingRecommendation(
