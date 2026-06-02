@@ -1,7 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api_providers.dart';
 import '../../stores/domain/store.dart';
 import '../domain/parking_lot.dart';
 
@@ -20,8 +22,8 @@ class ParkingRecommendation {
   bool get isRecommended => score >= 0.45;
 }
 
-const _couponRadiusMeters = 300.0;
-const _distanceBonusFullAt = 800.0; // 800m以上離れていればボーナス最大
+const _couponRadiusMeters = 2000.0;
+const _distanceBonusFullAt = 2000.0; // 2000m以上離れていればボーナス最大
 
 double _haversineMeters(LatLng a, LatLng b) {
   const earth = 6371000.0;
@@ -35,15 +37,28 @@ double _haversineMeters(LatLng a, LatLng b) {
   return earth * 2 * math.asin(math.sqrt(h.toDouble()));
 }
 
+/// ユーザーの現在地周辺のおすすめ店舗一覧をPython APIから取得するプロバイダ
+final recommendedStoresProvider = FutureProvider.family<List<Store>, LatLng>((ref, userLocation) async {
+  final apiClient = ref.watch(apiClientProvider);
+  return await apiClient.getRecommendations(userLocation.latitude, userLocation.longitude);
+});
+
+/// 指定した駐輪場に対するレコメンドスコアを計算する関数（APIからのデータを使用）
 ParkingRecommendation computeRecommendation({
   required ParkingLot parking,
-  required List<Store> stores,
+  required List<Store> recommendedStores, // APIから返ってきたおすすめ店舗
   required LatLng? userLocation,
 }) {
-  final nearby = stores
+  // 駐輪場から2000m以内のおすすめ店舗を抽出し、UI表示用には上位3件に絞る
+  var nearby = recommendedStores
       .where((s) =>
           _haversineMeters(parking.position, s.position) <= _couponRadiusMeters)
       .toList();
+      
+  if (nearby.length > 3) {
+    nearby = nearby.sublist(0, 3);
+  }
+
   if (nearby.isEmpty) {
     return const ParkingRecommendation(
       score: 0,
@@ -51,8 +66,10 @@ ParkingRecommendation computeRecommendation({
       bonusPointsPercent: 0,
     );
   }
+
+  // Python APIから付与された finalScore を利用（無ければ recommendWeight にフォールバック）
   final couponScore = nearby
-      .map((s) => s.recommendWeight)
+      .map((s) => s.finalScore ?? s.recommendWeight)
       .fold<double>(0, (acc, w) => acc + w)
       .clamp(0, 5.0);
   final normalizedCoupon = couponScore / 5.0;

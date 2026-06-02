@@ -744,7 +744,11 @@ class _SearchResultsDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final recommendedStoresAsync = currentLocation != null 
+        ? ref.watch(recommendedStoresProvider(currentLocation!))
+        : const AsyncValue.data(<Store>[]);
+    final recommendedStores = recommendedStoresAsync.asData?.value ?? const <Store>[];
+
     final sortMode = ref.watch(parkingSortModeProvider);
 
     final source = query.isEmpty ? allLots : filteredLots;
@@ -752,7 +756,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
       for (final p in source)
         p.id: computeRecommendation(
           parking: p,
-          stores: stores,
+          recommendedStores: recommendedStores,
           userLocation: currentLocation,
         ),
     };

@@ -47,8 +47,11 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
 
     final theme = Theme.of(context);
     final total = ParkingSession.earnThreshold.inSeconds;
+    // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
+    // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
+    final basis = ParkingSession.isDemoMode ? session.detectedAt : session.authenticatedAt!;
     final elapsed = DateTime.now()
-        .difference(session.authenticatedAt!)
+        .difference(basis)
         .inSeconds
         .clamp(0, total);
     final left = total - elapsed;

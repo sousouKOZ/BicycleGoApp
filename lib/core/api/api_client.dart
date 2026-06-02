@@ -37,6 +37,14 @@ abstract class ApiClient {
   /// セッション終了（出庫）。
   Future<ParkingSession> endSession(String sessionId);
 
+  /// デモ用の即時クーポン発行トリガー。
+  /// クライアント側でカウントダウンが0になった瞬間に呼び出し、pg_cron の
+  /// 最大60秒のラグを待たずに即時発行させる。
+  Future<void> triggerDemoCouponIssue();
+
+  /// ユーザーの現在地周辺のおすすめ店舗をPython API(経由)から取得する。
+  Future<List<Store>> getRecommendations(double lat, double lng);
+
   /// ポイント交換でクーポンを即時発行する。
   /// 駐輪達成と異なり距離スコアに依存せず、保有クーポン（owned）として直ちに利用可能。
   Future<Coupon> issueExchangeCoupon({
