@@ -13,8 +13,8 @@ import numpy as np
 import psycopg2
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Supabase Local Postgres のデフォルト接続情報
-DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
+# DB接続情報（環境変数 DATABASE_URL があればそれを使い、無ければローカルデフォルト）
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
 
 class DataStore:
     """PostgreSQLからデータを読み込み、メモリ上で高速なレコメンド計算を提供するクラス"""

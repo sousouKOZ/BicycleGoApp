@@ -5,8 +5,8 @@ import psycopg2
 from psycopg2.extras import execute_values
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Supabase Local Postgres のデフォルト接続情報
-DB_URL = "postgresql://postgres:postgres@localhost:54322/postgres"
+# DB接続情報（環境変数 DATABASE_URL があればそれを使い、無ければローカルデフォルト）
+DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
 
 def get_connection():
     return psycopg2.connect(DB_URL)
