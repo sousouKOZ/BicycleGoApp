@@ -154,7 +154,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final picture = recorder.endRecording();
     final image = await picture.toImage(imageSize, imageSize);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
   Future<BitmapDescriptor> _createCouponMarker() async {
@@ -167,8 +167,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final height = imageSize.toDouble();
 
     final tagPath = Path();
-    final bodyRect = Rect.fromLTWH(padding, padding * 0.6,
-        width - padding * 1.8, height - padding * 1.2);
+    final bodyRect = Rect.fromLTWH(
+        padding, padding * 0.6, width - padding * 1.8, height - padding * 1.2);
     const radius = Radius.circular(14);
     tagPath.addRRect(RRect.fromRectAndCorners(
       bodyRect,
@@ -188,7 +188,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
       ..close();
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.25)
+      ..color = Colors.black.withValues(alpha: 0.25)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
     canvas.drawPath(tagPath.shift(const Offset(0, 2)), shadowPaint);
     canvas.drawPath(tipPath.shift(const Offset(0, 2)), shadowPaint);
@@ -227,15 +227,14 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final picture = recorder.endRecording();
     final image = await picture.toImage(imageSize, imageSize);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
   Future<void> _fetchCurrentLocation({bool requestIfDenied = true}) async {
     try {
       final notifier = ref.read(locationPermissionProvider.notifier);
-      final status = requestIfDenied
-          ? await notifier.request()
-          : await notifier.refresh();
+      final status =
+          requestIfDenied ? await notifier.request() : await notifier.refresh();
       if (status != LocationGateStatus.granted) {
         return;
       }
@@ -268,7 +267,6 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     _searchFocus.dispose();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +377,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                     BitmapDescriptor.defaultMarkerWithHue(
                       BitmapDescriptor.hueBlue,
                     ),
-                zIndex: 2,
+                zIndexInt: 2,
               ),
             );
           }
@@ -391,8 +389,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                     circleId: const CircleId('current_location_accuracy'),
                     center: _currentLocation!,
                     radius: 25,
-                    fillColor: Colors.blue.withOpacity(0.18),
-                    strokeColor: Colors.blue.withOpacity(0.7),
+                    fillColor: Colors.blue.withValues(alpha: 0.18),
+                    strokeColor: Colors.blue.withValues(alpha: 0.7),
                     strokeWidth: 2,
                     zIndex: 1,
                   ),
@@ -500,8 +498,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                         padding: EdgeInsets.only(top: 10),
                         child: _MapFilterBar(),
                       ),
-                      if (_searchFocus.hasFocus ||
-                          normalizedQuery.isNotEmpty)
+                      if (_searchFocus.hasFocus || normalizedQuery.isNotEmpty)
                         // Flexible で残り高さに合わせてドロップダウンを自動収縮。
                         // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
                         Flexible(
@@ -522,9 +519,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                           child: _RouteBanner(
                             route: activeRoute,
                             onClose: () {
-                              ref
-                                  .read(activeRouteProvider.notifier)
-                                  .state = null;
+                              ref.read(activeRouteProvider.notifier).state =
+                                  null;
                             },
                           ),
                         ),
@@ -543,8 +539,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                               child: Align(
                                 alignment: Alignment.centerRight,
                                 child: _CouponStripToggle(
@@ -608,8 +603,7 @@ class _CouponStripToggle extends StatelessWidget {
           splashColor: AppColors.accent.withValues(alpha: 0.08),
           highlightColor: AppColors.accent.withValues(alpha: 0.04),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -744,10 +738,11 @@ class _SearchResultsDropdown extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final recommendedStoresAsync = currentLocation != null 
+    final recommendedStoresAsync = currentLocation != null
         ? ref.watch(recommendedStoresProvider(currentLocation!))
         : const AsyncValue.data(<Store>[]);
-    final recommendedStores = recommendedStoresAsync.asData?.value ?? const <Store>[];
+    final recommendedStores =
+        recommendedStoresAsync.asData?.value ?? const <Store>[];
 
     final sortMode = ref.watch(parkingSortModeProvider);
 
@@ -883,8 +878,8 @@ class _SearchResultsDropdown extends ConsumerWidget {
                                   children: [
                                     Text(
                                       '空き${p.available}/${p.capacity}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: usageColor,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -927,8 +922,7 @@ class _SortToggleRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
       child: Row(
         children: [
-          Icon(Icons.sort_rounded,
-              size: 16, color: context.textSecondary),
+          Icon(Icons.sort_rounded, size: 16, color: context.textSecondary),
           const SizedBox(width: 6),
           Text(
             '並び替え',
@@ -1008,8 +1002,7 @@ class _RecommendBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.auto_awesome_rounded,
-              size: 10, color: Colors.white),
+          const Icon(Icons.auto_awesome_rounded, size: 10, color: Colors.white),
           const SizedBox(width: 3),
           Text(
             bonusPercent > 0 ? 'おすすめ +$bonusPercent%' : 'おすすめ',
@@ -1115,8 +1108,7 @@ class _FilterChipItem extends StatelessWidget {
           onTap: onTap,
           splashColor: AppColors.accent.withValues(alpha: 0.1),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

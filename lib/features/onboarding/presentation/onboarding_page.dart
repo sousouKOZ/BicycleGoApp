@@ -19,23 +19,23 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     _Step(
       icon: Icons.map_rounded,
       title: '近場が満車でも、ちょっと遠くへ',
-      body: '駐輪場の空き状況を地図で見つけて、放置自転車ゼロの街へ。\n'
-          '少し遠い駐輪場ほど、お得なクーポンが待っています。',
+      body: '空いている駐輪場を地図ですぐ発見。'
+          '少し遠い駐輪場を選ぶほど、もらえるクーポンもお得になります。',
       accent: AppColors.accent,
     ),
     _Step(
       icon: Icons.nfc_rounded,
       title: 'タッチでサッと計測開始',
-      body: '駐輪したらロックのタグをスキャンするだけ。\n'
-          '15分の駐輪タイマーが自動で始まります。',
+      body: '駐輪したら、ロックのタグにスマホをかざすだけ。'
+          '15分のタイマーが自動でスタートします。',
       accent: AppColors.accentAlt,
     ),
     _Step(
       icon: Icons.local_offer_rounded,
-      title: '15分停めるだけでクーポン獲得',
-      body: '15分経過でクーポンが自動発行。\n'
-          '通知でお知らせするので、アプリは閉じててOK。\n'
-          '近くの隠れた名店との出会いをどうぞ。',
+      title: '15分停めるとクーポン獲得',
+      body: '15分経つとクーポンを自動で発行。'
+          '通知でお知らせするので、アプリは閉じたままでOK。'
+          '近くの素敵なお店との出会いが待っています。',
       accent: AppColors.success,
     ),
   ];

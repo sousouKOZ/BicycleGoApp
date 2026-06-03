@@ -18,6 +18,7 @@ export type ErrorCode =
   | "exchange_item_not_found"
   | "unauthorized"
   | "invalid_request"
+  | "method_not_allowed"
   | "internal_error";
 
 export function errorResponse(

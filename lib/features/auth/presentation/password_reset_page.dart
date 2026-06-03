@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/auth_controller.dart';
+import 'widgets/auth_header.dart';
 
 /// パスワード再設定メールを申請する画面。
 /// メールアドレスを入力 → 再設定リンク付きメールを送信。
@@ -43,35 +44,31 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('パスワードの再設定')),
+      appBar: AppBar(),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
           children: [
             if (_sent) ...[
-              Icon(Icons.mark_email_read_outlined,
-                  size: 48, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
-              Text(
-                '再設定メールを送信しました',
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
-                textAlign: TextAlign.center,
+              const AuthHeader(
+                icon: Icons.mark_email_read_rounded,
+                title: '再設定メールを送信しました',
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Text(
                 '$_email 宛のメールに記載されたリンクを開いて、'
                 '新しいパスワードを設定してください。'
                 'メールが届かない場合は迷惑メールフォルダもご確認ください。',
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.5),
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
             ] else ...[
-              Text(
-                '登録済みのメールアドレスを入力してください。'
-                'パスワード再設定用のリンクをお送りします。',
-                style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
+              const AuthHeader(
+                icon: Icons.lock_reset_rounded,
+                title: 'パスワードの再設定',
+                subtitle: '登録済みのメールアドレスを入力してください。'
+                    'パスワード再設定用のリンクをお送りします。',
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 28),
               Form(
                 key: _formKey,
                 child: Column(
@@ -84,7 +81,7 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
                       textInputAction: TextInputAction.done,
                       decoration: const InputDecoration(
                         labelText: 'メールアドレス',
-                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.mail_outline_rounded),
                       ),
                       validator: (v) {
                         final s = v?.trim() ?? '';
@@ -104,9 +101,12 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _busy ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
                       child: _busy
                           ? const SizedBox(
                               height: 20,

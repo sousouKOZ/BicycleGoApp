@@ -1,7 +1,7 @@
-/// 環境変数の集約ポイント。
-///
-/// すべて `--dart-define-from-file=env/dev.json` 経由で注入される。
-/// 値が空の場合は該当機能を無効として扱う。
+// 環境変数の集約ポイント。
+//
+// すべて `--dart-define-from-file=env/dev.json` 経由で注入される。
+// 値が空の場合は該当機能を無効として扱う。
 
 const directionsApiKey =
     String.fromEnvironment('GOOGLE_DIRECTIONS_API_KEY', defaultValue: '');
@@ -9,10 +9,9 @@ const directionsApiKey =
 /// Supabase プロジェクト URL。
 ///   - iOS シミュレータ: http://127.0.0.1:54321
 ///   - Android エミュレータ: http://10.0.2.2:54321
-///   - 実機: http://<MacのLAN IP>:54321
+///   - 実機: `http://<MacのLAN IP>:54321`
 ///   - 本番: env/prod.json の値
-const supabaseUrl =
-    String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+const supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
 
 /// Supabase Anon キー（クライアント公開可能なキー）。
 const supabaseAnonKey =

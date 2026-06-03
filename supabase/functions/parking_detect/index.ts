@@ -8,7 +8,8 @@
  * 出力:  status='entry' のとき: 作成または既存の unauthenticated ParkingSession
  *         status='exit' のとき: 終了処理サマリ { terminated: [{id, prev, next}, ...] }
  *
- * 認証: service_role key（マイコンは外部から service_role で叩く想定）。
+ * 認証: DEVICE_INGEST_TOKEN または service_role bearer。
+ *       デモ用クライアントモックは ALLOW_CLIENT_DEMO_DETECT=true の時だけ許可。
  *
  * セッション遷移ルール（exit 時）:
  *   unauthenticated → expired   （NFC 認証前に取り出された）
@@ -20,7 +21,11 @@
 
 import { handleCorsPreflight } from "../_shared/cors.ts";
 import { errorResponse, jsonResponse } from "../_shared/errors.ts";
-import { serviceClient } from "../_shared/supabase.ts";
+import {
+  getCallerUserId,
+  isDeviceIngestRequest,
+  serviceClient,
+} from "../_shared/supabase.ts";
 
 interface DetectBody {
   deviceId?: string;
@@ -59,6 +64,18 @@ Deno.serve(async (req) => {
       400,
       "invalid_request",
       `status must be 'entry' or 'exit' (got '${eventStatus}')`,
+    );
+  }
+
+  const isAuthorizedIngest = isDeviceIngestRequest(req);
+  const isAuthorizedClientDemo = body.is_demo === true &&
+    Deno.env.get("ALLOW_CLIENT_DEMO_DETECT") === "true" &&
+    (await getCallerUserId(req)) !== null;
+  if (!isAuthorizedIngest && !isAuthorizedClientDemo) {
+    return errorResponse(
+      401,
+      "unauthorized",
+      "device ingest token or service_role bearer required",
     );
   }
 

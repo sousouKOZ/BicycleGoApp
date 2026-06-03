@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth_constants.dart';
 import '../providers/auth_controller.dart';
 import '../providers/auth_providers.dart';
+import 'widgets/auth_header.dart';
 
 /// メールアドレス + パスワードでアカウントを新規作成する画面。
 /// 匿名（ゲスト）状態なら「昇格」となり、uid 不変でポイント・クーポン・履歴を
@@ -56,7 +57,7 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
       return 'このメールアドレスは既に登録されています。ログインをお試しください。';
     }
     if (msg.contains('password')) {
-      return 'パスワードは$kMinPasswordLength文字以上で設定してください。';
+      return 'パスワードは$kPasswordRuleLabelで設定してください。';
     }
     return 'アカウント作成に失敗しました。入力内容をご確認ください。';
   }
@@ -68,20 +69,19 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
     final title = isGuest ? 'アカウントを作成' : '新規登録';
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
           children: [
-            if (isGuest)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  '今のポイント・クーポン・駐輪履歴はそのまま引き継がれます。'
-                  'アカウントを作成すると、機種変更後も同じデータを使えます。',
-                  style: theme.textTheme.bodySmall?.copyWith(height: 1.4),
-                ),
-              ),
+            AuthHeader(
+              icon: Icons.person_add_alt_1_rounded,
+              title: title,
+              subtitle: isGuest
+                  ? '今のポイント・クーポン・駐輪履歴はそのまま引き継がれます。機種変更後も同じデータを使えます。'
+                  : 'メールアドレスとパスワードで登録します。',
+            ),
+            const SizedBox(height: 28),
             Form(
               key: _formKey,
               child: Column(
@@ -94,7 +94,7 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'メールアドレス',
-                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
                     ),
                     validator: (v) {
                       final s = v?.trim() ?? '';
@@ -111,12 +111,13 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
                       labelText: 'パスワード',
-                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
+                      helperText: kPasswordRuleLabel,
                     ),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'パスワードを入力してください';
-                      if (v.length < kMinPasswordLength) {
-                        return 'パスワードは$kMinPasswordLength文字以上で入力してください';
+                      if (!isPasswordPolicyCompliant(v)) {
+                        return 'パスワードは$kPasswordRuleLabelで入力してください';
                       }
                       return null;
                     },
@@ -132,9 +133,12 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _busy ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
                     child: _busy
                         ? const SizedBox(
                             height: 20,

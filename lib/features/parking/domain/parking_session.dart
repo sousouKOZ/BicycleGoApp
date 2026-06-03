@@ -35,17 +35,15 @@ class ParkingSession {
   static const _isDemoMode = bool.fromEnvironment('DEMO');
 
   static const authGrace = Duration(minutes: 5);
-  static const earnThreshold = _isDemoMode
-      ? Duration(seconds: 30)
-      : Duration(minutes: 15);
+  static const earnThreshold =
+      _isDemoMode ? Duration(seconds: 30) : Duration(minutes: 15);
   static const longTermAlert = Duration(hours: 24);
 
   /// 撮影モード判定（UI 表示・通知タイミング計算に使う）。
   static bool get isDemoMode => _isDemoMode;
 
   DateTime get authDeadline => detectedAt.add(authGrace);
-  DateTime? get earnDeadline =>
-      authenticatedAt == null ? null : authenticatedAt!.add(earnThreshold);
+  DateTime? get earnDeadline => authenticatedAt?.add(earnThreshold);
 
   ParkingSession copyWith({
     String? userId,

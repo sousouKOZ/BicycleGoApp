@@ -47,16 +47,26 @@ class _AuthLandingPageState extends ConsumerState<AuthLandingPage> {
             children: [
               const Spacer(),
               Container(
-                width: 72,
-                height: 72,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [AppColors.accent, AppColors.accentAlt],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.accent.withValues(alpha: 0.35),
+                      blurRadius: 24,
+                      spreadRadius: -4,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
                 ),
                 child: const Icon(Icons.pedal_bike_rounded,
-                    color: Colors.white, size: 38),
+                    color: Colors.white, size: 42),
               ),
               const SizedBox(height: 20),
               Text(

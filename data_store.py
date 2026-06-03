@@ -11,7 +11,10 @@ import random
 import pandas as pd
 import numpy as np
 import psycopg2
+from dotenv import load_dotenv
 from sklearn.metrics.pairwise import cosine_similarity
+
+load_dotenv()
 
 # DB接続情報（環境変数 DATABASE_URL があればそれを使い、無ければローカルデフォルト）
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
@@ -27,7 +30,7 @@ class DataStore:
             PostgreSQLの接続文字列
         """
         print("[DataStore] Connecting to database...")
-        conn = psycopg2.connect(db_url)
+        conn = psycopg2.connect(db_url, connect_timeout=10)
         
         print("[DataStore] Loading checkins (seed_checkins + used coupons)...")
         # 1. 外部データ (seed_checkins) の読み込み

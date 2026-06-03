@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 void main() {
   var t1 = DateTime.parse('2026-05-28T10:50:00');
   var t2 = DateTime.parse('2026-05-28T10:50:00+00:00');

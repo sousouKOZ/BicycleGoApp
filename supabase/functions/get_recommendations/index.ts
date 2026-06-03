@@ -6,10 +6,15 @@
  * さらに Supabase の stores テーブルから店舗詳細（benefitなど）をマージして返す。
  */
 
-import { handleCorsPreflight, corsHeaders } from "../_shared/cors.ts";
+import { handleCorsPreflight } from "../_shared/cors.ts";
 import { errorResponse, jsonResponse } from "../_shared/errors.ts";
 import { serviceClient, getCallerUserId } from "../_shared/supabase.ts";
-import type { Store } from "../_shared/types.ts";
+
+function parseCoordinate(value: unknown, min: number, max: number): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
 
 Deno.serve(async (req) => {
   const preflight = handleCorsPreflight(req);
@@ -20,30 +25,49 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { lat, lng } = await req.json();
-
-    if (lat === undefined || lng === undefined) {
-      return errorResponse(400, "invalid_request", "lat and lng are required");
+    const userId = await getCallerUserId(req);
+    if (!userId) {
+      return errorResponse(401, "unauthorized", "valid JWT required");
     }
 
-    // ユーザーIDの取得 (認証されていない場合は 'guest')
-    const userId = (await getCallerUserId(req)) || "guest";
+    let body: { lat?: unknown; lng?: unknown };
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(400, "invalid_request", "invalid JSON body");
+    }
+    const { lat, lng } = body;
+    const parsedLat = parseCoordinate(lat, -90, 90);
+    const parsedLng = parseCoordinate(lng, -180, 180);
+
+    if (parsedLat == null || parsedLng == null) {
+      return errorResponse(
+        400,
+        "invalid_request",
+        "valid lat and lng are required",
+      );
+    }
 
     // Python API URL (Docker内からホスト側の5001ポートへアクセス)
     const pythonApiUrl = Deno.env.get("PYTHON_API_URL") || "http://host.docker.internal:5001";
-
-    console.log(`[get_recommendations] Calling Python API for user: ${userId} at ${lat}, ${lng}`);
+    const pythonApiKey = Deno.env.get("PYTHON_API_KEY")?.trim();
+    const pythonHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (pythonApiKey) {
+      pythonHeaders.Authorization = `Bearer ${pythonApiKey}`;
+    }
 
     // 1. Python レコメンド API を呼び出す
     let pyResponse;
     try {
       const pyReq = await fetch(`${pythonApiUrl}/api/v2/recommend`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: pythonHeaders,
         body: JSON.stringify({
           user_id: userId,
-          lat: lat,
-          lng: lng,
+          lat: parsedLat,
+          lng: parsedLng,
         }),
       });
 
@@ -70,7 +94,7 @@ Deno.serve(async (req) => {
     const supabase = serviceClient();
     const { data: stores, error } = await supabase
       .from("stores")
-      .select("*")
+      .select("id, name, category, lat, lng, benefit, recommend_weight, created_at")
       .in("id", venueIds);
 
     if (error) {

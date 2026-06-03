@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/auth_controller.dart';
 import 'password_reset_page.dart';
+import 'widgets/auth_header.dart';
 
 /// メールアドレス + パスワードでログインする画面。
 /// 成功すると onAuthStateChange(signedIn) が AuthController で処理され、
@@ -62,11 +63,17 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('ログイン')),
+      appBar: AppBar(),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
           children: [
+            const AuthHeader(
+              icon: Icons.login_rounded,
+              title: 'おかえりなさい',
+              subtitle: 'メールアドレスとパスワードでログインします。',
+            ),
+            const SizedBox(height: 28),
             Form(
               key: _formKey,
               child: Column(
@@ -79,7 +86,7 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'メールアドレス',
-                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.mail_outline_rounded),
                     ),
                     validator: (v) {
                       final s = v?.trim() ?? '';
@@ -96,7 +103,7 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
                       labelText: 'パスワード',
-                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.lock_outline_rounded),
                     ),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? 'パスワードを入力してください' : null,
@@ -112,9 +119,12 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: _busy ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
                     child: _busy
                         ? const SizedBox(
                             height: 20,

@@ -63,6 +63,12 @@ function pemToDer(pem: string): Uint8Array {
   return bytes;
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 async function getAccessToken(sa: ServiceAccount): Promise<string | null> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.token;
@@ -83,7 +89,7 @@ async function getAccessToken(sa: ServiceAccount): Promise<string | null> {
   try {
     key = await crypto.subtle.importKey(
       "pkcs8",
-      pemToDer(sa.private_key),
+      toArrayBuffer(pemToDer(sa.private_key)),
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
       false,
       ["sign"],
@@ -97,7 +103,7 @@ async function getAccessToken(sa: ServiceAccount): Promise<string | null> {
     await crypto.subtle.sign(
       "RSASSA-PKCS1-v1_5",
       key,
-      new TextEncoder().encode(signingInput),
+      toArrayBuffer(new TextEncoder().encode(signingInput)),
     ),
   );
   const jwt = `${signingInput}.${b64urlEncode(sig)}`;

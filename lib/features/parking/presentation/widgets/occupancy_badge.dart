@@ -4,7 +4,11 @@ class OccupancyBadge extends StatelessWidget {
   final int occupied;
   final int capacity;
 
-  const OccupancyBadge({required this.occupied, required this.capacity});
+  const OccupancyBadge({
+    super.key,
+    required this.occupied,
+    required this.capacity,
+  });
 
   @override
   Widget build(BuildContext context) => Chip(

@@ -10,12 +10,26 @@
 
 import { handleCorsPreflight } from "../_shared/cors.ts";
 import { errorResponse, jsonResponse } from "../_shared/errors.ts";
-import { serviceClient } from "../_shared/supabase.ts";
+import {
+  isLocalInternalBypassEnabled,
+  isServiceRoleRequest,
+  serviceClient,
+} from "../_shared/supabase.ts";
 import { AUTH_GRACE_SECONDS } from "../_shared/constants.ts";
 
 Deno.serve(async (req) => {
   const preflight = handleCorsPreflight(req);
   if (preflight) return preflight;
+  if (req.method !== "POST") {
+    return errorResponse(405, "invalid_request", "POST only");
+  }
+  if (!isServiceRoleRequest(req) && !isLocalInternalBypassEnabled()) {
+    return errorResponse(
+      401,
+      "unauthorized",
+      "service_role bearer required",
+    );
+  }
 
   const supabase = serviceClient();
   const cutoff = new Date(

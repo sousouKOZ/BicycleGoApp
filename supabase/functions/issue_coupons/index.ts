@@ -13,7 +13,12 @@
 
 import { handleCorsPreflight } from "../_shared/cors.ts";
 import { errorResponse, jsonResponse } from "../_shared/errors.ts";
-import { serviceClient } from "../_shared/supabase.ts";
+import {
+  getCallerUserId,
+  isLocalInternalBypassEnabled,
+  isServiceRoleRequest,
+  serviceClient,
+} from "../_shared/supabase.ts";
 import {
   EARN_COUPON_VALIDITY_DAYS,
   EARN_POINTS_PER_SESSION,
@@ -30,16 +35,32 @@ import type { ParkingLot, Store } from "../_shared/types.ts";
 Deno.serve(async (req) => {
   const preflight = handleCorsPreflight(req);
   if (preflight) return preflight;
+  if (req.method !== "POST") {
+    return errorResponse(405, "invalid_request", "POST only");
+  }
+
+  const isInternalJob = isServiceRoleRequest(req) ||
+    isLocalInternalBypassEnabled();
+  const callerUserId = isInternalJob ? null : await getCallerUserId(req);
+  if (!isInternalJob && !callerUserId) {
+    return errorResponse(
+      401,
+      "unauthorized",
+      "valid JWT or service_role bearer required",
+    );
+  }
 
   const supabase = serviceClient();
 
   // 1. 達成済み（15分超過 または デモは30秒超過）で未発行の measuring セッションを抽出
   const prodCutoff = new Date(Date.now() - EARN_THRESHOLD_PROD_SECONDS * 1000).toISOString();
   const demoCutoff = new Date(Date.now() - EARN_THRESHOLD_DEMO_SECONDS * 1000).toISOString();
-  console.log(`[DEBUG] prodCutoff: ${prodCutoff}, demoCutoff: ${demoCutoff}`);
+  console.log(`[issue_coupons] prodCutoff=${prodCutoff}, demoCutoff=${demoCutoff}`);
+
+  type SessionRow = { id: string; user_id: string; device_id: string };
 
   // 1-A. デモ用セッションの抽出（30秒超過）
-  const { data: demoSessions, error: demoErr } = await supabase
+  let demoQuery = supabase
     .from("parking_sessions")
     .select("id, user_id, device_id")
     .eq("status", "measuring")
@@ -48,6 +69,10 @@ Deno.serve(async (req) => {
     .like("id", "demo-%")
     .lte("authenticated_at", demoCutoff)
     .limit(50);
+  if (!isInternalJob) {
+    demoQuery = demoQuery.eq("user_id", callerUserId!);
+  }
+  const { data: demoSessions, error: demoErr } = await demoQuery;
 
   if (demoErr) {
     console.error("demo sessions query failed", demoErr);
@@ -55,33 +80,39 @@ Deno.serve(async (req) => {
   }
 
   // 1-B. 本番用セッションの抽出（15分超過）
-  const { data: prodSessions, error: prodErr } = await supabase
-    .from("parking_sessions")
-    .select("id, user_id, device_id")
-    .eq("status", "measuring")
-    .is("issued_coupon_id", null)
-    .not("user_id", "is", null)
-    .not("id", "like", "demo-%")
-    .lte("authenticated_at", prodCutoff)
-    .limit(50);
+  let prodSessions: SessionRow[] = [];
+  if (isInternalJob) {
+    const { data, error: prodErr } = await supabase
+      .from("parking_sessions")
+      .select("id, user_id, device_id")
+      .eq("status", "measuring")
+      .is("issued_coupon_id", null)
+      .not("user_id", "is", null)
+      .not("id", "like", "demo-%")
+      .lte("authenticated_at", prodCutoff)
+      .limit(50);
 
-  if (prodErr) {
-    console.error("prod sessions query failed", prodErr);
-    return errorResponse(500, "internal_error", prodErr.message);
+    if (prodErr) {
+      console.error("prod sessions query failed", prodErr);
+      return errorResponse(500, "internal_error", prodErr.message);
+    }
+    prodSessions = (data ?? []) as SessionRow[];
   }
 
   // 両方の結果を結合
-  const sessions = [...(demoSessions || []), ...(prodSessions || [])];
+  const sessions = [
+    ...((demoSessions ?? []) as SessionRow[]),
+    ...prodSessions,
+  ];
 
   if (!sessions || sessions.length === 0) {
-    console.log(`[DEBUG] No eligible sessions found.`);
+    console.log("[issue_coupons] no eligible sessions found");
     return jsonResponse({ issued: 0, message: "no eligible sessions" }, 200);
   }
   
-  console.log(`[DEBUG] Found ${sessions.length} eligible sessions.`);
+  console.log(`[issue_coupons] found ${sessions.length} eligible sessions`);
 
-  type SessionRow = { id: string; user_id: string; device_id: string };
-  const typedSessions = sessions as SessionRow[];
+  const typedSessions = sessions;
 
   // 2. デバイス → 駐輪場 のマップを作成（複数セッションが同じデバイスを使う可能性あり）
   const deviceIds = [...new Set(typedSessions.map((s: SessionRow) => s.device_id))];
@@ -139,13 +170,20 @@ Deno.serve(async (req) => {
 
     // Python APIを呼び出して店舗を選定
     const pythonApiUrl = Deno.env.get("PYTHON_API_URL") || "http://host.docker.internal:5001";
+    const pythonApiKey = Deno.env.get("PYTHON_API_KEY")?.trim();
+    const pythonHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (pythonApiKey) {
+      pythonHeaders.Authorization = `Bearer ${pythonApiKey}`;
+    }
     let store: Store | undefined;
     let recommendReason: string | undefined;
     
     try {
       const pyReq = await fetch(`${pythonApiUrl}/api/v2/recommend`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: pythonHeaders,
         body: JSON.stringify({
           user_id: session.user_id,
           lat: parkingLot.lat,

@@ -49,11 +49,10 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
     final total = ParkingSession.earnThreshold.inSeconds;
     // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
     // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
-    final basis = ParkingSession.isDemoMode ? session.detectedAt : session.authenticatedAt!;
-    final elapsed = DateTime.now()
-        .difference(basis)
-        .inSeconds
-        .clamp(0, total);
+    final basis = ParkingSession.isDemoMode
+        ? session.detectedAt
+        : session.authenticatedAt!;
+    final elapsed = DateTime.now().difference(basis).inSeconds.clamp(0, total);
     final left = total - elapsed;
     final progress = elapsed / total;
     final achieved = session.status == ParkingSessionStatus.achieved;
@@ -86,8 +85,7 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
           child: InkWell(
             onTap: () {
               Navigator.of(context, rootNavigator: true).push(
-                MaterialPageRoute(
-                    builder: (_) => const SessionTimerPage()),
+                MaterialPageRoute(builder: (_) => const SessionTimerPage()),
               );
             },
             child: Padding(
@@ -195,7 +193,7 @@ class _ParkedBarState extends ConsumerState<_ParkedBar> {
     final elapsed = DateTime.now().difference(widget.authenticatedAt);
     final h = elapsed.inHours;
     final m = elapsed.inMinutes % 60;
-    final elapsedLabel = h >= 1 ? '${h}時間 ${m}分' : '${elapsed.inMinutes}分';
+    final elapsedLabel = h >= 1 ? '$h時間 $m分' : '${elapsed.inMinutes}分';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),

@@ -8,7 +8,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../stores/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
-import '../../stores/providers/store_providers.dart';
 import '../data/directions_service.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/recommendation_providers.dart';
@@ -125,8 +124,8 @@ class ParkingDetailSheet extends ConsumerWidget {
     // 上部の _RouteBanner と完全に一致させる。
     // 未取得時は直線距離 + 自転車速度（250m/分 ≒ 15km/h）で見積もり。
     final activeRoute = ref.watch(activeRouteProvider);
-    final useRoute = activeRoute != null &&
-        activeRoute.parkingLotId == parking.id;
+    final useRoute =
+        activeRoute != null && activeRoute.parkingLotId == parking.id;
     final distanceMeters = useRoute
         ? activeRoute.distanceMeters.toDouble()
         : currentLocation == null
@@ -138,9 +137,11 @@ class ParkingDetailSheet extends ConsumerWidget {
             ? null
             : (distanceMeters / 250.0).round().clamp(1, 999);
     final usageColor = _usageColor(usage);
-    final recommendedStoresAsync = ref.watch(recommendedStoresProvider(parking.position));
-    final recommendedStores = recommendedStoresAsync.asData?.value ?? const <Store>[];
-    
+    final recommendedStoresAsync =
+        ref.watch(recommendedStoresProvider(parking.position));
+    final recommendedStores =
+        recommendedStoresAsync.asData?.value ?? const <Store>[];
+
     final recommendation = computeRecommendation(
       parking: parking,
       recommendedStores: recommendedStores,
@@ -241,8 +242,7 @@ class ParkingDetailSheet extends ConsumerWidget {
                     value: usage,
                     minHeight: 8,
                     color: usageColor,
-                    backgroundColor:
-                        usageColor.withValues(alpha: 0.15),
+                    backgroundColor: usageColor.withValues(alpha: 0.15),
                   ),
                 ),
               ],
@@ -300,8 +300,7 @@ class ParkingDetailSheet extends ConsumerWidget {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.directions_rounded, size: 18),
                       label: Text(
@@ -334,8 +333,7 @@ class ParkingDetailSheet extends ConsumerWidget {
                       orElse: () => mockDevices.first,
                     );
                     final navigator = Navigator.of(context);
-                    final session =
-                        await showModalBottomSheet<ParkingSession?>(
+                    final session = await showModalBottomSheet<ParkingSession?>(
                       context: context,
                       isScrollControlled: true,
                       showDragHandle: true,
@@ -348,14 +346,10 @@ class ParkingDetailSheet extends ConsumerWidget {
                     if (session == null) {
                       return;
                     }
-                    ref
-                        .read(pointsProvider.notifier)
-                        .add(_nfcLockRewardPoints);
-                    final earnSec =
-                        ParkingSession.earnThreshold.inSeconds;
-                    final earnLabel = earnSec >= 60
-                        ? '${earnSec ~/ 60}分'
-                        : '${earnSec}秒';
+                    ref.read(pointsProvider.notifier).add(_nfcLockRewardPoints);
+                    final earnSec = ParkingSession.earnThreshold.inSeconds;
+                    final earnLabel =
+                        earnSec >= 60 ? '${earnSec ~/ 60}分' : '$earnSec秒';
                     messenger.showSnackBar(
                       SnackBar(
                         content: Text('認証完了！$earnLabel後にクーポンが届きます'),
@@ -615,12 +609,14 @@ class _NearbyStoreChip extends StatelessWidget {
                   ),
                 ],
               ),
-              if (store.recommendReason != null && store.recommendReason!.isNotEmpty) ...[
+              if (store.recommendReason != null &&
+                  store.recommendReason!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline_rounded, size: 12, color: context.textSecondary),
+                    Icon(Icons.info_outline_rounded,
+                        size: 12, color: context.textSecondary),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(

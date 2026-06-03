@@ -302,11 +302,8 @@ class _ExpiryCountdown extends StatelessWidget {
     if (isUsed) return const SizedBox.shrink();
 
     final color = isUsable ? AppColors.success : AppColors.danger;
-    final icon =
-        isUsable ? Icons.schedule_rounded : Icons.event_busy_rounded;
-    final label = isUsable
-        ? '残り${_formatRemaining(coupon.expiresAt)}'
-        : '期限切れ';
+    final icon = isUsable ? Icons.schedule_rounded : Icons.event_busy_rounded;
+    final label = isUsable ? '残り${_formatRemaining(coupon.expiresAt)}' : '期限切れ';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -329,7 +326,7 @@ class _ExpiryCountdown extends StatelessWidget {
             ),
           ),
           Text(
-            _formatDate(coupon.expiresAt) + 'まで',
+            '${_formatDate(coupon.expiresAt)}まで',
             style: theme.textTheme.labelSmall?.copyWith(
               color: context.textSecondary,
               fontWeight: FontWeight.w700,

@@ -1,19 +1,24 @@
 import os
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 import psycopg2
 from psycopg2.extras import execute_values
 from sklearn.metrics.pairwise import cosine_similarity
+from dotenv import load_dotenv
 
-# DB接続情報（環境変数 DATABASE_URL があればそれを使い、無ければローカルデフォルト）
+# .env を読み込んでから DATABASE_URL を解決（未設定ならローカル Supabase にフォールバック）
+load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
 DB_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:54322/postgres")
 
 def get_connection():
-    return psycopg2.connect(DB_URL)
+    return psycopg2.connect(DB_URL, connect_timeout=10)
 
 def load_external_stores(conn):
     print("--- Loading seed_stores ---")
-    df = pd.read_csv('venue_master.csv', encoding='utf-8')
+    df = pd.read_csv(BASE_DIR / 'venue_master.csv', encoding='utf-8')
     
     # カラム名マッピング (Venue ID -> id, 等)
     # csv columns: Venue ID,Name,Category,Latitude,Longitude,Budget,Atmosphere,Taste,Cost_Performance,Service,Access
@@ -47,7 +52,7 @@ def load_external_stores(conn):
 
 def load_external_checkins(conn):
     print("--- Loading seed_checkins ---")
-    df = pd.read_csv('real_osaka_checkins.csv', encoding='utf-8')
+    df = pd.read_csv(BASE_DIR / 'real_osaka_checkins.csv', encoding='utf-8')
     
     # csv columns: User ID,Venue ID,Venue Category Name,UTC Time,Time Offset
     
@@ -157,7 +162,7 @@ def load_stores_from_external(conn):
     print(f"Found {len(parking_lots)} parking lots to use as geographic seeds.")
     
     # 2. venue_master.csv を読み込む
-    df = pd.read_csv('venue_master.csv', encoding='utf-8')
+    df = pd.read_csv(BASE_DIR / 'venue_master.csv', encoding='utf-8')
     
     # 対象カテゴリの定義
     target_categories = [
@@ -324,6 +329,7 @@ def load_stores_from_external(conn):
 
 def main():
     print("Starting Phase 2: Data Load & Calculation")
+    conn = None
     try:
         conn = get_connection()
         
@@ -332,10 +338,13 @@ def main():
         df_checkins = load_external_checkins(conn)
         calculate_and_load_category_affinity(conn, df_checkins)
         
-        conn.close()
         print("Phase 2 complete! All data successfully loaded and calculated.")
     except Exception as e:
         print(f"Error during execution: {e}")
+        raise
+    finally:
+        if conn is not None:
+            conn.close()
 
 if __name__ == '__main__':
     main()

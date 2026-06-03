@@ -58,3 +58,11 @@ app.*.map.json
 /ios/Runner/GoogleService-Info.plist
 !/android/secrets.example.properties
 supabase/functions/.env*
+supabase/*.bak.*
+
+# Python (data/analysis venv)
+.venv/
+__pycache__/
+# DB 接続情報など（ローカルの分析スクリプト用）
+.env
+!.env.example

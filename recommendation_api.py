@@ -8,6 +8,10 @@ HTMLやCSSなどの静的ファイルは一切配信しない。
 ポート: 5001（現行 app.py の 5000 と共存可能）
 """
 
+import hmac
+import os
+from functools import wraps
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from data_store import DataStore
@@ -16,10 +20,54 @@ from data_store import DataStore
 # 初期化
 # ------------------------------------------------------------------
 app = Flask(__name__)
-CORS(app)  # WebUIや Flutter からのクロスオリジンリクエストを許可
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_JSON_BYTES', '4096'))
+
+allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if allowed_origins:
+    CORS(app, resources={r'/api/v2/*': {'origins': allowed_origins}})
+
+INTERNAL_API_KEY = os.environ.get('PYTHON_API_KEY', '').strip()
 
 # データベース層（CSV代用）の初期化
 store = DataStore()
+
+
+def require_internal_api_key(handler):
+    """PYTHON_API_KEY が設定されている環境では Bearer 認証を要求する。"""
+
+    @wraps(handler)
+    def wrapper(*args, **kwargs):
+        if not INTERNAL_API_KEY:
+            return handler(*args, **kwargs)
+
+        supplied = request.headers.get('Authorization', '')
+        expected = f'Bearer {INTERNAL_API_KEY}'
+        if not hmac.compare_digest(supplied, expected):
+            return jsonify({'error': 'unauthorized'}), 401
+        return handler(*args, **kwargs)
+
+    return wrapper
+
+
+def parse_coordinate(value, min_value, max_value):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < min_value or parsed > max_value:
+        return None
+    return parsed
+
+
+def env_bool(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() in {'1', 'true', 'yes', 'on'}
 
 # ------------------------------------------------------------------
 # ヘルスチェック
@@ -33,6 +81,7 @@ def health():
 # ユーザー一覧
 # ------------------------------------------------------------------
 @app.route('/api/v2/users')
+@require_internal_api_key
 def get_users():
     """チェックイン履歴が5件以上あるユーザーからランダムに10件返す"""
     users = store.get_user_ids(min_checkins=5, sample_size=10)
@@ -42,6 +91,7 @@ def get_users():
 # ランダム位置取得（テスト・デモ用）
 # ------------------------------------------------------------------
 @app.route('/api/v2/random_location')
+@require_internal_api_key
 def random_location():
     """ランダムな店舗の座標を返す（現在地のシミュレーション用）"""
     loc = store.get_random_venue_location()
@@ -51,6 +101,7 @@ def random_location():
 # レコメンドAPI（メインロジック）
 # ------------------------------------------------------------------
 @app.route('/api/v2/recommend', methods=['POST'])
+@require_internal_api_key
 def recommend():
     """
     位置情報とユーザーIDを受け取り、レコメンド結果をJSONで返す。
@@ -68,13 +119,16 @@ def recommend():
             "recommendations": [ ... ]
         }
     """
-    data = request.json
-    user_id = data.get('user_id')
-    current_lat = data.get('lat')
-    current_lng = data.get('lng')
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'JSON object body is required'}), 400
 
-    if user_id is None or current_lat is None or current_lng is None:
-        return jsonify({'error': 'Missing parameters: user_id, lat, lng are required'}), 400
+    user_id = str(data.get('user_id', '')).strip()
+    current_lat = parse_coordinate(data.get('lat'), -90, 90)
+    current_lng = parse_coordinate(data.get('lng'), -180, 180)
+
+    if not user_id or len(user_id) > 128 or current_lat is None or current_lng is None:
+        return jsonify({'error': 'valid user_id, lat, lng are required'}), 400
 
     # ----- 1. 協調フィルタリングによるベーススコア算出 -----
     target_visited = store.get_user_visited_venues(user_id)
@@ -212,12 +266,16 @@ def recommend():
 # サーバー起動
 # ------------------------------------------------------------------
 if __name__ == '__main__':
+    host = os.environ.get('RECOMMENDATION_API_HOST', '127.0.0.1')
+    port = int(os.environ.get('RECOMMENDATION_API_PORT', '5001'))
+    debug = env_bool('FLASK_DEBUG')
+
     print("=== Recommendation API Server (Application Tier) ===")
-    print("  Port: 5001")
+    print(f"  Bind: {host}:{port}")
     print("  Endpoints:")
     print("    GET  /api/v2/health")
     print("    GET  /api/v2/users")
     print("    GET  /api/v2/random_location")
     print("    POST /api/v2/recommend")
     print("=" * 50)
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host=host, port=port, debug=debug)
