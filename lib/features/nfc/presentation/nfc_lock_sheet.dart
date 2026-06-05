@@ -6,7 +6,7 @@ import '../../../core/api/api_exceptions.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../parking/domain/parking_session.dart';
+import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
 

@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
-import '../../stores/domain/store.dart';
-import '../domain/parking_lot.dart';
+import '../../../core/utils/geo.dart';
+import '../../../core/domain/store.dart';
+import '../../../core/domain/parking_lot.dart';
 
 /// 駐輪場のおすすめ判定結果。
 class ParkingRecommendation {
@@ -25,18 +24,6 @@ class ParkingRecommendation {
 const _couponRadiusMeters = 2000.0;
 const _distanceBonusFullAt = 2000.0; // 2000m以上離れていればボーナス最大
 
-double _haversineMeters(LatLng a, LatLng b) {
-  const earth = 6371000.0;
-  double toRad(double d) => d * math.pi / 180.0;
-  final dLat = toRad(b.latitude - a.latitude);
-  final dLng = toRad(b.longitude - a.longitude);
-  final h = math.pow(math.sin(dLat / 2), 2) +
-      math.cos(toRad(a.latitude)) *
-          math.cos(toRad(b.latitude)) *
-          math.pow(math.sin(dLng / 2), 2);
-  return earth * 2 * math.asin(math.sqrt(h.toDouble()));
-}
-
 /// ユーザーの現在地周辺のおすすめ店舗一覧をPython APIから取得するプロバイダ
 final recommendedStoresProvider = FutureProvider.family<List<Store>, LatLng>((ref, userLocation) async {
   final apiClient = ref.watch(apiClientProvider);
@@ -52,7 +39,8 @@ ParkingRecommendation computeRecommendation({
   // 駐輪場から2000m以内のおすすめ店舗を抽出し、UI表示用には上位3件に絞る
   var nearby = recommendedStores
       .where((s) =>
-          _haversineMeters(parking.position, s.position) <= _couponRadiusMeters)
+          Geo.haversineMeters(parking.position, s.position) <=
+          _couponRadiusMeters)
       .toList();
       
   if (nearby.length > 3) {
@@ -77,7 +65,7 @@ ParkingRecommendation computeRecommendation({
   double distanceBonus = 0.5;
   int bonusPercent = 0;
   if (userLocation != null) {
-    final distance = _haversineMeters(userLocation, parking.position);
+    final distance = Geo.haversineMeters(userLocation, parking.position);
     distanceBonus = (distance / _distanceBonusFullAt).clamp(0.0, 1.0);
     bonusPercent = (distanceBonus * 50).round();
   }

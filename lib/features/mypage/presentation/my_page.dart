@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../coupons/domain/coupon.dart';
+import '../../../core/domain/coupon.dart';
 import '../../coupons/presentation/coupon_detail_page.dart';
 import '../../coupons/presentation/widgets/coupon_ticket.dart';
 import '../../coupons/providers/coupon_providers.dart';
-import '../../parking/domain/parking_lot.dart';
+import '../../../core/domain/parking_lot.dart';
 import '../../parking/presentation/parking_detail_sheet.dart';
 import '../../parking/providers/favorite_providers.dart';
 import '../../parking/providers/parking_providers.dart';

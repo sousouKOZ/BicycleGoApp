@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -8,11 +7,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../stores/domain/store.dart';
+import '../../../core/utils/geo.dart';
+import '../../../core/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
 import '../domain/directions_route.dart';
-import '../domain/parking_lot.dart';
+import '../../../core/domain/parking_lot.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/location_permission_providers.dart';
 import '../providers/map_filter_providers.dart';
@@ -307,7 +307,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
           if (filter.couponOnly) {
             filtered = filtered.where((p) {
               for (final s in stores) {
-                if (_haversineMeters(p.position, s.position) <= 300) {
+                if (Geo.haversineMeters(p.position, s.position) <= 300) {
                   return true;
                 }
               }
@@ -760,8 +760,8 @@ class _SearchResultsDropdown extends ConsumerWidget {
       sorted.sort((a, b) =>
           recommendations[b.id]!.score.compareTo(recommendations[a.id]!.score));
     } else if (currentLocation != null) {
-      sorted.sort((a, b) => _haversineMeters(currentLocation!, a.position)
-          .compareTo(_haversineMeters(currentLocation!, b.position)));
+      sorted.sort((a, b) => Geo.haversineMeters(currentLocation!, a.position)
+          .compareTo(Geo.haversineMeters(currentLocation!, b.position)));
     }
 
     if (sorted.isEmpty) {
@@ -824,7 +824,7 @@ class _SearchResultsDropdown extends ConsumerWidget {
                           : AppColors.success;
                   final distance = currentLocation == null
                       ? null
-                      : _haversineMeters(currentLocation!, p.position);
+                      : Geo.haversineMeters(currentLocation!, p.position);
                   final distanceLabel = distance == null
                       ? null
                       : distance >= 1000
@@ -1017,18 +1017,6 @@ class _RecommendBadge extends StatelessWidget {
       ),
     );
   }
-}
-
-double _haversineMeters(LatLng a, LatLng b) {
-  const earth = 6371000.0;
-  double toRad(double d) => d * math.pi / 180.0;
-  final dLat = toRad(b.latitude - a.latitude);
-  final dLng = toRad(b.longitude - a.longitude);
-  final h = math.pow(math.sin(dLat / 2), 2) +
-      math.cos(toRad(a.latitude)) *
-          math.cos(toRad(b.latitude)) *
-          math.pow(math.sin(dLng / 2), 2);
-  return earth * 2 * math.asin(math.sqrt(h.toDouble()));
 }
 
 class _MapFilterBar extends ConsumerWidget {

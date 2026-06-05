@@ -1,12 +1,12 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../features/coupons/domain/coupon.dart';
-import '../../features/parking/domain/parking_lot.dart';
-import '../../features/parking/domain/parking_session.dart';
-import '../../features/parking/providers/session_providers.dart';
-import '../../features/sessions/domain/session_record.dart';
-import '../../features/stores/domain/store.dart';
+import '../domain/active_parking_info.dart';
+import '../domain/coupon.dart';
+import '../domain/parking_lot.dart';
+import '../domain/parking_session.dart';
+import '../domain/session_record.dart';
+import '../domain/store.dart';
 import 'api_client.dart';
 import 'api_exceptions.dart';
 
@@ -145,13 +145,15 @@ class SupabaseApiClient implements ApiClient {
   @override
   Future<List<SessionRecord>> getSessionHistory(String userId) async {
     // クーポン発行済み（issued_coupon_id が入っている）セッションのみ履歴対象とする。
-    // device → parking_lot で駐輪場名、coupons で特典を1クエリで取得。
+    // device → parking_lot で駐輪場名、coupons で特典、point_transactions で
+    // 実際に付与されたポイント（earn）を1クエリで取得。
     final rows = await _client
         .from('parking_sessions')
         .select(
           'id, authenticated_at, exited_at, status, issued_coupon_id, '
           'devices(parking_lot_id, parking_lots(id, name)), '
-          'coupons!parking_sessions_issued_coupon_fk(benefit)',
+          'coupons!parking_sessions_issued_coupon_fk(benefit), '
+          'point_transactions(delta, kind)',
         )
         .eq('user_id', userId)
         .not('issued_coupon_id', 'is', null)
@@ -175,12 +177,27 @@ class SupabaseApiClient implements ApiClient {
         completedAt: exitedAt != null
             ? DateTime.parse(exitedAt)
             : DateTime.parse(authAt),
-        earnedPoints: 10,
+        // サーバが付与した earn トランザクションの delta を真実の源とする。
+        earnedPoints: _earnedPointsFor(r['point_transactions']),
         issuedCouponId: r['issued_coupon_id'] as String?,
         couponBenefit: coupon?['benefit'] as String?,
       ));
     }
     return records;
+  }
+
+  /// 埋め込み取得した point_transactions から earn 種別の delta を合算して返す。
+  /// 1セッションに通常 earn は1件だが、調整(adjust)等が混ざる可能性を考慮して
+  /// kind=='earn' のみを対象にする。該当が無ければ 0。
+  int _earnedPointsFor(Object? transactions) {
+    if (transactions is! List) return 0;
+    var total = 0;
+    for (final tx in transactions) {
+      if (tx is Map && tx['kind'] == 'earn') {
+        total += (tx['delta'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return total;
   }
 
   @override

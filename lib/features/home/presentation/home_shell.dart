@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/api/api_providers.dart';
-import '../../coupons/domain/coupon.dart';
+import '../../../core/domain/coupon.dart';
 import '../../coupons/presentation/coupon_list_page.dart';
 import '../../mypage/presentation/my_page.dart';
-import '../../parking/domain/parking_session.dart';
+import '../../../core/domain/parking_session.dart';
 import '../../parking/presentation/parking_map_page.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../points/providers/points_providers.dart';

@@ -1,12 +1,11 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../stores/domain/store.dart';
+import '../../../core/utils/geo.dart';
+import '../../../core/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../data/directions_service.dart';
 import '../providers/favorite_providers.dart';
@@ -16,29 +15,13 @@ import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_timer_page.dart';
 import '../data/parking_mock_data.dart';
-import '../domain/parking_lot.dart';
-import '../domain/parking_session.dart';
+import '../../../core/domain/parking_lot.dart';
+import '../../../core/domain/parking_session.dart';
 import '../providers/parking_providers.dart';
 
 class ParkingDetailSheet extends ConsumerWidget {
   final ParkingLot parking;
   const ParkingDetailSheet({super.key, required this.parking});
-
-  static const int _nfcLockRewardPoints = 10;
-
-  double _distanceInMeters(LatLng start, LatLng end) {
-    const earthRadius = 6371000.0;
-    final dLat = _toRadians(end.latitude - start.latitude);
-    final dLon = _toRadians(end.longitude - start.longitude);
-    final a = math.pow(math.sin(dLat / 2), 2) +
-        math.cos(_toRadians(start.latitude)) *
-            math.cos(_toRadians(end.latitude)) *
-            math.pow(math.sin(dLon / 2), 2);
-    final c = 2 * math.asin(math.sqrt(a));
-    return earthRadius * c;
-  }
-
-  double _toRadians(double degree) => degree * (math.pi / 180.0);
 
   /// 上部の _RouteBanner と表記を揃えるため、1km 未満は m 表記、それ以上は km 表記。
   String _formatDistance(double meters) {
@@ -130,7 +113,7 @@ class ParkingDetailSheet extends ConsumerWidget {
         ? activeRoute.distanceMeters.toDouble()
         : currentLocation == null
             ? null
-            : _distanceInMeters(currentLocation, parking.position);
+            : Geo.haversineMeters(currentLocation, parking.position);
     final cyclingMinutes = useRoute
         ? (activeRoute.durationSeconds / 60).round()
         : distanceMeters == null
@@ -346,7 +329,9 @@ class ParkingDetailSheet extends ConsumerWidget {
                     if (session == null) {
                       return;
                     }
-                    ref.read(pointsProvider.notifier).add(_nfcLockRewardPoints);
+                    // 付与はサーバ(issue_coupons)が15分後に行う。ここでは
+                    // 残高表示を最新化するだけ。
+                    ref.read(pointsProvider.notifier).refresh();
                     final earnSec = ParkingSession.earnThreshold.inSeconds;
                     final earnLabel =
                         earnSec >= 60 ? '${earnSec ~/ 60}分' : '$earnSec秒';

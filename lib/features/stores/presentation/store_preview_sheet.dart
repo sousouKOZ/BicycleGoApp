@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../domain/store.dart';
+import '../../../core/domain/store.dart';
 
 class StorePreviewSheet extends StatelessWidget {
   final Store store;

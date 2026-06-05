@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_providers.dart';
 import '../../user/providers/user_providers.dart';
-import '../domain/session_record.dart';
+import '../../../core/domain/session_record.dart';
 
 /// 駐輪履歴プロバイダ。
 ///

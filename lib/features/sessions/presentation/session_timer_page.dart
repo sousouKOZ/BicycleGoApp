@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../parking/domain/parking_session.dart';
+import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
-import '../../stores/domain/store.dart';
+import '../../../core/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
 
 class SessionTimerPage extends ConsumerStatefulWidget {

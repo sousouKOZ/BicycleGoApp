@@ -208,8 +208,8 @@ class _ExchangeConfirmSheetState extends ConsumerState<ExchangeConfirmSheet> {
         validity: const Duration(days: 30),
       );
 
-      // 残高を更新（Mock: ローカル減算 / Supabase: サーバ反映後 refetch）
-      await pointsNotifier.add(-widget.item.costPoints);
+      // 残高はサーバ(issue_exchange_coupon RPC)が減算済み。最新値を refetch する。
+      await pointsNotifier.refresh();
       await ref.read(exchangeHistoryProvider.notifier).add(
             ExchangeRecord(
               id: 'exch-${DateTime.now().millisecondsSinceEpoch}',

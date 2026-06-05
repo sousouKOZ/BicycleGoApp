@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../domain/session_record.dart';
+import '../../../core/domain/session_record.dart';
 import '../providers/session_history_providers.dart';
 
 class SessionHistoryPage extends ConsumerWidget {

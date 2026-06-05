@@ -1,7 +1,7 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../domain/device.dart';
-import '../domain/parking_lot.dart';
+import '../../../core/domain/parking_lot.dart';
 
 final mockParkingLots = <ParkingLot>[
   ParkingLot(

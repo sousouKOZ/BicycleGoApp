@@ -7,10 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../stores/domain/store.dart';
+import '../../../core/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
 import '../../user/providers/user_providers.dart';
-import '../domain/coupon.dart';
+import '../../../core/domain/coupon.dart';
 import '../providers/coupon_providers.dart';
 import 'widgets/swipe_to_use.dart';
 

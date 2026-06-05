@@ -1,6 +1,6 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import '../domain/store.dart';
+import '../../../core/domain/store.dart';
 
 final mockStores = <Store>[
   Store(

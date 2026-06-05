@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
 import '../domain/directions_route.dart';
-import '../domain/parking_lot.dart';
+import '../../../core/domain/parking_lot.dart';
 
 class DirectionsException implements Exception {
   final String message;

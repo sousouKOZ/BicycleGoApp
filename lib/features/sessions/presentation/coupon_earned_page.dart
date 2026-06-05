@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../coupons/domain/coupon.dart';
+import '../../../core/domain/coupon.dart';
 import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
-import '../../parking/domain/parking_session.dart';
+import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import '../../user/providers/user_providers.dart';
 

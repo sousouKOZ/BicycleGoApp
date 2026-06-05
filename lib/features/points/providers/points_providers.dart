@@ -24,12 +24,6 @@ class PointsNotifier extends AsyncNotifier<int> {
   Future<void> refresh() async {
     ref.invalidateSelf();
   }
-
-  /// 互換目的のエイリアス。引数 [delta] は使わず、サーバから取り直すだけ。
-  /// 既存呼び出し元（parking_detail_sheet, exchange_confirm_sheet）の改修コスト回避用。
-  Future<void> add(int delta) async {
-    ref.invalidateSelf();
-  }
 }
 
 final pointsProvider =

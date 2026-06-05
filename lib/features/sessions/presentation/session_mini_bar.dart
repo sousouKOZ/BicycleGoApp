@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../parking/domain/parking_session.dart';
+import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
 import 'session_timer_page.dart';
 

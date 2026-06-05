@@ -1,9 +1,9 @@
-import '../../features/coupons/domain/coupon.dart';
-import '../../features/parking/domain/parking_lot.dart';
-import '../../features/parking/domain/parking_session.dart';
-import '../../features/parking/providers/session_providers.dart';
-import '../../features/sessions/domain/session_record.dart';
-import '../../features/stores/domain/store.dart';
+import '../domain/active_parking_info.dart';
+import '../domain/coupon.dart';
+import '../domain/parking_lot.dart';
+import '../domain/parking_session.dart';
+import '../domain/session_record.dart';
+import '../domain/store.dart';
 
 /// Flaskバックエンド仕様（§8.2）に対応するAPI契約。
 /// 実装は現状モックだが、インタフェースはHTTP版に差し替え可能なように設計。
