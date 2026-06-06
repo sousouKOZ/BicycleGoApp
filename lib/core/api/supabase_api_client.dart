@@ -91,13 +91,9 @@ class SupabaseApiClient implements ApiClient {
 
   @override
   Future<ParkingSession> postParkingAuth({
-    required String userId,
     required String deviceId,
-    required double lat,
-    required double lng,
   }) async {
-    // userId は引数として残しているが、サーバ側は JWT から解決するため送信不要。
-    // GPS 値も使われないが API 互換のため引数だけ受け取る。
+    // ユーザーはサーバが JWT から解決するため deviceId のみ送信する。
     final json = await _invoke('parking_auth', body: {
       'deviceId': deviceId,
     });
@@ -178,26 +174,12 @@ class SupabaseApiClient implements ApiClient {
             ? DateTime.parse(exitedAt)
             : DateTime.parse(authAt),
         // サーバが付与した earn トランザクションの delta を真実の源とする。
-        earnedPoints: _earnedPointsFor(r['point_transactions']),
+        earnedPoints: earnedPointsFromTransactions(r['point_transactions']),
         issuedCouponId: r['issued_coupon_id'] as String?,
         couponBenefit: coupon?['benefit'] as String?,
       ));
     }
     return records;
-  }
-
-  /// 埋め込み取得した point_transactions から earn 種別の delta を合算して返す。
-  /// 1セッションに通常 earn は1件だが、調整(adjust)等が混ざる可能性を考慮して
-  /// kind=='earn' のみを対象にする。該当が無ければ 0。
-  int _earnedPointsFor(Object? transactions) {
-    if (transactions is! List) return 0;
-    var total = 0;
-    for (final tx in transactions) {
-      if (tx is Map && tx['kind'] == 'earn') {
-        total += (tx['delta'] as num?)?.toInt() ?? 0;
-      }
-    }
-    return total;
   }
 
   @override
@@ -404,5 +386,19 @@ class SupabaseApiClient implements ApiClient {
         throw ApiException('internal_error', 'unknown store category: $s');
     }
   }
+}
 
+/// 埋め込み取得した point_transactions（PostgREST の to-many embed）から
+/// earn 種別の delta を合算して返す。1セッションに通常 earn は1件だが、
+/// 調整(adjust)等が混ざる可能性を考慮して kind=='earn' のみを対象にする。
+/// 該当が無い・型が想定外なら 0。
+int earnedPointsFromTransactions(Object? transactions) {
+  if (transactions is! List) return 0;
+  var total = 0;
+  for (final tx in transactions) {
+    if (tx is Map && tx['kind'] == 'earn') {
+      total += (tx['delta'] as num?)?.toInt() ?? 0;
+    }
+  }
+  return total;
 }

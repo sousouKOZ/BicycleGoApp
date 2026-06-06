@@ -16,13 +16,10 @@ abstract class ApiClient {
   });
 
   /// POST /api/parking/auth
-  /// モバイルアプリからのNFC認証（ユーザID + 機体ID + 端末GPS）。
-  /// GPS不一致や5分猶予超過時は例外を投げる。
+  /// モバイルアプリからのNFC認証。ユーザーはサーバが JWT から解決するため
+  /// 送信するのは機体IDのみ。5分猶予超過時は例外を投げる。
   Future<ParkingSession> postParkingAuth({
-    required String userId,
     required String deviceId,
-    required double lat,
-    required double lng,
   });
 
   /// GET /api/user/coupons

@@ -24,17 +24,29 @@ class MyPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final points = ref.watch(pointsProvider).valueOrNull ?? 0;
+    final pointsAsync = ref.watch(pointsProvider);
     final asyncCoupons = ref.watch(userCouponsProvider);
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          children: [
-            const _PageHeader(),
-            const SizedBox(height: 20),
-            _PointsCard(points: points),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(pointsProvider);
+            ref.invalidate(userCouponsProvider);
+            ref.invalidate(userProfileProvider);
+            ref.invalidate(sessionHistoryProvider);
+            ref.invalidate(favoriteParkingsProvider);
+          },
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              const _PageHeader(),
+              const SizedBox(height: 20),
+              _PointsCard(
+                pointsAsync: pointsAsync,
+                onRetry: () => ref.invalidate(pointsProvider),
+              ),
             const SizedBox(height: 24),
             const _SectionHeader(
               title: '利用可能クーポン',
@@ -165,6 +177,7 @@ class MyPage extends ConsumerWidget {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -237,8 +250,9 @@ class _PageHeader extends ConsumerWidget {
 }
 
 class _PointsCard extends StatelessWidget {
-  final int points;
-  const _PointsCard({required this.points});
+  final AsyncValue<int> pointsAsync;
+  final VoidCallback onRetry;
+  const _PointsCard({required this.pointsAsync, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -290,30 +304,64 @@ class _PointsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '$points',
-                style: theme.textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                  height: 1,
+          pointsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  valueColor: AlwaysStoppedAnimation(Colors.white),
                 ),
               ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'pt',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
+            ),
+            error: (_, __) => Row(
+              children: [
+                Text(
+                  '残高を取得できません',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 4),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: '再読み込み',
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: Colors.white, size: 20),
+                ),
+              ],
+            ),
+            data: (points) => Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$points',
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'pt',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(

@@ -8,7 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
-import '../../user/providers/user_providers.dart';
 
 enum _Stage { waitingTag, verifying, success, error }
 
@@ -92,7 +91,6 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
   Future<void> _authenticate() async {
     try {
       final api = ref.read(apiClientProvider);
-      final userId = ref.read(currentUserIdProvider);
 
       // 物理駐輪は MCU の parking_detect が先に作る unauthenticated セッションが
       // 唯一の証拠。アプリは認証だけを行う。5分以内に該当 deviceId の
@@ -113,10 +111,7 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       }
 
       final session = await api.postParkingAuth(
-        userId: userId,
         deviceId: widget.deviceId,
-        lat: 0,
-        lng: 0,
       );
 
       if (!mounted) return;

@@ -22,7 +22,10 @@ class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
 
   @override
   Widget build(BuildContext context) {
-    final points = ref.watch(pointsProvider).valueOrNull ?? 0;
+    final pointsAsync = ref.watch(pointsProvider);
+    // 残高取得に失敗/未完了の間は 0 とみなし、交換ボタンを無効化する
+    // （実残高が不明なまま交換させない）。
+    final points = pointsAsync.valueOrNull ?? 0;
     final catalog = ref.watch(exchangeCatalogProvider);
     final filtered = _filter == null
         ? catalog
@@ -50,7 +53,10 @@ class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: _BalanceCard(points: points),
+              child: _BalanceCard(
+                pointsAsync: pointsAsync,
+                onRetry: () => ref.invalidate(pointsProvider),
+              ),
             ),
             _CategoryStrip(
               selected: _filter,
@@ -58,18 +64,22 @@ class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
             ),
             const SizedBox(height: 8),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, i) {
-                  final item = filtered[i];
-                  return _ItemTile(
-                    item: item,
-                    enabled: points >= item.costPoints,
-                    onTap: () => _onTap(item),
-                  );
-                },
+              child: RefreshIndicator(
+                onRefresh: () => ref.refresh(pointsProvider.future),
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final item = filtered[i];
+                    return _ItemTile(
+                      item: item,
+                      enabled: points >= item.costPoints,
+                      onTap: () => _onTap(item),
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -89,8 +99,9 @@ class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
 }
 
 class _BalanceCard extends StatelessWidget {
-  final int points;
-  const _BalanceCard({required this.points});
+  final AsyncValue<int> pointsAsync;
+  final VoidCallback onRetry;
+  const _BalanceCard({required this.pointsAsync, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -135,30 +146,64 @@ class _BalanceCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '$points',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                      height: 1.1,
+              pointsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6),
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      'pt',
+                ),
+                error: (_, __) => Row(
+                  children: [
+                    Text(
+                      '残高を取得できません',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: Colors.white,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: '再読み込み',
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: Colors.white, size: 20),
+                    ),
+                  ],
+                ),
+                data: (points) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '$points',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'pt',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
