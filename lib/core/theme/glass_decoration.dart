@@ -88,7 +88,7 @@ class GlassDecoration {
         BoxShadow(
           color: dark
               ? Colors.black.withValues(alpha: 0.4)
-              : const Color(0x1F2E7CF6),
+              : const Color(0x1F00A88F),
           blurRadius: 30,
           spreadRadius: -10,
           offset: const Offset(0, 14),

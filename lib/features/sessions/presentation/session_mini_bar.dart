@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/domain/parking_session.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../parking/providers/session_providers.dart';
 import 'session_timer_page.dart';
 
@@ -71,11 +72,11 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF2E7CF6), Color(0xFF7C5CFF)],
+              colors: [AppColors.accent, AppColors.accentAlt],
             ),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x332E7CF6),
+                color: Color(0x3300A88F),
                 blurRadius: 18,
                 spreadRadius: -6,
                 offset: Offset(0, 10),
@@ -203,7 +204,7 @@ class _ParkedBarState extends ConsumerState<_ParkedBar> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF18B27A), Color(0xFF2E7CF6)],
+            colors: [AppColors.success, AppColors.accentAlt],
           ),
           boxShadow: const [
             BoxShadow(

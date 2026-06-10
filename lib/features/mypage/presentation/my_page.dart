@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../../core/domain/coupon.dart';
+import '../../../core/domain/session_record.dart';
 import '../../coupons/presentation/coupon_detail_page.dart';
 import '../../coupons/presentation/widgets/coupon_ticket.dart';
 import '../../coupons/providers/coupon_providers.dart';
@@ -47,136 +48,140 @@ class MyPage extends ConsumerWidget {
                 pointsAsync: pointsAsync,
                 onRetry: () => ref.invalidate(pointsProvider),
               ),
-            const SizedBox(height: 24),
-            const _SectionHeader(
-              title: '利用可能クーポン',
-              subtitle: '15分駐輪で自動発行されたクーポン',
-              accent: AppColors.success,
-            ),
-            const SizedBox(height: 12),
-            asyncCoupons.when(
-              loading: () => Padding(
-                padding: const EdgeInsets.all(24),
-                child: const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 16),
+              const _MonthlyValueSummary(),
+              const SizedBox(height: 24),
+              const _SectionHeader(
+                title: '利用可能クーポン',
+                subtitle: '15分駐輪で自動発行されたクーポン',
+                accent: AppColors.success,
               ),
-              error: (e, _) => Text('読み込み失敗: $e'),
-              data: (list) {
-                final usable = list
-                    .where(
-                        (c) => c.status == CouponStatus.owned && !c.isExpired)
-                    .toList();
-                if (usable.isEmpty) {
-                  return Container(
-                    decoration: GlassDecoration.light(context, radius: 20),
-                    padding: const EdgeInsets.all(18),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline_rounded,
-                            size: 18, color: context.textSecondary),
-                        const SizedBox(width: 10),
-                        Text(
-                          '利用可能なクーポンはありません',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return Column(
-                  children:
-                      usable.map((c) => _OwnedCouponTile(coupon: c)).toList(),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            asyncCoupons.when(
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (list) {
-                final recentlyUsed = list
-                    .where((c) => c.status == CouponStatus.used)
-                    .toList()
-                  ..sort((a, b) => (b.usedAt ?? b.issuedAt)
-                      .compareTo(a.usedAt ?? a.issuedAt));
-                final top = recentlyUsed.take(3).toList();
-                if (top.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _SectionHeader(
-                      title: '最近使ったクーポン',
-                      subtitle: list
-                                  .where((c) => c.status == CouponStatus.used)
-                                  .length >
-                              3
-                          ? 'クーポンタブで全件確認できます'
-                          : 'ご利用ありがとうございました',
-                      accent: AppColors.onSurfaceSecondary,
-                    ),
-                    const SizedBox(height: 12),
-                    ...top.map((c) => _UsedCouponTile(coupon: c)),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-            ),
-            const _SectionHeader(
-              title: 'お気に入り駐輪場',
-              subtitle: 'よく使う駐輪場をブックマーク',
-              accent: AppColors.warning,
-            ),
-            const SizedBox(height: 12),
-            const _FavoriteParkingSection(),
-            const SizedBox(height: 24),
-            const _SectionHeader(
-              title: 'メニュー',
-              subtitle: '',
-              accent: AppColors.accentAlt,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              decoration: GlassDecoration.light(context, radius: 20),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final count = ref
-                              .watch(sessionHistoryProvider)
-                              .valueOrNull
-                              ?.length ??
-                          0;
-                      return _MenuTile(
-                        icon: Icons.history_rounded,
-                        title: '駐輪履歴',
-                        hint: count == 0 ? '未取得' : '$count件',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SessionHistoryPage(),
+              const SizedBox(height: 12),
+              asyncCoupons.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => Text('読み込み失敗: $e'),
+                data: (list) {
+                  final usable = list
+                      .where(
+                          (c) => c.status == CouponStatus.owned && !c.isExpired)
+                      .toList();
+                  if (usable.isEmpty) {
+                    return Container(
+                      decoration: GlassDecoration.light(context, radius: 20),
+                      padding: const EdgeInsets.all(18),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded,
+                              size: 18, color: context.textSecondary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '利用可能なクーポンはありません',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
                           ),
+                        ],
+                      ),
+                    );
+                  }
+                  return Column(
+                    children:
+                        usable.map((c) => _OwnedCouponTile(coupon: c)).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              asyncCoupons.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (list) {
+                  final recentlyUsed = list
+                      .where((c) => c.status == CouponStatus.used)
+                      .toList()
+                    ..sort((a, b) => (b.usedAt ?? b.issuedAt)
+                        .compareTo(a.usedAt ?? a.issuedAt));
+                  final top = recentlyUsed.take(3).toList();
+                  if (top.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _SectionHeader(
+                        title: '最近使ったクーポン',
+                        subtitle: list
+                                    .where((c) => c.status == CouponStatus.used)
+                                    .length >
+                                3
+                            ? 'クーポンタブで全件確認できます'
+                            : 'ご利用ありがとうございました',
+                        accent: AppColors.onSurfaceSecondary,
+                      ),
+                      const SizedBox(height: 12),
+                      ...top.map((c) => _UsedCouponTile(coupon: c)),
+                      const SizedBox(height: 24),
+                    ],
+                  );
+                },
+              ),
+              const _SectionHeader(
+                title: 'お気に入り駐輪場',
+                subtitle: 'よく使う駐輪場をブックマーク',
+                accent: AppColors.warning,
+              ),
+              const SizedBox(height: 12),
+              const _FavoriteParkingSection(),
+              const SizedBox(height: 24),
+              const _SectionHeader(
+                title: 'メニュー',
+                subtitle: '',
+                accent: AppColors.accentAlt,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: GlassDecoration.light(context, radius: 20),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final count = ref
+                                .watch(sessionHistoryProvider)
+                                .valueOrNull
+                                ?.length ??
+                            0;
+                        return _MenuTile(
+                          icon: Icons.history_rounded,
+                          title: '駐輪履歴',
+                          hint: count == 0 ? '未取得' : '$count件',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SessionHistoryPage(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    Divider(
+                      height: 1,
+                      color: context.subtleBorder,
+                      indent: 56,
+                    ),
+                    _MenuTile(
+                      icon: Icons.settings_rounded,
+                      title: '設定',
+                      hint: 'テーマ・通知',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsPage(),
                         ),
-                      );
-                    },
-                  ),
-                  Divider(
-                    height: 1,
-                    color: context.subtleBorder,
-                    indent: 56,
-                  ),
-                  _MenuTile(
-                    icon: Icons.settings_rounded,
-                    title: '設定',
-                    hint: 'テーマ・通知',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SettingsPage(),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
           ),
         ),
       ),
@@ -265,13 +270,13 @@ class _PointsCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2E7CF6),
-            Color(0xFF7C5CFF),
+            AppColors.accent,
+            AppColors.accentAlt,
           ],
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x332E7CF6),
+            color: Color(0x3300A88F),
             blurRadius: 30,
             spreadRadius: -8,
             offset: Offset(0, 14),
@@ -392,6 +397,248 @@ class _PointsCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MonthlyValueSummary extends ConsumerWidget {
+  const _MonthlyValueSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final stats = ref.watch(sessionHistoryStatsProvider);
+    final history = ref.watch(sessionHistoryProvider).valueOrNull ??
+        const <SessionRecord>[];
+    final coupons =
+        ref.watch(userCouponsProvider).valueOrNull ?? const <Coupon>[];
+    final now = DateTime.now();
+    final issuedThisMonth = coupons
+        .where(
+            (c) => c.issuedAt.year == now.year && c.issuedAt.month == now.month)
+        .length;
+    final usedThisMonth = coupons
+        .where((c) =>
+            c.status == CouponStatus.used &&
+            c.usedAt != null &&
+            c.usedAt!.year == now.year &&
+            c.usedAt!.month == now.month)
+        .toList();
+    final savings = _estimateCouponSavingsYen(usedThisMonth);
+
+    return Container(
+      decoration: GlassDecoration.light(context, radius: 22),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.insights_rounded,
+                    size: 18, color: AppColors.success),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '今月の北区サマリー',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: context.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '駐輪とクーポンの成果',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryMetric(
+                  label: '駐輪',
+                  value: '${stats.monthSessions}回',
+                  color: AppColors.accent,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SummaryMetric(
+                  label: '獲得',
+                  value: '$issuedThisMonth件',
+                  color: AppColors.success,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SummaryMetric(
+                  label: savings > 0 ? '節約' : '使用',
+                  value: savings > 0 ? '¥$savings' : '${usedThisMonth.length}件',
+                  color: AppColors.warning,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _WeekdayUsageBars(history: history),
+        ],
+      ),
+    );
+  }
+
+  int _estimateCouponSavingsYen(List<Coupon> coupons) {
+    final yenPattern = RegExp(r'(\d+)\s*円');
+    var total = 0;
+    for (final coupon in coupons) {
+      final match = yenPattern.firstMatch(coupon.benefit);
+      if (match == null) continue;
+      total += int.tryParse(match.group(1) ?? '') ?? 0;
+    }
+    return total;
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: context.textSecondary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: context.textPrimary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeekdayUsageBars extends StatelessWidget {
+  final List<SessionRecord> history;
+  const _WeekdayUsageBars({required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final counts = List<int>.filled(7, 0);
+    for (final record in history) {
+      if (record.completedAt.year != now.year ||
+          record.completedAt.month != now.month) {
+        continue;
+      }
+      counts[record.completedAt.weekday - 1] += 1;
+    }
+    final maxCount =
+        counts.fold<int>(1, (max, count) => count > max ? count : max);
+    const labels = ['月', '火', '水', '木', '金', '土', '日'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '曜日別の利用',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: context.textSecondary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 68,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < labels.length; i++) ...[
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 16,
+                            height: 18 + 34 * (counts[i] / maxCount),
+                            decoration: BoxDecoration(
+                              color: counts[i] == 0
+                                  ? context.subtleBorder
+                                  : AppColors.accent.withValues(alpha: 0.78),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        labels[i],
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: context.textSecondary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (i != labels.length - 1) const SizedBox(width: 6),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -531,16 +778,25 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  )),
-              if (subtitle.isNotEmpty)
-                Text(subtitle, style: theme.textTheme.bodySmall),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    )),
+                if (subtitle.isNotEmpty)
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall,
+                  ),
+              ],
+            ),
           ),
         ],
       ),

@@ -203,7 +203,8 @@ class _DistributingCouponCard extends StatelessWidget {
     return MiniCouponTicket(
       stubIcon: Icons.local_offer_rounded,
       stubLabel: '配信中',
-      stubColor: AppColors.accent,
+      stubColor: AppColors.coupon,
+      tintColor: AppColors.accent,
       benefit: store.benefit,
       subtitle: '${store.name} ・ ${store.category.label}',
       onTap: () => showModalBottomSheet(
@@ -360,7 +361,18 @@ class _CouponCard extends ConsumerWidget {
       );
     }
 
-    return _TicketCard(body: body, stub: stub, dimmed: !isUsable);
+    final tintColor = isUsable
+        ? AppColors.success
+        : coupon.status == CouponStatus.used
+            ? context.textSecondary
+            : AppColors.danger;
+
+    return _TicketCard(
+      body: body,
+      stub: stub,
+      dimmed: !isUsable,
+      tintColor: tintColor,
+    );
   }
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
@@ -409,16 +421,18 @@ class _TicketCard extends StatelessWidget {
   final Widget body;
   final Widget stub;
   final bool dimmed;
+  final Color tintColor;
   const _TicketCard({
     required this.body,
     required this.stub,
+    required this.tintColor,
     this.dimmed = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cardColor = couponCardColor(context);
+    final cardColor = couponCardColor(context, tint: tintColor, dimmed: dimmed);
     final pageColor = theme.scaffoldBackgroundColor;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
@@ -430,7 +444,7 @@ class _TicketCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.06),
+                color: tintColor.withValues(alpha: dimmed ? 0.03 : 0.08),
                 blurRadius: 14,
                 spreadRadius: -4,
                 offset: const Offset(0, 6),
@@ -500,19 +514,25 @@ class _SectionHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: context.textPrimary,
-                  )),
-              Text(subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.textSecondary,
-                  )),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: context.textPrimary,
+                    )),
+                Text(subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.textSecondary,
+                    )),
+              ],
+            ),
           ),
         ],
       ),

@@ -182,7 +182,7 @@ class _CelebrationBanner extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             Color(0xFF18B27A),
-            Color(0xFF2E7CF6),
+            AppColors.accentAlt,
           ],
         ),
         boxShadow: const [
@@ -284,12 +284,10 @@ class _SparkleBurstPainter extends CustomPainter {
       final dx = math.cos(spec.angle) * spec.distance * eased;
       final dy = math.sin(spec.angle) * spec.distance * eased;
       final paint = Paint()
-        ..color = (spec.hueShift < 0.5
-                ? Colors.white
-                : const Color(0xFFFFE082))
+        ..color = (spec.hueShift < 0.5 ? Colors.white : const Color(0xFFFFE082))
             .withValues(alpha: fade);
-      canvas.drawCircle(center + Offset(dx, dy), spec.size * (1 - eased * 0.5),
-          paint);
+      canvas.drawCircle(
+          center + Offset(dx, dy), spec.size * (1 - eased * 0.5), paint);
     }
   }
 
@@ -360,8 +358,8 @@ class _CouponCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.success.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(999),

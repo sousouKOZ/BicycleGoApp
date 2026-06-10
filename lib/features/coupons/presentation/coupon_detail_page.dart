@@ -236,11 +236,11 @@ class _BenefitHero extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2E7CF6), Color(0xFF7C5CFF)],
+          colors: [AppColors.accent, AppColors.accentAlt],
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x332E7CF6),
+            color: Color(0x3300A88F),
             blurRadius: 24,
             spreadRadius: -8,
             offset: Offset(0, 12),

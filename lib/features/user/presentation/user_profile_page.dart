@@ -37,11 +37,11 @@ class UserProfilePage extends ConsumerWidget {
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF2E7CF6), Color(0xFF7C5CFF)],
+                  colors: [AppColors.accent, AppColors.accentAlt],
                 ),
                 boxShadow: const [
                   BoxShadow(
-                    color: Color(0x332E7CF6),
+                    color: Color(0x3300A88F),
                     blurRadius: 24,
                     spreadRadius: -8,
                     offset: Offset(0, 12),
@@ -101,8 +101,7 @@ class UserProfilePage extends ConsumerWidget {
               child: ListTile(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading:
-                    Icon(Icons.badge_outlined, color: AppColors.accent),
+                leading: Icon(Icons.badge_outlined, color: AppColors.accent),
                 title: const Text('ニックネーム'),
                 subtitle: Text(
                   profile.nickname.isEmpty ? '未設定' : profile.nickname,
@@ -183,8 +182,7 @@ class UserProfilePage extends ConsumerWidget {
             border: OutlineInputBorder(),
           ),
           onChanged: (v) => text = v,
-          onFieldSubmitted: (v) =>
-              Navigator.of(dialogContext).pop(v),
+          onFieldSubmitted: (v) => Navigator.of(dialogContext).pop(v),
         ),
         actions: [
           TextButton(

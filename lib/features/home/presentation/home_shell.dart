@@ -199,7 +199,10 @@ class _HomeShellState extends ConsumerState<HomeShell>
     ];
 
     return Scaffold(
-      body: pages[index],
+      body: IndexedStack(
+        index: index,
+        children: pages,
+      ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -208,10 +211,21 @@ class _HomeShellState extends ConsumerState<HomeShell>
             selectedIndex: index,
             onDestinationSelected: (i) => setState(() => index = i),
             destinations: const [
-              NavigationDestination(icon: Icon(Icons.map), label: '地図'),
               NavigationDestination(
-                  icon: Icon(Icons.confirmation_number), label: 'クーポン'),
-              NavigationDestination(icon: Icon(Icons.person), label: 'マイページ'),
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map),
+                label: '地図',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.confirmation_number_outlined),
+                selectedIcon: Icon(Icons.confirmation_number),
+                label: 'クーポン',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person),
+                label: 'マイページ',
+              ),
             ],
           ),
         ],

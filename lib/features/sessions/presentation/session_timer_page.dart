@@ -37,7 +37,9 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
     if (!mounted) return;
     // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
     // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
-    final basis = ParkingSession.isDemoMode ? session.detectedAt : session.authenticatedAt!;
+    final basis = ParkingSession.isDemoMode
+        ? session.detectedAt
+        : session.authenticatedAt!;
     final elapsed = DateTime.now().difference(basis);
     setState(() => _elapsed = elapsed);
 
@@ -106,8 +108,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 4, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Row(
                   children: [
                     Container(
@@ -274,13 +275,13 @@ class _CountdownCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF2E7CF6),
-            Color(0xFF7C5CFF),
+            AppColors.accent,
+            AppColors.accentAlt,
           ],
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x402E7CF6),
+            color: Color(0x4000A88F),
             blurRadius: 40,
             spreadRadius: -10,
             offset: Offset(0, 18),
@@ -400,8 +401,8 @@ class _StoreCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: context.subtleBorder,
                   borderRadius: BorderRadius.circular(999),
@@ -416,8 +417,7 @@ class _StoreCard extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Icon(Icons.star_rounded,
-                  size: 16, color: AppColors.warning),
+              Icon(Icons.star_rounded, size: 16, color: AppColors.warning),
               const SizedBox(width: 2),
               Text(
                 '${(store.recommendWeight * 100).round()}',
@@ -438,8 +438,7 @@ class _StoreCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
@@ -479,4 +478,3 @@ class _StoreCard extends StatelessWidget {
     );
   }
 }
-

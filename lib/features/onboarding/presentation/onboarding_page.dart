@@ -151,50 +151,61 @@ class _StepView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 96,
-            height: 96,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  step.accent.withValues(alpha: 0.18),
-                  step.accent.withValues(alpha: 0.05),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: step.accent.withValues(alpha: 0.25),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 440;
+        final iconBox = compact ? 78.0 : 96.0;
+        final iconSize = compact ? 38.0 : 48.0;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: iconBox,
+                  height: iconBox,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        step.accent.withValues(alpha: 0.18),
+                        step.accent.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(compact ? 22 : 28),
+                    border: Border.all(
+                      color: step.accent.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Icon(step.icon, size: iconSize, color: step.accent),
+                ),
+                SizedBox(height: compact ? 24 : 32),
+                Text(
+                  step.title,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: context.textPrimary,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  step.body,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: context.textSecondary,
+                    height: 1.6,
+                  ),
+                ),
+              ],
             ),
-            child: Icon(step.icon, size: 48, color: step.accent),
           ),
-          const SizedBox(height: 32),
-          Text(
-            step.title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: context.textPrimary,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            step.body,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              color: context.textSecondary,
-              height: 1.6,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

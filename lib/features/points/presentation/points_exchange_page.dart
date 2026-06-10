@@ -13,8 +13,7 @@ class PointsExchangePage extends ConsumerStatefulWidget {
   const PointsExchangePage({super.key});
 
   @override
-  ConsumerState<PointsExchangePage> createState() =>
-      _PointsExchangePageState();
+  ConsumerState<PointsExchangePage> createState() => _PointsExchangePageState();
 }
 
 class _PointsExchangePageState extends ConsumerState<PointsExchangePage> {
@@ -113,11 +112,11 @@ class _BalanceCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF2E7CF6), Color(0xFF7C5CFF)],
+          colors: [AppColors.accent, AppColors.accentAlt],
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x332E7CF6),
+            color: Color(0x3300A88F),
             blurRadius: 24,
             spreadRadius: -8,
             offset: Offset(0, 12),
@@ -259,9 +258,7 @@ class _CategoryStrip extends StatelessWidget {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: isActive
-                    ? AppColors.accent
-                    : context.subtleBorder,
+                color: isActive ? AppColors.accent : context.subtleBorder,
                 width: 1,
               ),
             ),
@@ -342,8 +339,8 @@ class _ItemTile extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: item.accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),

@@ -131,228 +131,241 @@ class ParkingDetailSheet extends ConsumerWidget {
       userLocation: currentLocation,
     );
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '駐輪場',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      parking.name,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _FavoriteButton(parkingId: parking.id),
-              const SizedBox(width: 8),
-              _UsageBadge(
-                percent: parking.usageRatePercent,
-                color: usageColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: context.subtleBorder,
-              ),
-            ),
-            child: Column(
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    _Stat(
-                      label: '空き',
-                      value: '${parking.available}',
-                      emphasis: true,
-                      color: usageColor,
-                    ),
-                    const SizedBox(width: 18),
-                    Container(
-                      width: 1,
-                      height: 36,
-                      color: context.subtleBorder,
-                    ),
-                    const SizedBox(width: 18),
-                    _Stat(
-                      label: '収容',
-                      value: '${parking.capacity}',
-                      color: context.textPrimary,
-                    ),
-                    const SizedBox(width: 18),
-                    Container(
-                      width: 1,
-                      height: 36,
-                      color: context.subtleBorder,
-                    ),
-                    const SizedBox(width: 18),
-                    _Stat(
-                      label: '料金/日',
-                      value: '¥${parking.priceYenPerDay}',
-                      color: context.textPrimary,
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '駐輪場',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        parking.name,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: usage,
-                    minHeight: 8,
-                    color: usageColor,
-                    backgroundColor: usageColor.withValues(alpha: 0.15),
+                _FavoriteButton(parkingId: parking.id),
+                const SizedBox(width: 8),
+                _UsageBadge(
+                  percent: parking.usageRatePercent,
+                  color: usageColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: context.subtleBorder,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Stat(
+                          label: '空き',
+                          value: '${parking.available}',
+                          emphasis: true,
+                          color: usageColor,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 1,
+                        height: 36,
+                        color: context.subtleBorder,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _Stat(
+                          label: '収容',
+                          value: '${parking.capacity}',
+                          color: context.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 1,
+                        height: 36,
+                        color: context.subtleBorder,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _Stat(
+                          label: '料金/日',
+                          value: '¥${parking.priceYenPerDay}',
+                          color: context.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: usage,
+                      minHeight: 8,
+                      color: usageColor,
+                      backgroundColor: usageColor.withValues(alpha: 0.15),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MetaChip(
+                  icon: Icons.update_rounded,
+                  label: '更新 $hh:$mm',
+                ),
+                if (distanceMeters == null)
+                  _MetaChip(
+                    icon: Icons.location_searching,
+                    label: '距離 取得中',
+                  )
+                else ...[
+                  _MetaChip(
+                    icon: Icons.place_outlined,
+                    label: _formatDistance(distanceMeters),
+                  ),
+                  _MetaChip(
+                    icon: Icons.directions_bike_rounded,
+                    label: '自転車 約$cyclingMinutes分',
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 18),
+            _TimeAvailabilitySection(parking: parking),
+            if (recommendation.nearbyStores.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              _NearbyCouponsSection(
+                recommendation: recommendation,
+              ),
+            ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final loading = ref.watch(routeLoadingProvider);
+                      return OutlinedButton.icon(
+                        onPressed: loading
+                            ? null
+                            : () => _fetchRoute(
+                                  context,
+                                  ref,
+                                  messenger,
+                                  currentLocation,
+                                ),
+                        icon: loading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.directions_rounded, size: 18),
+                        label: Text(
+                          loading ? 'ルート取得中' : '経路を見る',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.textPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(
+                            color: context.subtleBorder,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final device = mockDevices.firstWhere(
+                        (d) => d.parkingLotId == parking.id,
+                        orElse: () => mockDevices.first,
+                      );
+                      final navigator = Navigator.of(context);
+                      final session =
+                          await showModalBottomSheet<ParkingSession?>(
+                        context: context,
+                        isScrollControlled: true,
+                        showDragHandle: true,
+                        builder: (_) => NfcLockSheet(
+                          parkingId: parking.id,
+                          parkingName: parking.name,
+                          deviceId: device.id,
+                        ),
+                      );
+                      if (session == null) {
+                        return;
+                      }
+                      // 付与はサーバ(issue_coupons)が15分後に行う。ここでは
+                      // 残高表示を最新化するだけ。
+                      ref.read(pointsProvider.notifier).refresh();
+                      final earnSec = ParkingSession.earnThreshold.inSeconds;
+                      final earnLabel =
+                          earnSec >= 60 ? '${earnSec ~/ 60}分' : '$earnSec秒';
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('認証完了！$earnLabel後にクーポンが届きます'),
+                        ),
+                      );
+                      navigator.pop();
+                      await navigator.push(
+                        MaterialPageRoute(
+                            builder: (_) => const SessionTimerPage()),
+                      );
+                    },
+                    icon: const Icon(Icons.nfc_rounded, size: 20),
+                    label: const Text('タッチで計測開始'),
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MetaChip(
-                icon: Icons.update_rounded,
-                label: '更新 $hh:$mm',
-              ),
-              if (distanceMeters == null)
-                _MetaChip(
-                  icon: Icons.location_searching,
-                  label: '距離 取得中',
-                )
-              else ...[
-                _MetaChip(
-                  icon: Icons.place_outlined,
-                  label: _formatDistance(distanceMeters),
-                ),
-                _MetaChip(
-                  icon: Icons.directions_bike_rounded,
-                  label: '自転車 約$cyclingMinutes分',
-                ),
-              ],
-            ],
-          ),
-          if (recommendation.nearbyStores.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            _NearbyCouponsSection(
-              recommendation: recommendation,
-            ),
           ],
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final loading = ref.watch(routeLoadingProvider);
-                    return OutlinedButton.icon(
-                      onPressed: loading
-                          ? null
-                          : () => _fetchRoute(
-                                context,
-                                ref,
-                                messenger,
-                                currentLocation,
-                              ),
-                      icon: loading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.directions_rounded, size: 18),
-                      label: Text(
-                        loading ? 'ルート取得中' : '経路を見る',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.textPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        side: BorderSide(
-                          color: context.subtleBorder,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final device = mockDevices.firstWhere(
-                      (d) => d.parkingLotId == parking.id,
-                      orElse: () => mockDevices.first,
-                    );
-                    final navigator = Navigator.of(context);
-                    final session = await showModalBottomSheet<ParkingSession?>(
-                      context: context,
-                      isScrollControlled: true,
-                      showDragHandle: true,
-                      builder: (_) => NfcLockSheet(
-                        parkingId: parking.id,
-                        parkingName: parking.name,
-                        deviceId: device.id,
-                      ),
-                    );
-                    if (session == null) {
-                      return;
-                    }
-                    // 付与はサーバ(issue_coupons)が15分後に行う。ここでは
-                    // 残高表示を最新化するだけ。
-                    ref.read(pointsProvider.notifier).refresh();
-                    final earnSec = ParkingSession.earnThreshold.inSeconds;
-                    final earnLabel =
-                        earnSec >= 60 ? '${earnSec ~/ 60}分' : '$earnSec秒';
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('認証完了！$earnLabel後にクーポンが届きます'),
-                      ),
-                    );
-                    navigator.pop();
-                    await navigator.push(
-                      MaterialPageRoute(
-                          builder: (_) => const SessionTimerPage()),
-                    );
-                  },
-                  icon: const Icon(Icons.nfc_rounded, size: 20),
-                  label: const Text('タッチで計測開始'),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -426,6 +439,8 @@ class _Stat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: emphasis ? FontWeight.w900 : FontWeight.w800,
             color: color,
@@ -468,6 +483,266 @@ class _MetaChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TimeAvailabilitySection extends StatefulWidget {
+  final ParkingLot parking;
+  const _TimeAvailabilitySection({required this.parking});
+
+  @override
+  State<_TimeAvailabilitySection> createState() =>
+      _TimeAvailabilitySectionState();
+}
+
+class _TimeAvailabilitySectionState extends State<_TimeAvailabilitySection> {
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = _initialSlotIndex(DateTime.now().hour);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final slots = _buildSlots(widget.parking);
+    final boundedIndex = _selectedIndex < 0
+        ? 0
+        : _selectedIndex >= slots.length
+            ? slots.length - 1
+            : _selectedIndex;
+    final selected = slots[boundedIndex];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: context.subtleBorder),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(Icons.insights_rounded,
+                    size: 16, color: AppColors.accent),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  '時間帯別の空きやすさ',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: context.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 92,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < slots.length; i++) ...[
+                  Expanded(
+                    child: _AvailabilityBar(
+                      slot: slots[i],
+                      selected: i == _selectedIndex,
+                      onTap: () => setState(() => _selectedIndex = i),
+                    ),
+                  ),
+                  if (i != slots.length - 1) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: selected.color.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: selected.color.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(selected.icon, size: 18, color: selected.color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${selected.label}は空き${selected.availableEstimate}台見込み。${selected.note}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _initialSlotIndex(int hour) {
+    if (hour < 11) return 0;
+    if (hour < 15) return 1;
+    if (hour < 19) return 2;
+    return 3;
+  }
+
+  List<_AvailabilitySlot> _buildSlots(ParkingLot parking) {
+    final base = parking.capacity == 0
+        ? 0.0
+        : (parking.available / parking.capacity).clamp(0.0, 1.0).toDouble();
+    final morning = (base + 0.16).clamp(0.08, 0.92).toDouble();
+    final lunch = (base + 0.04).clamp(0.08, 0.9).toDouble();
+    final evening = (base - 0.16).clamp(0.05, 0.82).toDouble();
+    final night = (base + 0.08).clamp(0.08, 0.9).toDouble();
+
+    return [
+      _AvailabilitySlot(
+        label: '朝',
+        icon: Icons.wb_sunny_outlined,
+        rate: morning,
+        capacity: parking.capacity,
+        color: AppColors.success,
+        note: '通勤前の短時間利用に向いています。',
+      ),
+      _AvailabilitySlot(
+        label: '昼',
+        icon: Icons.restaurant_rounded,
+        rate: lunch,
+        capacity: parking.capacity,
+        color: AppColors.accent,
+        note: 'ランチ特典を取りに行く前に確認しやすい時間です。',
+      ),
+      _AvailabilitySlot(
+        label: '夕方',
+        icon: Icons.directions_bike_rounded,
+        rate: evening,
+        capacity: parking.capacity,
+        color: evening < 0.25 ? AppColors.danger : AppColors.warning,
+        note: '梅田周辺は混みやすいので早めの候補確認がおすすめです。',
+      ),
+      _AvailabilitySlot(
+        label: '夜',
+        icon: Icons.nights_stay_rounded,
+        rate: night,
+        capacity: parking.capacity,
+        color: AppColors.accentAlt,
+        note: '食事や買い物後の出庫前にも余裕を確認できます。',
+      ),
+    ];
+  }
+}
+
+class _AvailabilitySlot {
+  final String label;
+  final IconData icon;
+  final double rate;
+  final int capacity;
+  final Color color;
+  final String note;
+
+  const _AvailabilitySlot({
+    required this.label,
+    required this.icon,
+    required this.rate,
+    required this.capacity,
+    required this.color,
+    required this.note,
+  });
+
+  int get availableEstimate => (capacity * rate).round().clamp(0, capacity);
+}
+
+class _AvailabilityBar extends StatelessWidget {
+  final _AvailabilitySlot slot;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _AvailabilityBar({
+    required this.slot,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final barHeight = 36 + 34 * slot.rate;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.fromLTRB(6, 7, 6, 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? slot.color.withValues(alpha: 0.12)
+                : context.subtleBorder.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? slot.color.withValues(alpha: 0.28)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 18,
+                    height: barHeight,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? slot.color
+                          : slot.color.withValues(alpha: 0.34),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                slot.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: selected ? slot.color : context.textSecondary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -518,17 +793,22 @@ class _NearbyCouponsSection extends StatelessWidget {
                     size: 14, color: AppColors.accent),
               ),
               const SizedBox(width: 8),
-              Text(
-                '近くで使えるクーポン',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: context.textPrimary,
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                child: Text(
+                  '近くで使えるクーポン',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: context.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              const Spacer(),
               if (bonus > 0)
                 Text(
                   '遠距離ボーナス +$bonus%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: AppColors.accent,
                     fontWeight: FontWeight.w800,
@@ -580,16 +860,19 @@ class _NearbyStoreChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.local_offer_rounded,
                       size: 14, color: AppColors.accent),
                   const SizedBox(width: 6),
-                  Text(
-                    store.name,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: context.textPrimary,
-                      fontWeight: FontWeight.w800,
+                  Expanded(
+                    child: Text(
+                      store.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: context.textPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ],
@@ -638,11 +921,12 @@ class _FavoriteButton extends ConsumerWidget {
       child: InkWell(
         onTap: () =>
             ref.read(favoriteParkingsProvider.notifier).toggle(parkingId),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
+        child: SizedBox(
+          width: 48,
+          height: 48,
           child: Icon(
             isFav ? Icons.star_rounded : Icons.star_border_rounded,
-            size: 26,
+            size: 27,
             color: isFav ? AppColors.warning : context.textSecondary,
           ),
         ),

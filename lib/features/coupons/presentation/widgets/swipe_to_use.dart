@@ -56,8 +56,8 @@ class _SwipeToUseState extends State<SwipeToUse>
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.accent
-                    .withValues(alpha: _completed ? 0.3 : 0.12),
+                color:
+                    AppColors.accent.withValues(alpha: _completed ? 0.3 : 0.12),
                 blurRadius: 20,
                 spreadRadius: -6,
                 offset: const Offset(0, 8),
@@ -76,8 +76,7 @@ class _SwipeToUseState extends State<SwipeToUse>
                     if (!_completed) ...[
                       Icon(Icons.chevron_right_rounded,
                           size: 18,
-                          color:
-                              AppColors.accent.withValues(alpha: 0.45)),
+                          color: AppColors.accent.withValues(alpha: 0.45)),
                       const SizedBox(width: 2),
                     ],
                     Text(
@@ -97,8 +96,7 @@ class _SwipeToUseState extends State<SwipeToUse>
                   onHorizontalDragUpdate: isEnabled
                       ? (d) {
                           setState(() {
-                            _offset =
-                                (_offset + d.delta.dx).clamp(0.0, maxDx);
+                            _offset = (_offset + d.delta.dx).clamp(0.0, maxDx);
                           });
                         }
                       : null,
@@ -139,8 +137,8 @@ class _SwipeToUseState extends State<SwipeToUse>
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Color(0xFF2E7CF6),
-                                Color(0xFF7C5CFF),
+                                AppColors.accent,
+                                AppColors.accentAlt,
                               ],
                             ),
                       color: _completed ? Colors.white : null,

@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
-/// クーポン券の地色。ライトテーマは温かいクリーム色、ダークテーマは
-/// ダークサーフェス。ページ背景（クール系グレー）と差がつき紙らしさが出る。
-Color couponCardColor(BuildContext context) {
+/// クーポン券の地色。ライトテーマでは状態色を薄く混ぜ、チケットらしさと
+/// 一覧での判別しやすさを両立する。
+Color couponCardColor(
+  BuildContext context, {
+  Color tint = AppColors.coupon,
+  bool dimmed = false,
+}) {
   final theme = Theme.of(context);
-  return theme.brightness == Brightness.dark
+  final alpha = dimmed ? 0.04 : 0.08;
+  final base = theme.brightness == Brightness.dark
       ? theme.colorScheme.surface
-      : const Color(0xFFFFF7EA);
+      : Colors.white;
+  return Color.alphaBlend(tint.withValues(alpha: alpha), base);
 }
 
 /// 紙の粒状感（グレイン）を薄く重ねるペインタ。画像アセット不要・固定シード。
@@ -118,6 +124,7 @@ class MiniCouponTicket extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool dimmed;
+  final Color? tintColor;
 
   const MiniCouponTicket({
     super.key,
@@ -128,6 +135,7 @@ class MiniCouponTicket extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.dimmed = false,
+    this.tintColor,
   });
 
   @override
@@ -135,18 +143,20 @@ class MiniCouponTicket extends StatelessWidget {
     final theme = Theme.of(context);
     final pageColor = theme.scaffoldBackgroundColor;
     final benefitColor = dimmed ? context.textSecondary : context.textPrimary;
+    final cardColor =
+        couponCardColor(context, tint: tintColor ?? stubColor, dimmed: dimmed);
 
     return Opacity(
       opacity: dimmed ? 0.7 : 1.0,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: couponCardColor(context),
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
+              color: stubColor.withValues(alpha: dimmed ? 0.03 : 0.08),
+              blurRadius: 14,
               spreadRadius: -4,
               offset: const Offset(0, 5),
             ),
@@ -173,22 +183,26 @@ class MiniCouponTicket extends StatelessWidget {
                       children: [
                         SizedBox(
                           width: 54,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(stubIcon, size: 16, color: stubColor),
-                                const SizedBox(height: 4),
-                                Text(
-                                  stubLabel,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: stubColor,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.2,
+                          child: ColoredBox(
+                            color: stubColor.withValues(
+                                alpha: dimmed ? 0.06 : 0.1),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(stubIcon, size: 16, color: stubColor),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    stubLabel,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: stubColor,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.2,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

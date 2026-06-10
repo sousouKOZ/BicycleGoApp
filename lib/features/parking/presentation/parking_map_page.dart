@@ -23,6 +23,9 @@ import '../providers/sort_mode_providers.dart';
 import 'parking_detail_sheet.dart';
 import 'widgets/location_permission_banner.dart';
 
+const _bikeMetersPerMinute = 250.0;
+const _fifteenMinuteBikeRadiusMeters = _bikeMetersPerMinute * 15;
+
 class ParkingMapPage extends ConsumerStatefulWidget {
   const ParkingMapPage({super.key});
 
@@ -35,18 +38,39 @@ class ParkingMapPage extends ConsumerStatefulWidget {
   ConsumerState<ParkingMapPage> createState() => _ParkingMapPageState();
 }
 
-class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
+class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
+    with SingleTickerProviderStateMixin {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocus;
+  late final AnimationController _couponStripAnim;
   GoogleMapController? _mapController;
   LatLng? _currentLocation;
   BitmapDescriptor? _currentLocationIcon;
   BitmapDescriptor? _couponIcon;
-  bool _showCouponStrip = true;
+  bool _showCouponStrip = false;
+  bool _showInsightDetails = false;
+
+  void _openCouponStrip() {
+    if (_showCouponStrip) return;
+    setState(() => _showCouponStrip = true);
+    _couponStripAnim.forward();
+  }
+
+  void _closeCouponStrip() {
+    if (!_showCouponStrip) return;
+    _couponStripAnim.reverse().whenComplete(() {
+      if (mounted) setState(() => _showCouponStrip = false);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _couponStripAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
     _searchController = TextEditingController(
       text: ref.read(parkingSearchQueryProvider),
     );
@@ -105,7 +129,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   Future<void> _loadCustomMarkerIcons() async {
     final bikeIcon = await _createCircleIconMarker(
       icon: Icons.directions_bike,
-      backgroundColor: Colors.blue,
+      backgroundColor: AppColors.navigation,
     );
     final couponIcon = await _createCouponMarker();
     if (!mounted) {
@@ -122,8 +146,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     required Color backgroundColor,
     Color iconColor = Colors.white,
   }) async {
-    const iconSize = 52.0;
-    const padding = 14.0;
+    const iconSize = 23.0;
+    const padding = 10.0;
     final imageSize = (iconSize + padding * 2).ceil();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -158,9 +182,9 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   }
 
   Future<BitmapDescriptor> _createCouponMarker() async {
-    const iconSize = 56.0;
-    const padding = 16.0;
-    final imageSize = (iconSize + padding * 2).ceil();
+    const tagSize = 24.0;
+    const padding = 7.0;
+    final imageSize = (tagSize + padding * 2).ceil();
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final width = imageSize.toDouble();
@@ -169,13 +193,13 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     final tagPath = Path();
     final bodyRect = Rect.fromLTWH(
         padding, padding * 0.6, width - padding * 1.8, height - padding * 1.2);
-    const radius = Radius.circular(14);
+    const radius = Radius.circular(6);
     tagPath.addRRect(RRect.fromRectAndCorners(
       bodyRect,
       topLeft: radius,
-      topRight: const Radius.circular(6),
+      topRight: const Radius.circular(4),
       bottomLeft: radius,
-      bottomRight: const Radius.circular(6),
+      bottomRight: const Radius.circular(4),
     ));
 
     final tipStartY = bodyRect.top + bodyRect.height * 0.25;
@@ -189,7 +213,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
 
     final shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
     canvas.drawPath(tagPath.shift(const Offset(0, 2)), shadowPaint);
     canvas.drawPath(tipPath.shift(const Offset(0, 2)), shadowPaint);
 
@@ -199,8 +223,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
 
     final holePaint = Paint()..color = Colors.white;
     canvas.drawCircle(
-      Offset(bodyRect.left + 10, bodyRect.center.dy),
-      4,
+      Offset(bodyRect.left + 5, bodyRect.center.dy),
+      2,
       holePaint,
     );
 
@@ -209,7 +233,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
       text: TextSpan(
         text: String.fromCharCode(Icons.local_offer.codePoint),
         style: TextStyle(
-          fontSize: 28,
+          fontSize: 16,
           fontFamily: Icons.local_offer.fontFamily,
           package: Icons.local_offer.fontPackage,
           color: Colors.white,
@@ -219,7 +243,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
     textPainter.paint(
       canvas,
       Offset(
-        bodyRect.center.dx - textPainter.width / 2 + 4,
+        bodyRect.center.dx - textPainter.width / 2 + 1.5,
         bodyRect.center.dy - textPainter.height / 2,
       ),
     );
@@ -265,6 +289,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
+    _couponStripAnim.dispose();
     super.dispose();
   }
 
@@ -304,6 +329,15 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
           if (filter.favoriteOnly) {
             filtered = filtered.where((p) => favorites.contains(p.id));
           }
+          if (filter.within15MinutesOnly) {
+            final origin =
+                _currentLocation ?? ParkingMapPage._initialCamera.target;
+            filtered = filtered.where(
+              (p) =>
+                  Geo.haversineMeters(origin, p.position) <=
+                  _fifteenMinuteBikeRadiusMeters,
+            );
+          }
           if (filter.couponOnly) {
             filtered = filtered.where((p) {
               for (final s in stores) {
@@ -315,6 +349,17 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
             });
           }
           final visibleLots = filtered.toList();
+          final searchActive =
+              _searchFocus.hasFocus || normalizedQuery.isNotEmpty;
+          final couponStripVisible =
+              stores.isNotEmpty && !searchActive && _showCouponStrip;
+          final couponToggleVisible =
+              stores.isNotEmpty && !searchActive && !_showCouponStrip;
+          final recenterButtonBottom = couponStripVisible
+              ? 154.0
+              : couponToggleVisible
+                  ? 68.0
+                  : 16.0;
 
           final markers = <Marker>{};
           for (final p in visibleLots) {
@@ -389,8 +434,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                     circleId: const CircleId('current_location_accuracy'),
                     center: _currentLocation!,
                     radius: 25,
-                    fillColor: Colors.blue.withValues(alpha: 0.18),
-                    strokeColor: Colors.blue.withValues(alpha: 0.7),
+                    fillColor: AppColors.navigation.withValues(alpha: 0.18),
+                    strokeColor: AppColors.navigation.withValues(alpha: 0.7),
                     strokeWidth: 2,
                     zIndex: 1,
                   ),
@@ -418,7 +463,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                 polylines: polylines,
                 myLocationEnabled: true,
                 zoomControlsEnabled: false,
-                myLocationButtonEnabled: true,
+                myLocationButtonEnabled: false,
                 onMapCreated: (controller) {
                   _mapController = controller;
                   final initialRoute = ref.read(activeRouteProvider);
@@ -498,6 +543,20 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                         padding: EdgeInsets.only(top: 10),
                         child: _MapFilterBar(),
                       ),
+                      if (!searchActive)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: _MapInsightCard(
+                            visibleLots: visibleLots,
+                            stores: stores,
+                            referenceLocation: _currentLocation ??
+                                ParkingMapPage._initialCamera.target,
+                            expanded: _showInsightDetails,
+                            onToggle: () => setState(
+                              () => _showInsightDetails = !_showInsightDetails,
+                            ),
+                          ),
+                        ),
                       if (_searchFocus.hasFocus || normalizedQuery.isNotEmpty)
                         // Flexible で残り高さに合わせてドロップダウンを自動収縮。
                         // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
@@ -528,45 +587,53 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   ),
                 ),
               ),
-              if (stores.isNotEmpty &&
-                  !(_searchFocus.hasFocus || normalizedQuery.isNotEmpty))
+              if (!searchActive)
+                Positioned(
+                  right: 16,
+                  bottom: recenterButtonBottom,
+                  child: _MapFloatingButton(
+                    icon: Icons.my_location_rounded,
+                    tooltip: '現在地へ移動',
+                    onTap: () => _fetchCurrentLocation(),
+                  ),
+                ),
+              if (stores.isNotEmpty && !searchActive)
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 16,
                   child: _showCouponStrip
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: _CouponStripToggle(
-                                  icon: Icons.close,
-                                  label: '配信中クーポンを隠す',
-                                  onTap: () => setState(
-                                    () => _showCouponStrip = false,
+                      ? _CouponStripReveal(
+                          animation: _couponStripAnim,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: _CouponStripToggle(
+                                    icon: Icons.close,
+                                    label: '配信中クーポンを隠す',
+                                    onTap: _closeCouponStrip,
                                   ),
                                 ),
                               ),
-                            ),
-                            SizedBox(
-                              height: 112,
-                              child: _CouponPreviewStrip(stores: stores),
-                            ),
-                          ],
+                              SizedBox(
+                                height: 112,
+                                child: _CouponPreviewStrip(stores: stores),
+                              ),
+                            ],
+                          ),
                         )
                       : Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Align(
                             alignment: Alignment.centerRight,
-                            child: _CouponStripToggle(
-                              icon: Icons.local_offer,
-                              label: '配信中クーポンを表示',
-                              onTap: () => setState(
-                                () => _showCouponStrip = true,
-                              ),
+                            child: _CouponHandle(
+                              count: stores.length,
+                              onTap: _openCouponStrip,
                             ),
                           ),
                         ),
@@ -574,6 +641,73 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _MapFloatingButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _MapFloatingButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: GlassDecoration.pill(context),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            splashColor: AppColors.accent.withValues(alpha: 0.1),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Icon(icon, color: AppColors.accent, size: 22),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 右下のチップを起点に、吹き出しのようにクーポン一覧を展開／収納する。
+class _CouponStripReveal extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+  const _CouponStripReveal({
+    required this.animation,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutBack,
+      reverseCurve: Curves.easeInCubic,
+    );
+    final fade = CurvedAnimation(
+      parent: animation,
+      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+      reverseCurve: Curves.easeIn,
+    );
+    return FadeTransition(
+      opacity: fade,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.55, end: 1.0).animate(scale),
+        alignment: Alignment.bottomRight,
+        child: child,
       ),
     );
   }
@@ -716,6 +850,256 @@ class _CouponPreviewStrip extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _CouponHandle extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _CouponHandle({
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: GlassDecoration.pill(context),
+      child: Material(
+        color: Colors.transparent,
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          splashColor: AppColors.accent.withValues(alpha: 0.08),
+          highlightColor: AppColors.accent.withValues(alpha: 0.04),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.local_offer_rounded,
+                    size: 16, color: AppColors.accent),
+                const SizedBox(width: 6),
+                Text(
+                  '配信中クーポン $count件',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: AppColors.accent,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapInsightCard extends StatelessWidget {
+  final List<ParkingLot> visibleLots;
+  final List<Store> stores;
+  final LatLng referenceLocation;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  const _MapInsightCard({
+    required this.visibleLots,
+    required this.stores,
+    required this.referenceLocation,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final openLots = visibleLots.where((p) => p.available > 0).length;
+    final availableSpots =
+        visibleLots.fold<int>(0, (sum, p) => sum + p.available);
+    final within15 = visibleLots
+        .where(
+          (p) =>
+              Geo.haversineMeters(referenceLocation, p.position) <=
+              _fifteenMinuteBikeRadiusMeters,
+        )
+        .length;
+
+    return DecoratedBox(
+      decoration: GlassDecoration.light(context, radius: 16),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onToggle,
+          splashColor: AppColors.accent.withValues(alpha: 0.08),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                        child: Icon(Icons.location_city_rounded,
+                            size: 16, color: AppColors.success),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '大阪市北区・梅田周辺',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: context.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          '空き$availableSpots台・15分圏$within15件・特典${stores.length}件',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        expanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: context.textSecondary,
+                      ),
+                    ],
+                  ),
+                  if (expanded) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      openLots == 0
+                          ? '条件を変えると候補が見つかりやすくなります'
+                          : '今すぐ停められる候補を優先表示中',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _InsightMetric(
+                            label: '空き',
+                            value: '$availableSpots台',
+                            icon: Icons.event_available_rounded,
+                            color: AppColors.success,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _InsightMetric(
+                            label: '15分圏',
+                            value: '$within15件',
+                            icon: Icons.schedule_rounded,
+                            color: AppColors.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _InsightMetric(
+                            label: '特典',
+                            value: '${stores.length}件',
+                            icon: Icons.local_offer_rounded,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InsightMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _InsightMetric({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: context.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: context.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1044,6 +1428,14 @@ class _MapFilterBar extends ConsumerWidget {
             selected: filter.couponOnly,
             onTap: () => notifier.state =
                 filter.copyWith(couponOnly: !filter.couponOnly),
+          ),
+          const SizedBox(width: 8),
+          _FilterChipItem(
+            icon: Icons.schedule_rounded,
+            label: '15分以内',
+            selected: filter.within15MinutesOnly,
+            onTap: () => notifier.state = filter.copyWith(
+                within15MinutesOnly: !filter.within15MinutesOnly),
           ),
           const SizedBox(width: 8),
           _FilterChipItem(
