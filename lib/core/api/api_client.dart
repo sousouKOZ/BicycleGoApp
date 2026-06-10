@@ -34,6 +34,11 @@ abstract class ApiClient {
   /// セッション終了（出庫）。
   Future<ParkingSession> endSession(String sessionId);
 
+  /// クーポン獲得画面を確認済みにする。
+  /// セッションを `achieved` から `parked` へ進め、サーバ側でも確認済みと
+  /// なるようにする。これを呼ばないと起動のたびに獲得画面が再表示される。
+  Future<ParkingSession> acknowledgeEarnedCoupon(String sessionId);
+
   /// デモ用の即時クーポン発行トリガー。
   /// クライアント側でカウントダウンが0になった瞬間に呼び出し、pg_cron の
   /// 最大60秒のラグを待たずに即時発行させる。

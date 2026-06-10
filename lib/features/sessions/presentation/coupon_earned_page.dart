@@ -109,6 +109,24 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
     );
   }
 
+  /// セッションを `achieved → parked` にサーバーへ永続化し、ローカル状態も更新する。
+  /// これを呼ばないとサーバ上のセッションが `achieved` のまま残り、起動のたびに
+  /// home_shell が獲得画面を再表示してしまう（恒久対応の要）。
+  Future<void> _acknowledgeSession(WidgetRef ref) async {
+    final session = ref.read(activeSessionProvider);
+    if (session == null) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      final updated = await api.acknowledgeEarnedCoupon(session.id);
+      ref.read(activeSessionProvider.notifier).state = updated;
+    } catch (_) {
+      // サーバ反映に失敗してもローカルは parked に倒す。
+      // 未反映の場合は次回起動時に獲得画面が再表示され、そこで再試行される。
+      ref.read(activeSessionProvider.notifier).state =
+          session.copyWith(status: ParkingSessionStatus.parked);
+    }
+  }
+
   Future<void> _redeem(
       BuildContext context, WidgetRef ref, Coupon coupon) async {
     final api = ref.read(apiClientProvider);
@@ -116,11 +134,7 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
     await api.redeemCoupon(userId: userId, couponId: coupon.id);
     // クーポン消込と出庫は分離。自転車はまだスタンドにあるためセッションは
     // parked のまま継続し、取り出し時のマイコン出庫検知で completed にする。
-    final session = ref.read(activeSessionProvider);
-    if (session != null) {
-      ref.read(activeSessionProvider.notifier).state =
-          session.copyWith(status: ParkingSessionStatus.parked);
-    }
+    await _acknowledgeSession(ref);
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
     if (!context.mounted) return;
@@ -143,14 +157,11 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
 
   /// クーポンは保存し、駐輪セッションを `parked` 状態として継続する。
   /// 自転車を取り出すとマイコンの出庫検知でサーバが自動的に completed にする。
-  void _keepParkedAndExit(BuildContext context, WidgetRef ref) {
-    final session = ref.read(activeSessionProvider);
-    if (session != null) {
-      ref.read(activeSessionProvider.notifier).state =
-          session.copyWith(status: ParkingSessionStatus.parked);
-    }
+  Future<void> _keepParkedAndExit(BuildContext context, WidgetRef ref) async {
+    await _acknowledgeSession(ref);
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     ref.invalidate(userCouponsProvider);
+    if (!context.mounted) return;
     Navigator.of(context).popUntil((r) => r.isFirst);
   }
 }

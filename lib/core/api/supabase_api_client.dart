@@ -109,6 +109,14 @@ class SupabaseApiClient implements ApiClient {
   }
 
   @override
+  Future<ParkingSession> acknowledgeEarnedCoupon(String sessionId) async {
+    final json = await _invoke('acknowledge_earned_coupon', body: {
+      'sessionId': sessionId,
+    });
+    return _parseSession(json);
+  }
+
+  @override
   Future<ParkingSession?> getActiveSession(String userId) async {
     final rows = await _client
         .from('parking_sessions')
