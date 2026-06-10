@@ -35,6 +35,31 @@
 
 ---
 
+## 📊 実装状況サマリ
+
+| 領域 | 機能 | 状態 |
+| --- | --- | --- |
+| 地図 | 駐輪場/クーポン表示・検索・距離/おすすめソート・フィルタ・アプリ内ルート表示 | ✅ 実装済み |
+| 駐輪フロー | NFC認証シート・15分計測・常駐ミニバー・kill後の状態復元 | ✅ 実装済み |
+| NFC | スキャンUI・deviceId認証 | ⚠️ タグ内容は未読取（deviceId はモック由来） |
+| クーポン | 獲得演出（haptic/sparkle/share）・一覧・詳細・スワイプ消込 | ✅ 実装済み |
+| 出庫 | マイコン検知でサーバが自動 `completed` 化 | ✅ 実装済み（サーバ側） |
+| ポイント | 残高・交換カタログ・交換確認・交換履歴 | ✅ 実装済み |
+| 履歴 | 駐輪履歴一覧（サーバ真実源） | ✅ 実装済み |
+| 認証 | メール+PW・ゲスト・匿名→永続昇格・パスワード再設定 | ✅ 実装済み |
+| 認証 | Google / Apple ソーシャルログイン | ❌ 未実装 |
+| 認証 | メール確認（Confirm email） | ❌ 本番 OFF |
+| 認証 | ゲスト→昇格時のローカルデータ引き継ぎ | ❌ 未対応 |
+| 通知 | Android プッシュ（FCM） | ✅ 実装済み |
+| 通知 | iOS プッシュ（APNs） | ❌ 未対応 |
+| 通知 | 24h 長時間駐輪アラート | ❌ 未実装（定数のみ） |
+| データ | 駐輪場/店舗マスタ（地図表示） | ✅ Supabase 接続（デバイス解決は一部モック） |
+| 品質 | 自動テスト | ⚠️ ドメイン中心の4本のみ |
+
+> 凡例: ✅ 実装済み ／ ⚠️ 部分的・制約あり ／ ❌ 未実装。詳細は各セクションと [未実装機能・既知の制約](#-未実装機能既知の制約) を参照。
+
+---
+
 ## 🛠 実装済み機能
 
 ### 地図ページ
@@ -86,12 +111,12 @@
 - 「15分駐輪で自動発行」の説明テキスト
 
 ### NFC認証シート [NfcLockSheet](lib/features/nfc/presentation/nfc_lock_sheet.dart)
-- NFCタグ読み取り（NFC 非対応端末ではデモモードで自動進行）
-- ステージ遷移：`待機中 → 認証中 → 成功／エラー`
+- NFCスキャンの起動 + ステージ遷移 UI：`待機中 → 認証中 → 成功／エラー`（NFC 非対応端末ではデモモードで自動進行）
 - 各ステージでアクセントカラーとアイコンが切り替わる
-- **NFC タグの ID（deviceId）一致のみで認証** — 屋内・隣接スタンド誤判定対策で GPS 照合は廃止
+- 認証は `deviceId` を `parking_auth` Edge Function に送信し、サーバが直近の `unauthenticated` セッションと照合（屋内・隣接スタンド誤判定対策で GPS 照合は廃止）
 - 本番では IoT 検知イベントとの紐付けで強化する想定（[docs/server_implementation.md §13](docs/server_implementation.md)）
 - エラー時は「もう一度」で再スキャン可能
+- ⚠️ **現状の制約** — タグの検出（`onDiscovered`）はするが**タグのペイロード（スタンドID）は未解析**で、`deviceId` は呼び出し元の駐輪場詳細が [mockDevices](lib/features/parking/data/parking_mock_data.dart) から解決した値を使用している。実タグ → スタンドID の読取・照合は未実装（[未実装機能・既知の制約](#-未実装機能既知の制約)参照）
 
 ### 計測中画面 [SessionTimerPage](lib/features/sessions/presentation/session_timer_page.dart)
 - 認証完了から**15分カウントダウン**
@@ -221,7 +246,7 @@
 ```
 駐輪場マーカー選択
   ↓ 「NFCで計測開始」
-NFC認証シート（NFC タグ ID で認証 / 屋内対応のため GPS 照合は廃止）
+NFC認証シート（スキャン → deviceId で認証 / 屋内対応のため GPS 照合は廃止）
   ↓ 認証成功 → サーバ側 status='measuring'
 計測中画面（15分カウントダウン）
 
@@ -278,7 +303,7 @@ issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
 ## 🎨 デザインシステム
 
 - **軽量グラスモーフィズム** — `BackdropFilter`を使わず、半透明塗り + 細いボーダー + 柔らかい影で表現（GPU負荷を最小化）
-- **カラーパレット** — [app_colors.dart](lib/core/theme/app_colors.dart) に集約（青×紫のグラデ基調）
+- **カラーパレット** — [app_colors.dart](lib/core/theme/app_colors.dart) に集約。ブランドカラーは**ティール `#00A88F`** を基調に、用途別アクセント（`navigation` = ブルー `#2E7CF6` / `coupon` = オレンジ `#F4A43A`）を併用
 - **ガラス装飾** — [glass_decoration.dart](lib/core/theme/glass_decoration.dart) で再利用可能な `BoxDecoration` を提供
 - **テーマ** — [app_theme.dart](lib/core/theme/app_theme.dart) でMaterial 3 + Google Fonts（Inter / Noto Sans JP）統一
 
@@ -565,20 +590,42 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 
 ---
 
-## 🚧 未確定・今後の検討事項
+## 🚧 未実装機能・既知の制約
 
-- **Google ログイン**（Phase 3。`signInWithOAuth` / 昇格は `linkIdentity`。サーバで Google プロバイダ有効化 + Manual Linking 必要）
-- **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要）
-- **iOS への FCM 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
-- `applicationId` を正式な逆ドメインへ（現状はテンプレ既定 `com.example.bicycle_go`。Google OAuth / ストア提出前）
-- 孤児匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に空の匿名行が増える）
-- 交換商品ラインナップの最終版（現状はモックカタログ 6 種を seed 投入）
-- 実機駐輪場データの取得方法（公開 API 連携 or 手動登録 or IoT 連動）
-- 通知センター画面（[features/alerts](lib/features/alerts) は providers のみ存在）
-- 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
-- 駐輪場の混雑予測（時間帯別ヒートマップ）
-- 多言語対応（i18n の土台）
-- アプリストア提出（iOS / Android）
+> 優先度の目安は 🔴 実機運用の前提 ／ 🟠 リリース前提 ／ 🟡 改善・拡張。
+
+### コア機能 / ハードウェア連携
+- 🔴 **NFCタグ内容の読取が未実装** — [NfcLockSheet](lib/features/nfc/presentation/nfc_lock_sheet.dart) は `onDiscovered` でタグを検出するが**ペイロード（スタンドID）を解析していない**。認証に使う `deviceId` は呼び出し元の駐輪場詳細が `mockDevices` から解決した値。「どのタグをかざしても画面遷移元の deviceId で認証」される状態で、実タグ → スタンドID の読取・照合が必要
+- 🔴 **deviceId のモックデータ依存** — [parking_detail_sheet.dart](lib/features/parking/presentation/parking_detail_sheet.dart) が `mockDevices.firstWhere(...)` で駐輪場→デバイスを解決。本番は「駐輪場 ↔ 物理デバイス」マッピングを Supabase から引く必要（現状 `getParkingForDevice` の逆引きが無い）
+- 🔴 **実機駐輪場データの取得方法**（公開 API 連携 or 手動登録 or IoT 連動）。地図一覧は Supabase 接続済みだが [parking_mock_data.dart](lib/features/parking/data/parking_mock_data.dart) / [store_mock_data.dart](lib/features/stores/data/store_mock_data.dart) が残存
+- 🟡 **ルート案内が大阪駅周辺座標を前提**（[directions_service.dart](lib/features/parking/data/directions_service.dart)）。本番座標への一本化が必要
+
+### 認証・アカウント
+- 🟠 **Apple Sign In**（iOS の App Store 審査で実質必須になりやすい）
+- 🟠 **Google ログイン**（Phase 3。`signInWithOAuth` / 昇格は `linkIdentity`。サーバで Google プロバイダ有効化 + Manual Linking 必要）
+- 🟠 **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要）
+- 🟠 **ゲスト→アカウント昇格時のローカルデータ引き継ぎ** — お気に入り等は `shared_preferences` 保存のため昇格・別端末ログインで引き継がれない（[help_page.dart](lib/features/settings/presentation/help_page.dart) の「端末ローカル保存」文言も実態と要整合）
+- 🟠 `applicationId` を正式な逆ドメインへ（現状はテンプレ既定 `com.example.bicycle_go`。Google OAuth / ストア提出前）
+- 🟡 孤児匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に空の匿名行が増える）
+
+### 通知
+- 🟠 **iOS への FCM/APNs 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
+- 🟡 **24時間長時間駐輪アラート** — `ParkingSession.longTermAlert`（24h）定数はあるが**どこからも参照されておらず**、通知・警告 UI が未実装。[features/alerts](lib/features/alerts) は空ディレクトリ（providers のみ）
+- 🟡 通知センター画面
+
+### その他機能
+- 🟡 交換商品ラインナップの最終版（現状はモックカタログ 6 種を seed 投入）
+- 🟡 店舗ブラウズタブ（カテゴリ別／エリア別の逆引き）
+- 🟡 駐輪場の混雑予測（時間帯別ヒートマップ）
+- 🟡 多言語対応（i18n の土台）
+
+### 品質・保守
+- 🟠 **自動テストの拡充** — 現状 `test/` は4本（セッション/クーポン/ポイントのドメイン中心）。API/プロバイダ/結合テストが無く、状態のサーバ永続化漏れのようなリグレッションを検知できない
+- 🟡 **空ディレクトリの整理** — [lib/features/alerts/](lib/features/alerts) / [lib/features/history/](lib/features/history) はプレースホルダ（履歴の実体は [sessions/](lib/features/sessions) 配下）。実装するか削除する
+- 🟡 モックデータの本番一本化（上記コア項目と連動）
+
+### リリース
+- 🟠 アプリストア提出（iOS / Android）
 
 ---
 
