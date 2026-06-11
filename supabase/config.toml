@@ -414,3 +414,6 @@ verify_jwt = false
 verify_jwt = true
 [functions.parking_detect]
 verify_jwt = false
+
+[functions.notify_long_parking]
+verify_jwt = false

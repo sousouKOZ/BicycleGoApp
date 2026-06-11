@@ -382,6 +382,7 @@ supabase/
     ├── parking_auth/           # NFC 認証 → measuring 遷移
     ├── issue_coupons/          # 達成判定 + クーポン自律発行（cron 起動）
     ├── expire_sessions/        # 認証猶予クリーンナップ（cron 起動）
+    ├── notify_long_parking/    # 24h超の長時間駐輪を警告 push（cron 毎時起動）
     ├── redeem_coupon/          # スワイプ消込
     ├── end_session/            # 出庫 + occupied 減算
     └── issue_exchange_coupon/  # ポイント交換（PL/pgSQL RPC 経由でアトミック）

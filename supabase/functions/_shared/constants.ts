@@ -11,6 +11,12 @@ export const AUTH_GRACE_SECONDS = 5 * 60; // 5分
 export const EARN_THRESHOLD_PROD_SECONDS = parseInt(Deno.env.get("EARN_THRESHOLD_SECONDS") || "900", 10);
 export const EARN_THRESHOLD_DEMO_SECONDS = 30; // 30秒
 
+/** この秒数を超えて駐輪が続くと警告 push を1回送る（デフォルト24h、env で上書き可） */
+export const LONG_PARK_WARN_SECONDS = parseInt(
+  Deno.env.get("LONG_PARK_WARN_SECONDS") || String(24 * 60 * 60),
+  10,
+);
+
 /** ポイント交換クーポンの有効期間（日） */
 export const EXCHANGE_COUPON_VALIDITY_DAYS = 30;
 
