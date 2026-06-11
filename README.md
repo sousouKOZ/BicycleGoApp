@@ -374,6 +374,7 @@ supabase/
 │   ├── initial_schema.sql      # 9テーブル + ENUM + index + auth トリガ
 │   ├── rls_policies.sql        # 全テーブル RLS（自分のデータのみ可視）
 │   ├── pg_cron_jobs.sql        # 毎分 issue_coupons / expire_sessions
+│   ├── long_park_warning.sql   # 24h超の長時間駐輪警告（カラム + index + 毎時 cron）
 │   ├── exchange_rpc.sql        # ポイント交換アトミック関数
 │   └── cron_helper_for_cloud.sql  # Vault 経由で URL/キー解決
 └── functions/                  # Edge Functions（Deno + TypeScript）
@@ -414,14 +415,16 @@ supabase/
 ### バックエンド（Supabase）
 - **Postgres + Row Level Security** — 9テーブル、自分のデータのみ閲覧可
 - **Edge Functions（Deno + TypeScript）** — 認証・消込・出庫・交換・FCM 送信
-- **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分スケジュール実行
+- **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分、長時間駐輪の警告を毎時スケジュール実行
 - **Realtime** — `parking_sessions` の UPDATE をクライアントに WebSocket 配信
 - **Vault** — Edge Function URL / service_role key を暗号化保管
 - **Supabase Auth** — 匿名サインイン + メール/パスワード認証。匿名→永続アカウント昇格で uid 不変・データ保持。パスワード再設定はディープリンク（SMTP は Resend）
 
 ### 通知配信
-- **Firebase Cloud Messaging (HTTP v1 API)** — `issue_coupons` Edge Function から
-  サービスアカウント JWT で OAuth トークンを取得して直接送信
+- **Firebase Cloud Messaging (HTTP v1 API)** — `issue_coupons` / `notify_long_parking`
+  Edge Function から サービスアカウント JWT で OAuth トークンを取得して直接送信
+- **長時間駐輪の警告** — `notify_long_parking` cron（毎時）が 24時間以上駐輪が続く
+  セッションを検知し、ユーザーに警告 push を1回送信（しきい値は `LONG_PARK_WARN_SECONDS` で調整可）
 
 ### デバイス連携（想定）
 - NFCタグ付き駐輪スタンド（屋内対応のため GPS 照合は廃止、deviceId のみで認証）
@@ -663,6 +666,7 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 | 機能 | 担当 |
 |---|---|
 | 達成判定（15分経過の検知） | サーバ pg_cron 毎分実行 |
+| 長時間駐輪の検知（24h超） | サーバ pg_cron 毎時実行 → Edge Function `notify_long_parking` |
 | クーポン発行 | Edge Function `issue_coupons`（atomic） |
 | ポイント加算 | Edge Function（`point_transactions` に履歴記録）|
 | 達成通知 | Edge Function → FCM（kill 中） / Realtime → アプリ（前面） |
