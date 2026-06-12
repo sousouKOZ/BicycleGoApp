@@ -48,6 +48,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
   BitmapDescriptor? _currentLocationIcon;
   BitmapDescriptor? _couponIcon;
   bool _showCouponStrip = false;
+  bool _showMapControls = true;
   bool _showInsightDetails = false;
 
   void _openCouponStrip() {
@@ -61,6 +62,18 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
     _couponStripAnim.reverse().whenComplete(() {
       if (mounted) setState(() => _showCouponStrip = false);
     });
+  }
+
+  void _collapseMapControls() {
+    _searchFocus.unfocus();
+    setState(() {
+      _showMapControls = false;
+      _showInsightDetails = false;
+    });
+  }
+
+  void _expandMapControls() {
+    setState(() => _showMapControls = true);
   }
 
   @override
@@ -351,6 +364,7 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
           final visibleLots = filtered.toList();
           final searchActive =
               _searchFocus.hasFocus || normalizedQuery.isNotEmpty;
+          final showMapControls = _showMapControls || searchActive;
           final couponStripVisible =
               stores.isNotEmpty && !searchActive && _showCouponStrip;
           final couponToggleVisible =
@@ -476,115 +490,143 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(left: 4, bottom: 10),
-                        child: Row(
+                  child: showMapControls
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: GlassDecoration.pill(context),
-                              child: Icon(Icons.directions_bike,
-                                  size: 18, color: AppColors.accent),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Bicycle Go',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: context.textPrimary,
+                            Padding(
+                              padding:
+                                  const EdgeInsets.only(left: 4, bottom: 10),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: GlassDecoration.pill(context),
+                                    child: Icon(Icons.directions_bike,
+                                        size: 18, color: AppColors.accent),
                                   ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Bicycle Go',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w900,
+                                            color: context.textPrimary,
+                                          ),
+                                    ),
+                                  ),
+                                  if (!searchActive) ...[
+                                    const SizedBox(width: 10),
+                                    _MapControlsToggle(
+                                      icon: Icons.keyboard_arrow_up_rounded,
+                                      label: '上部を隠す',
+                                      tooltip: '検索と条件を隠す',
+                                      onTap: _collapseMapControls,
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
+                            DecoratedBox(
+                              decoration:
+                                  GlassDecoration.light(context, radius: 16),
+                              child: TextField(
+                                controller: _searchController,
+                                focusNode: _searchFocus,
+                                textInputAction: TextInputAction.search,
+                                decoration: InputDecoration(
+                                  hintText: '駐輪場を検索',
+                                  prefixIcon: Icon(Icons.search,
+                                      color: context.textSecondary),
+                                  suffixIcon: query.isEmpty
+                                      ? null
+                                      : IconButton(
+                                          icon: Icon(Icons.close_rounded,
+                                              color: context.textSecondary),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                          },
+                                        ),
+                                  filled: false,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 16),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: LocationPermissionBanner(
+                                onGranted: () => _fetchCurrentLocation(
+                                  requestIfDenied: false,
+                                ),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.only(top: 10),
+                              child: _MapFilterBar(),
+                            ),
+                            if (!searchActive)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: _MapInsightCard(
+                                  visibleLots: visibleLots,
+                                  stores: stores,
+                                  referenceLocation: _currentLocation ??
+                                      ParkingMapPage._initialCamera.target,
+                                  expanded: _showInsightDetails,
+                                  onToggle: () => setState(
+                                    () => _showInsightDetails =
+                                        !_showInsightDetails,
+                                  ),
+                                ),
+                              ),
+                            if (_searchFocus.hasFocus ||
+                                normalizedQuery.isNotEmpty)
+                              // Flexible で残り高さに合わせてドロップダウンを自動収縮。
+                              // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
+                              Flexible(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: _SearchResultsDropdown(
+                                    query: normalizedQuery,
+                                    allLots: lots,
+                                    filteredLots: visibleLots,
+                                    currentLocation: _currentLocation,
+                                    onTap: _focusParking,
+                                  ),
+                                ),
+                              ),
+                            if (activeRoute != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: _RouteBanner(
+                                  route: activeRoute,
+                                  onClose: () {
+                                    ref
+                                        .read(activeRouteProvider.notifier)
+                                        .state = null;
+                                  },
+                                ),
+                              ),
                           ],
-                        ),
-                      ),
-                      DecoratedBox(
-                        decoration: GlassDecoration.light(context, radius: 16),
-                        child: TextField(
-                          controller: _searchController,
-                          focusNode: _searchFocus,
-                          textInputAction: TextInputAction.search,
-                          decoration: InputDecoration(
-                            hintText: '駐輪場を検索',
-                            prefixIcon: Icon(Icons.search,
-                                color: context.textSecondary),
-                            suffixIcon: query.isEmpty
-                                ? null
-                                : IconButton(
-                                    icon: Icon(Icons.close_rounded,
-                                        color: context.textSecondary),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                    },
-                                  ),
-                            filled: false,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 16),
+                        )
+                      : Align(
+                          alignment: Alignment.topRight,
+                          child: _MapControlsToggle(
+                            icon: Icons.keyboard_arrow_down_rounded,
+                            label: '検索・条件を表示',
+                            tooltip: '検索と条件を表示',
+                            onTap: _expandMapControls,
                           ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: LocationPermissionBanner(
-                          onGranted: () => _fetchCurrentLocation(
-                            requestIfDenied: false,
-                          ),
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: _MapFilterBar(),
-                      ),
-                      if (!searchActive)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _MapInsightCard(
-                            visibleLots: visibleLots,
-                            stores: stores,
-                            referenceLocation: _currentLocation ??
-                                ParkingMapPage._initialCamera.target,
-                            expanded: _showInsightDetails,
-                            onToggle: () => setState(
-                              () => _showInsightDetails = !_showInsightDetails,
-                            ),
-                          ),
-                        ),
-                      if (_searchFocus.hasFocus || normalizedQuery.isNotEmpty)
-                        // Flexible で残り高さに合わせてドロップダウンを自動収縮。
-                        // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
-                        Flexible(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: _SearchResultsDropdown(
-                              query: normalizedQuery,
-                              allLots: lots,
-                              filteredLots: visibleLots,
-                              currentLocation: _currentLocation,
-                              onTap: _focusParking,
-                            ),
-                          ),
-                        ),
-                      if (activeRoute != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: _RouteBanner(
-                            route: activeRoute,
-                            onClose: () {
-                              ref.read(activeRouteProvider.notifier).state =
-                                  null;
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
                 ),
               ),
               if (!searchActive)
@@ -641,6 +683,58 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _MapControlsToggle extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _MapControlsToggle({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: DecoratedBox(
+        decoration: GlassDecoration.pill(context),
+        child: Material(
+          color: Colors.transparent,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            splashColor: AppColors.accent.withValues(alpha: 0.08),
+            highlightColor: AppColors.accent.withValues(alpha: 0.04),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: AppColors.accent),
+                  const SizedBox(width: 5),
+                  Text(
+                    label,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -890,6 +984,9 @@ class _CouponHandle extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
+                const SizedBox(width: 2),
+                Icon(Icons.keyboard_arrow_up_rounded,
+                    size: 16, color: AppColors.accent),
               ],
             ),
           ),
