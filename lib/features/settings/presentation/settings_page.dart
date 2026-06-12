@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_providers.dart';
+import '../../../core/widgets/section_header.dart';
 import 'help_page.dart';
 import 'legal_page.dart';
 
@@ -20,7 +21,7 @@ class SettingsPage extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            _SectionLabel(label: 'テーマ'),
+            const SectionLabel(label: 'テーマ'),
             const SizedBox(height: 10),
             _ThemeModeSelector(
               selected: mode,
@@ -28,7 +29,7 @@ class SettingsPage extends ConsumerWidget {
                   ref.read(themeModeProvider.notifier).set(m),
             ),
             const SizedBox(height: 24),
-            _SectionLabel(label: 'サポート'),
+            const SectionLabel(label: 'サポート'),
             const SizedBox(height: 10),
             _SettingsCard(
               children: [
@@ -75,7 +76,7 @@ class SettingsPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 24),
-            _SectionLabel(label: 'アプリ情報'),
+            const SectionLabel(label: 'アプリ情報'),
             const SizedBox(height: 10),
             _SettingsCard(
               children: [
@@ -127,26 +128,6 @@ class _SupportTile extends StatelessWidget {
           : Text(hint, style: theme.textTheme.bodySmall),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: onTap,
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(
-        label,
-        style: theme.textTheme.labelMedium?.copyWith(
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1,
-        ),
-      ),
     );
   }
 }

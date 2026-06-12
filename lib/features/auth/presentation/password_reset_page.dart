@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/auth_controller.dart';
+import 'widgets/auth_form_fields.dart';
 import 'widgets/auth_header.dart';
 
 /// パスワード再設定メールを申請する画面。
@@ -74,47 +75,21 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextFormField(
+                    AuthEmailField(
                       initialValue: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
                       textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        labelText: 'メールアドレス',
-                        prefixIcon: Icon(Icons.mail_outline_rounded),
-                      ),
-                      validator: (v) {
-                        final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'メールアドレスを入力してください';
-                        if (!s.contains('@')) return 'メールアドレスの形式が正しくありません';
-                        return null;
-                      },
                       onChanged: (v) => _email = v,
                       onFieldSubmitted: (_) => _submit(),
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
+                      AuthErrorText(error: _error!),
                     ],
                     const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _busy ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                      ),
-                      child: _busy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('再設定メールを送信'),
+                    AuthSubmitButton(
+                      busy: _busy,
+                      label: '再設定メールを送信',
+                      onPressed: _submit,
                     ),
                   ],
                 ),

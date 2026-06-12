@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/domain/session_record.dart';
 import '../providers/session_history_providers.dart';
 
@@ -215,10 +216,8 @@ class _HistoryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final date = record.completedAt;
-    final dateLabel =
-        '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
-    final timeLabel =
-        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final dateLabel = formatDate(date);
+    final timeLabel = formatTimeHm(date);
     final minutes = (record.duration.inSeconds / 60).round();
     return Container(
       padding: const EdgeInsets.all(14),

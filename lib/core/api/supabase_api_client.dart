@@ -288,25 +288,18 @@ class SupabaseApiClient implements ApiClient {
 
   // ---- パース --------------------------------------------------------
 
-  DateTime _parseTimestamp(String s) {
-    if (!s.endsWith('Z') && !s.contains('+') && !s.contains('-')) {
-      s = '${s}Z';
-    }
-    return DateTime.parse(s).toLocal();
-  }
-
   ParkingSession _parseSession(Map<String, dynamic> r) {
     return ParkingSession(
       id: r['id'] as String,
       deviceId: r['device_id'] as String,
       userId: r['user_id'] as String?,
-      detectedAt: _parseTimestamp(r['detected_at'] as String),
+      detectedAt: parseSupabaseTimestamp(r['detected_at'] as String),
       authenticatedAt: r['authenticated_at'] == null
           ? null
-          : _parseTimestamp(r['authenticated_at'] as String),
+          : parseSupabaseTimestamp(r['authenticated_at'] as String),
       exitedAt: r['exited_at'] == null
           ? null
-          : _parseTimestamp(r['exited_at'] as String),
+          : parseSupabaseTimestamp(r['exited_at'] as String),
       status: _parseSessionStatus(r['status'] as String),
       issuedCouponId: r['issued_coupon_id'] as String?,
     );
@@ -319,81 +312,66 @@ class SupabaseApiClient implements ApiClient {
       storeName: r['store_name'] as String,
       title: r['title'] as String,
       benefit: r['benefit'] as String,
-      issuedAt: _parseTimestamp(r['issued_at'] as String),
-      expiresAt: _parseTimestamp(r['expires_at'] as String),
+      issuedAt: parseSupabaseTimestamp(r['issued_at'] as String),
+      expiresAt: parseSupabaseTimestamp(r['expires_at'] as String),
       usedAt: r['used_at'] == null
           ? null
-          : _parseTimestamp(r['used_at'] as String),
+          : parseSupabaseTimestamp(r['used_at'] as String),
       status: _parseCouponStatus(r['status'] as String),
       distanceTier: _parseDistanceTier(r['distance_tier'] as String),
     );
   }
 
+  // DB 由来の文字列のパースは domain 側 fromDb に集約。
+  // ここでは未知の値をサーバ契約違反として ApiException に変換する。
+
   ParkingSessionStatus _parseSessionStatus(String s) {
-    switch (s) {
-      case 'unauthenticated':
-        return ParkingSessionStatus.unauthenticated;
-      case 'measuring':
-        return ParkingSessionStatus.measuring;
-      case 'achieved':
-        return ParkingSessionStatus.achieved;
-      case 'parked':
-        return ParkingSessionStatus.parked;
-      case 'completed':
-        return ParkingSessionStatus.completed;
-      case 'expired':
-        return ParkingSessionStatus.expired;
-      default:
-        throw ApiException('internal_error', 'unknown session status: $s');
+    final status = ParkingSessionStatus.fromDb(s);
+    if (status == null) {
+      throw ApiException('internal_error', 'unknown session status: $s');
     }
+    return status;
   }
 
   CouponStatus _parseCouponStatus(String s) {
-    switch (s) {
-      case 'distributing':
-        return CouponStatus.distributing;
-      case 'owned':
-        return CouponStatus.owned;
-      case 'used':
-        return CouponStatus.used;
-      case 'expired':
-        return CouponStatus.expired;
-      default:
-        throw ApiException('internal_error', 'unknown coupon status: $s');
+    final status = CouponStatus.fromDb(s);
+    if (status == null) {
+      throw ApiException('internal_error', 'unknown coupon status: $s');
     }
+    return status;
   }
 
   CouponDistanceTier _parseDistanceTier(String s) {
-    switch (s) {
-      case 'near':
-        return CouponDistanceTier.near;
-      case 'far':
-        return CouponDistanceTier.far;
-      case 'exchange':
-        return CouponDistanceTier.exchange;
-      default:
-        throw ApiException('internal_error', 'unknown distance tier: $s');
+    final tier = CouponDistanceTier.fromDb(s);
+    if (tier == null) {
+      throw ApiException('internal_error', 'unknown distance tier: $s');
     }
+    return tier;
   }
 
   StoreCategory _parseStoreCategory(String s) {
-    switch (s) {
-      case 'cafe':
-        return StoreCategory.cafe;
-      case 'restaurant':
-        return StoreCategory.restaurant;
-      case 'bakery':
-        return StoreCategory.bakery;
-      case 'retail':
-        return StoreCategory.retail;
-      case 'sweets':
-        return StoreCategory.sweets;
-      case 'bar':
-        return StoreCategory.bar;
-      default:
-        throw ApiException('internal_error', 'unknown store category: $s');
+    final category = StoreCategory.fromDb(s);
+    if (category == null) {
+      throw ApiException('internal_error', 'unknown store category: $s');
     }
+    return category;
   }
+}
+
+/// タイムゾーン指定子（`Z` / `+09:00` 等）の有無を判定する。
+/// 日付部のハイフンと区別するため、文字列末尾のみを見る。
+final _timezoneDesignator = RegExp(r'(Z|[+-]\d{2}:?\d{2})$');
+
+/// Supabase が返すタイムスタンプ文字列を端末ローカル時刻の [DateTime] にする。
+///
+/// timestamptz は `+00:00` 付きで返るのでそのままパースできるが、
+/// タイムゾーン無しの timestamp が来た場合は UTC と見なして `Z` を補う
+/// （Dart の [DateTime.parse] はタイムゾーン無しをローカル時刻と解釈するため）。
+DateTime parseSupabaseTimestamp(String s) {
+  if (!_timezoneDesignator.hasMatch(s)) {
+    s = '${s}Z';
+  }
+  return DateTime.parse(s).toLocal();
 }
 
 /// 埋め込み取得した point_transactions（PostgREST の to-many embed）から

@@ -24,10 +24,24 @@ class ParkingRecommendation {
 const _couponRadiusMeters = 2000.0;
 const _distanceBonusFullAt = 2000.0; // 2000m以上離れていればボーナス最大
 
-/// ユーザーの現在地周辺のおすすめ店舗一覧をPython APIから取得するプロバイダ
-final recommendedStoresProvider = FutureProvider.family<List<Store>, LatLng>((ref, userLocation) async {
+/// family キー用に座標を約100m格子（小数3桁）へ丸める。
+/// GPS の微小な揺れのたびに新しいキャッシュエントリと API 呼び出しが
+/// 増え続けるのを防ぐ。呼び出し側はこの関数を通してキーを作ること。
+LatLng roundLocationForRecommendation(LatLng p) => LatLng(
+      (p.latitude * 1000).roundToDouble() / 1000,
+      (p.longitude * 1000).roundToDouble() / 1000,
+    );
+
+/// ユーザーの現在地周辺のおすすめ店舗一覧をPython APIから取得するプロバイダ。
+/// 画面から参照されなくなったキャッシュは autoDispose で破棄する。
+final recommendedStoresProvider =
+    FutureProvider.autoDispose.family<List<Store>, LatLng>(
+        (ref, userLocation) async {
   final apiClient = ref.watch(apiClientProvider);
-  return await apiClient.getRecommendations(userLocation.latitude, userLocation.longitude);
+  return apiClient.getRecommendations(
+    userLocation.latitude,
+    userLocation.longitude,
+  );
 });
 
 /// 指定した駐輪場に対するレコメンドスコアを計算する関数（APIからのデータを使用）

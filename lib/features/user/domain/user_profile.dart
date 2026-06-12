@@ -1,7 +1,8 @@
-/// 端末ローカルに保存されるユーザープロファイル。
+/// ユーザープロファイル。
 ///
-/// 現状はバックエンド未接続のため、ニックネームと端末IDのみ。
-/// Supabase 等の認証導入時はここに `accountId / email / linkedAt` を加える想定。
+/// サーバ `users` テーブルを真実の源とし、オフライン表示用に
+/// 端末ローカル（SharedPreferences）へもキャッシュされる。
+/// アカウント連携状態（メール等）は auth 側の AccountStatus が持つ。
 class UserProfile {
   final String nickname;
   final DateTime updatedAt;

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../../core/widgets/app_bottom_sheet.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../user/providers/user_providers.dart';
 import '../domain/exchange_item.dart';
@@ -17,10 +18,8 @@ class ExchangeConfirmSheet extends ConsumerStatefulWidget {
   const ExchangeConfirmSheet({super.key, required this.item});
 
   static Future<bool?> show(BuildContext context, ExchangeItem item) {
-    return showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
+    return showAppBottomSheet<bool>(
+      context,
       builder: (_) => ExchangeConfirmSheet(item: item),
     );
   }

@@ -4,10 +4,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/usage_colors.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/app_bottom_sheet.dart';
 import '../../../core/utils/geo.dart';
 import '../../../core/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../data/directions_service.dart';
+import '../domain/parking_lot_filter.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
@@ -22,14 +26,6 @@ import '../providers/parking_providers.dart';
 class ParkingDetailSheet extends ConsumerWidget {
   final ParkingLot parking;
   const ParkingDetailSheet({super.key, required this.parking});
-
-  /// 上部の _RouteBanner と表記を揃えるため、1km 未満は m 表記、それ以上は km 表記。
-  String _formatDistance(double meters) {
-    if (meters >= 1000) {
-      return '約${(meters / 1000).toStringAsFixed(1)}km';
-    }
-    return '約${meters.round()}m';
-  }
 
   Future<void> _fetchRoute(
     BuildContext context,
@@ -98,8 +94,6 @@ class ParkingDetailSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final usage = parking.usageRatePercent / 100.0;
-    final hh = parking.updatedAt.hour.toString().padLeft(2, '0');
-    final mm = parking.updatedAt.minute.toString().padLeft(2, '0');
     final messenger = ScaffoldMessenger.of(context);
     final theme = Theme.of(context);
     final currentLocation = ref.watch(currentLocationProvider);
@@ -118,10 +112,11 @@ class ParkingDetailSheet extends ConsumerWidget {
         ? (activeRoute.durationSeconds / 60).round()
         : distanceMeters == null
             ? null
-            : (distanceMeters / 250.0).round().clamp(1, 999);
-    final usageColor = _usageColor(usage);
-    final recommendedStoresAsync =
-        ref.watch(recommendedStoresProvider(parking.position));
+            : (distanceMeters / bikeMetersPerMinute).round().clamp(1, 999);
+    final usageColor = parking.usageLevel.color;
+    final recommendedStoresAsync = ref.watch(recommendedStoresProvider(
+      roundLocationForRecommendation(parking.position),
+    ));
     final recommendedStores =
         recommendedStoresAsync.asData?.value ?? const <Store>[];
 
@@ -246,7 +241,7 @@ class ParkingDetailSheet extends ConsumerWidget {
               children: [
                 _MetaChip(
                   icon: Icons.update_rounded,
-                  label: '更新 $hh:$mm',
+                  label: '更新 ${formatTimeHm(parking.updatedAt)}',
                 ),
                 if (distanceMeters == null)
                   _MetaChip(
@@ -256,7 +251,8 @@ class ParkingDetailSheet extends ConsumerWidget {
                 else ...[
                   _MetaChip(
                     icon: Icons.place_outlined,
-                    label: _formatDistance(distanceMeters),
+                    // 上部の RouteBanner と表記を揃える（1km 未満は m、それ以上は km）。
+                    label: '約${formatDistanceMeters(distanceMeters)}',
                   ),
                   _MetaChip(
                     icon: Icons.directions_bike_rounded,
@@ -328,10 +324,8 @@ class ParkingDetailSheet extends ConsumerWidget {
                       );
                       final navigator = Navigator.of(context);
                       final session =
-                          await showModalBottomSheet<ParkingSession?>(
-                        context: context,
-                        isScrollControlled: true,
-                        showDragHandle: true,
+                          await showAppBottomSheet<ParkingSession?>(
+                        context,
                         builder: (_) => NfcLockSheet(
                           parkingId: parking.id,
                           parkingName: parking.name,
@@ -748,12 +742,6 @@ class _AvailabilityBar extends StatelessWidget {
   }
 }
 
-Color _usageColor(double usage) {
-  if (usage >= 0.85) return AppColors.danger;
-  if (usage >= 0.6) return AppColors.warning;
-  return AppColors.success;
-}
-
 class _NearbyCouponsSection extends StatelessWidget {
   final ParkingRecommendation recommendation;
   const _NearbyCouponsSection({required this.recommendation});
@@ -847,10 +835,8 @@ class _NearbyStoreChip extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          showDragHandle: true,
+        onTap: () => showAppBottomSheet<void>(
+          context,
           builder: (_) => StorePreviewSheet(store: store),
         ),
         child: Padding(

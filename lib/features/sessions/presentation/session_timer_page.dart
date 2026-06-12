@@ -35,12 +35,7 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
       return;
     }
     if (!mounted) return;
-    // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
-    // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
-    final basis = ParkingSession.isDemoMode
-        ? session.detectedAt
-        : session.authenticatedAt!;
-    final elapsed = DateTime.now().difference(basis);
+    final elapsed = DateTime.now().difference(session.elapsedBasis!);
     setState(() => _elapsed = elapsed);
 
     // デモモード用：タイマーが0になった瞬間に手動で発行バッチを叩く
@@ -361,11 +356,26 @@ class _CountdownCard extends StatelessWidget {
   }
 }
 
-class _StoreCarousel extends ConsumerWidget {
+class _StoreCarousel extends ConsumerStatefulWidget {
   const _StoreCarousel();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StoreCarousel> createState() => _StoreCarouselState();
+}
+
+class _StoreCarouselState extends ConsumerState<_StoreCarousel> {
+  // 親（タイマー画面）が毎秒 rebuild するため、build 内で生成すると
+  // 毎秒作り直されてスクロール位置が保てない。State で保持して使い回す。
+  final _pageController = PageController(viewportFraction: 0.88);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncStores = ref.watch(storesProvider);
     return asyncStores.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -375,7 +385,7 @@ class _StoreCarousel extends ConsumerWidget {
           return const Center(child: Text('周辺店舗がありません'));
         }
         return PageView.builder(
-          controller: PageController(viewportFraction: 0.88),
+          controller: _pageController,
           itemCount: stores.length,
           itemBuilder: (context, i) => _StoreCard(store: stores[i]),
         );

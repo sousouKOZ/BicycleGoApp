@@ -8,11 +8,11 @@ import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../../core/domain/coupon.dart';
+import '../../coupons/presentation/coupon_actions.dart';
 import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../../core/domain/parking_session.dart';
 import '../../parking/providers/session_providers.dart';
-import '../../user/providers/user_providers.dart';
 
 class CouponEarnedPage extends ConsumerStatefulWidget {
   const CouponEarnedPage({super.key});
@@ -129,14 +129,11 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
 
   Future<void> _redeem(
       BuildContext context, WidgetRef ref, Coupon coupon) async {
-    final api = ref.read(apiClientProvider);
-    final userId = ref.read(currentUserIdProvider);
-    await api.redeemCoupon(userId: userId, couponId: coupon.id);
+    await redeemCouponAndRefresh(ref, ScaffoldMessenger.of(context), coupon);
     // クーポン消込と出庫は分離。自転車はまだスタンドにあるためセッションは
     // parked のまま継続し、取り出し時のマイコン出庫検知で completed にする。
     await _acknowledgeSession(ref);
     ref.read(latestEarnedCouponProvider.notifier).state = null;
-    ref.invalidate(userCouponsProvider);
     if (!context.mounted) return;
     await showDialog<void>(
       context: context,

@@ -17,27 +17,13 @@ void main() {
     );
   }
 
-  group('ParkingSession.authDeadline', () {
-    test('検知時刻 + 認証猶予(authGrace)', () {
-      final s = build();
-      expect(s.authDeadline, detectedAt.add(ParkingSession.authGrace));
-    });
-
+  group('ParkingSession 定数', () {
     test('authGrace は 5 分', () {
       expect(ParkingSession.authGrace, const Duration(minutes: 5));
     });
-  });
 
-  group('ParkingSession.earnDeadline', () {
-    test('未認証なら null', () {
-      final s = build();
-      expect(s.earnDeadline, isNull);
-    });
-
-    test('認証済みなら 認証時刻 + 発行しきい値(earnThreshold)', () {
-      final authAt = detectedAt.add(const Duration(minutes: 2));
-      final s = build(authenticatedAt: authAt);
-      expect(s.earnDeadline, authAt.add(ParkingSession.earnThreshold));
+    test('earnThreshold は通常ビルドで 15 分', () {
+      expect(ParkingSession.earnThreshold, const Duration(minutes: 15));
     });
   });
 
@@ -61,8 +47,6 @@ void main() {
       expect(updated.status, ParkingSessionStatus.achieved);
       expect(updated.authenticatedAt, authAt);
       expect(updated.issuedCouponId, 'cp-1');
-      // 認証時刻を入れたので earnDeadline が算出される
-      expect(updated.earnDeadline, authAt.add(ParkingSession.earnThreshold));
     });
 
     test('引数省略時は元の値を維持する', () {

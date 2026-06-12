@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../../core/theme/usage_colors.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/app_bottom_sheet.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../../core/domain/coupon.dart';
 import '../../../core/domain/session_record.dart';
 import '../../coupons/presentation/coupon_detail_page.dart';
@@ -51,7 +55,7 @@ class MyPage extends ConsumerWidget {
               const SizedBox(height: 16),
               const _MonthlyValueSummary(),
               const SizedBox(height: 24),
-              const _SectionHeader(
+              const SectionHeader(
                 title: '利用可能クーポン',
                 subtitle: '15分駐輪で自動発行されたクーポン',
                 accent: AppColors.success,
@@ -108,7 +112,7 @@ class MyPage extends ConsumerWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _SectionHeader(
+                      SectionHeader(
                         title: '最近使ったクーポン',
                         subtitle: list
                                     .where((c) => c.status == CouponStatus.used)
@@ -125,7 +129,7 @@ class MyPage extends ConsumerWidget {
                   );
                 },
               ),
-              const _SectionHeader(
+              const SectionHeader(
                 title: 'お気に入り駐輪場',
                 subtitle: 'よく使う駐輪場をブックマーク',
                 accent: AppColors.warning,
@@ -133,7 +137,7 @@ class MyPage extends ConsumerWidget {
               const SizedBox(height: 12),
               const _FavoriteParkingSection(),
               const SizedBox(height: 24),
-              const _SectionHeader(
+              const SectionHeader(
                 title: 'メニュー',
                 subtitle: '',
                 accent: AppColors.accentAlt,
@@ -649,9 +653,7 @@ class _OwnedCouponTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final expires = coupon.expiresAt;
-    final expiresLabel =
-        '${expires.month}/${expires.day.toString().padLeft(2, '0')}まで';
+    final expiresLabel = '${formatMonthDay(coupon.expiresAt)}まで';
     return MiniCouponTicket(
       stubIcon: Icons.confirmation_number_rounded,
       stubLabel: coupon.distanceTier.label,
@@ -674,9 +676,8 @@ class _UsedCouponTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final usedAt = coupon.usedAt;
-    final usedLabel = usedAt == null
-        ? '使用済み'
-        : '${usedAt.month}/${usedAt.day.toString().padLeft(2, '0')} 使用';
+    final usedLabel =
+        usedAt == null ? '使用済み' : '${formatMonthDay(usedAt)} 使用';
     return MiniCouponTicket(
       stubIcon: Icons.check_circle_rounded,
       stubLabel: '使用済',
@@ -751,59 +752,6 @@ class _MenuTile extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Color accent;
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 4,
-            height: 28,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    )),
-                if (subtitle.isNotEmpty)
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _FavoriteParkingSection extends ConsumerWidget {
   const _FavoriteParkingSection();
 
@@ -855,11 +803,7 @@ class _FavoriteParkingTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final usage = parking.usageRatePercent;
-    final usageColor = usage >= 85
-        ? AppColors.danger
-        : usage >= 60
-            ? AppColors.warning
-            : AppColors.success;
+    final usageColor = parking.usageLevel.color;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: GlassDecoration.light(context, radius: 18),
@@ -869,10 +813,8 @@ class _FavoriteParkingTile extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
-            showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
+            showAppBottomSheet<void>(
+              context,
               builder: (_) => ParkingDetailSheet(parking: parking),
             );
           },

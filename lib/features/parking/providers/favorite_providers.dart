@@ -27,8 +27,6 @@ class FavoriteParkings extends StateNotifier<Set<String>> {
     }
     await _save();
   }
-
-  bool isFavorite(String parkingId) => state.contains(parkingId);
 }
 
 final favoriteParkingsProvider =

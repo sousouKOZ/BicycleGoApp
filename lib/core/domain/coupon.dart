@@ -1,6 +1,31 @@
-enum CouponStatus { distributing, owned, used, expired }
+enum CouponStatus {
+  distributing,
+  owned,
+  used,
+  expired;
 
-enum CouponDistanceTier { near, far, exchange }
+  /// DB の文字列表現（enum 名と同一）から変換する。未知の値は null。
+  static CouponStatus? fromDb(String s) {
+    for (final v in values) {
+      if (v.name == s) return v;
+    }
+    return null;
+  }
+}
+
+enum CouponDistanceTier {
+  near,
+  far,
+  exchange;
+
+  /// DB の文字列表現（enum 名と同一）から変換する。未知の値は null。
+  static CouponDistanceTier? fromDb(String s) {
+    for (final v in values) {
+      if (v.name == s) return v;
+    }
+    return null;
+  }
+}
 
 extension CouponDistanceTierLabel on CouponDistanceTier {
   String get label {

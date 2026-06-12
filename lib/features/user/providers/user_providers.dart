@@ -23,19 +23,22 @@ final currentUserIdProvider = Provider<String>((ref) {
   return user.id;
 });
 
-/// 端末ID。初回起動時にランダム生成し `shared_preferences` に永続化する。
-/// アカウント連携が入るまではこの値を匿名IDとして扱う。
-final deviceIdProvider = FutureProvider<String>((ref) async {
+/// アプリインストール単位の識別子。初回起動時にランダム生成し
+/// `shared_preferences` に永続化する（プロフィール画面の表示・問い合わせ用）。
+///
+/// 駐輪スタンド（IoT デバイス）の deviceId とは別物なので注意。
+/// 永続キーは互換のため `device_id_v1` のまま。
+final installIdProvider = FutureProvider<String>((ref) async {
   const key = 'device_id_v1';
   final prefs = await SharedPreferences.getInstance();
   final existing = prefs.getString(key);
   if (existing != null && existing.isNotEmpty) return existing;
-  final next = _generateDeviceId();
+  final next = _generateInstallId();
   await prefs.setString(key, next);
   return next;
 });
 
-String _generateDeviceId() {
+String _generateInstallId() {
   final rng = math.Random.secure();
   final bytes =
       List<int>.generate(8, (_) => rng.nextInt(256));

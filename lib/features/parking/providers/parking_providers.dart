@@ -9,8 +9,6 @@ final parkingLotsProvider = FutureProvider<List<ParkingLot>>((ref) async {
   return api.getParkingLots();
 });
 
-final selectedParkingProvider = StateProvider<ParkingLot?>((ref) => null);
-
 final parkingSearchQueryProvider = StateProvider<String>((ref) => '');
 
 final currentLocationProvider = StateProvider<LatLng?>((ref) => null);

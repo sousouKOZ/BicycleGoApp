@@ -4,14 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../../core/domain/store.dart';
 import '../../stores/providers/store_providers.dart';
-import '../../user/providers/user_providers.dart';
 import '../../../core/domain/coupon.dart';
 import '../providers/coupon_providers.dart';
+import 'coupon_actions.dart';
 import 'widgets/swipe_to_use.dart';
 
 class CouponDetailPage extends ConsumerStatefulWidget {
@@ -112,7 +113,7 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
               ),
               const SizedBox(height: 24),
             ],
-            const _SectionLabel(label: '利用方法'),
+            const SectionLabel(label: '利用方法', padding: EdgeInsets.zero),
             const SizedBox(height: 8),
             _NumberedStep(
               index: 1,
@@ -127,7 +128,7 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
               text: '消込後は元に戻せません。再発行もできません',
             ),
             const SizedBox(height: 24),
-            const _SectionLabel(label: 'クーポン情報'),
+            const SectionLabel(label: 'クーポン情報', padding: EdgeInsets.zero),
             const SizedBox(height: 8),
             _InfoTable(coupon: coupon),
             const SizedBox(height: 28),
@@ -155,12 +156,10 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
   }
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
-    final api = ref.read(apiClientProvider);
-    final userId = ref.read(currentUserIdProvider);
-    await api.redeemCoupon(userId: userId, couponId: widget.coupon.id);
-    ref.invalidate(userCouponsProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    await redeemCouponAndRefresh(ref, messenger, widget.coupon);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('${widget.coupon.storeName}で使用しました')),
     );
     await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -303,7 +302,9 @@ class _ExpiryCountdown extends StatelessWidget {
 
     final color = isUsable ? AppColors.success : AppColors.danger;
     final icon = isUsable ? Icons.schedule_rounded : Icons.event_busy_rounded;
-    final label = isUsable ? '残り${_formatRemaining(coupon.expiresAt)}' : '期限切れ';
+    final label = isUsable
+        ? '残り${formatRemainingCompact(coupon.expiresAt.difference(DateTime.now()))}'
+        : '期限切れ';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -326,7 +327,7 @@ class _ExpiryCountdown extends StatelessWidget {
             ),
           ),
           Text(
-            '${_formatDate(coupon.expiresAt)}まで',
+            '${formatDate(coupon.expiresAt)}まで',
             style: theme.textTheme.labelSmall?.copyWith(
               color: context.textSecondary,
               fontWeight: FontWeight.w700,
@@ -401,22 +402,6 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-          ),
-    );
-  }
-}
-
 class _NumberedStep extends StatelessWidget {
   final int index;
   final String text;
@@ -471,12 +456,12 @@ class _InfoTable extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(
           children: [
-            _row(context, '発行日時', _formatDateTime(coupon.issuedAt)),
+            _row(context, '発行日時', formatDateTime(coupon.issuedAt)),
             const SizedBox(height: 8),
-            _row(context, '有効期限', _formatDateTime(coupon.expiresAt)),
+            _row(context, '有効期限', formatDateTime(coupon.expiresAt)),
             if (coupon.usedAt != null) ...[
               const SizedBox(height: 8),
-              _row(context, '使用日時', _formatDateTime(coupon.usedAt!)),
+              _row(context, '使用日時', formatDateTime(coupon.usedAt!)),
             ],
             const SizedBox(height: 8),
             _row(context, 'クーポンID', coupon.id),
@@ -580,23 +565,3 @@ _StatusSpec _statusSpec(Coupon coupon) {
   );
 }
 
-String _formatRemaining(DateTime expiresAt) {
-  final diff = expiresAt.difference(DateTime.now());
-  if (diff.isNegative) return '0分';
-  final days = diff.inDays;
-  final hours = diff.inHours % 24;
-  if (days >= 1) return '$days日 $hours時間';
-  final minutes = diff.inMinutes % 60;
-  if (diff.inHours >= 1) return '${diff.inHours}時間 $minutes分';
-  return '${diff.inMinutes}分';
-}
-
-String _formatDate(DateTime d) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${d.year}/${two(d.month)}/${two(d.day)}';
-}
-
-String _formatDateTime(DateTime d) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${d.year}/${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
-}

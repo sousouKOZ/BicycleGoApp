@@ -1,30 +1,31 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/domain/parking_lot.dart';
+import '../../../core/domain/store.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
-import '../../../core/utils/geo.dart';
-import '../../../core/domain/store.dart';
+import '../../../core/widgets/app_bottom_sheet.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
 import '../domain/directions_route.dart';
-import '../../../core/domain/parking_lot.dart';
+import '../domain/parking_lot_filter.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/location_permission_providers.dart';
 import '../providers/map_filter_providers.dart';
 import '../providers/parking_providers.dart';
-import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
-import '../providers/sort_mode_providers.dart';
 import 'parking_detail_sheet.dart';
+import 'widgets/coupon_strip.dart';
 import 'widgets/location_permission_banner.dart';
-
-const _bikeMetersPerMinute = 250.0;
-const _fifteenMinuteBikeRadiusMeters = _bikeMetersPerMinute * 15;
+import 'widgets/map_controls.dart';
+import 'widgets/map_filter_bar.dart';
+import 'widgets/map_insight_card.dart';
+import 'widgets/map_marker_icons.dart';
+import 'widgets/route_banner.dart';
+import 'widgets/search_results_dropdown.dart';
 
 class ParkingMapPage extends ConsumerStatefulWidget {
   const ParkingMapPage({super.key});
@@ -38,52 +39,17 @@ class ParkingMapPage extends ConsumerStatefulWidget {
   ConsumerState<ParkingMapPage> createState() => _ParkingMapPageState();
 }
 
-class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
-    with SingleTickerProviderStateMixin {
+class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
   late final TextEditingController _searchController;
   late final FocusNode _searchFocus;
-  late final AnimationController _couponStripAnim;
   GoogleMapController? _mapController;
   LatLng? _currentLocation;
   BitmapDescriptor? _currentLocationIcon;
   BitmapDescriptor? _couponIcon;
-  bool _showCouponStrip = false;
-  bool _showMapControls = true;
-  bool _showInsightDetails = false;
-
-  void _openCouponStrip() {
-    if (_showCouponStrip) return;
-    setState(() => _showCouponStrip = true);
-    _couponStripAnim.forward();
-  }
-
-  void _closeCouponStrip() {
-    if (!_showCouponStrip) return;
-    _couponStripAnim.reverse().whenComplete(() {
-      if (mounted) setState(() => _showCouponStrip = false);
-    });
-  }
-
-  void _collapseMapControls() {
-    _searchFocus.unfocus();
-    setState(() {
-      _showMapControls = false;
-      _showInsightDetails = false;
-    });
-  }
-
-  void _expandMapControls() {
-    setState(() => _showMapControls = true);
-  }
 
   @override
   void initState() {
     super.initState();
-    _couponStripAnim = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-      reverseDuration: const Duration(milliseconds: 220),
-    );
     _searchController = TextEditingController(
       text: ref.read(parkingSearchQueryProvider),
     );
@@ -94,9 +60,6 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
       }
     });
     _searchFocus = FocusNode();
-    _searchFocus.addListener(() {
-      if (mounted) setState(() {});
-    });
     _loadCustomMarkerIcons();
     _fetchCurrentLocation();
   }
@@ -108,11 +71,8 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
       CameraUpdate.newLatLngZoom(p.position, 17),
     );
     if (!mounted) return;
-    ref.read(selectedParkingProvider.notifier).state = p;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
+    await showAppBottomSheet<void>(
+      context,
       builder: (_) => ParkingDetailSheet(parking: p),
     );
   }
@@ -140,11 +100,11 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
   }
 
   Future<void> _loadCustomMarkerIcons() async {
-    final bikeIcon = await _createCircleIconMarker(
+    final bikeIcon = await createCircleIconMarker(
       icon: Icons.directions_bike,
       backgroundColor: AppColors.navigation,
     );
-    final couponIcon = await _createCouponMarker();
+    final couponIcon = await createCouponMarker();
     if (!mounted) {
       return;
     }
@@ -152,119 +112,6 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
       _currentLocationIcon = bikeIcon;
       _couponIcon = couponIcon;
     });
-  }
-
-  Future<BitmapDescriptor> _createCircleIconMarker({
-    required IconData icon,
-    required Color backgroundColor,
-    Color iconColor = Colors.white,
-  }) async {
-    const iconSize = 23.0;
-    const padding = 10.0;
-    final imageSize = (iconSize + padding * 2).ceil();
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final center = Offset(imageSize / 2, imageSize / 2);
-
-    final background = Paint()..color = backgroundColor;
-    canvas.drawCircle(center, imageSize / 2.0, background);
-
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontSize: iconSize,
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          color: iconColor,
-        ),
-      ),
-    )..layout();
-
-    final iconOffset = Offset(
-      center.dx - textPainter.width / 2,
-      center.dy - textPainter.height / 2,
-    );
-    textPainter.paint(canvas, iconOffset);
-
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(imageSize, imageSize);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
-  }
-
-  Future<BitmapDescriptor> _createCouponMarker() async {
-    const tagSize = 24.0;
-    const padding = 7.0;
-    final imageSize = (tagSize + padding * 2).ceil();
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    final width = imageSize.toDouble();
-    final height = imageSize.toDouble();
-
-    final tagPath = Path();
-    final bodyRect = Rect.fromLTWH(
-        padding, padding * 0.6, width - padding * 1.8, height - padding * 1.2);
-    const radius = Radius.circular(6);
-    tagPath.addRRect(RRect.fromRectAndCorners(
-      bodyRect,
-      topLeft: radius,
-      topRight: const Radius.circular(4),
-      bottomLeft: radius,
-      bottomRight: const Radius.circular(4),
-    ));
-
-    final tipStartY = bodyRect.top + bodyRect.height * 0.25;
-    final tipEndY = bodyRect.bottom - bodyRect.height * 0.25;
-    final tipPoint = Offset(width - padding * 0.2, height / 2);
-    final tipPath = Path()
-      ..moveTo(bodyRect.right, tipStartY)
-      ..lineTo(tipPoint.dx, tipPoint.dy)
-      ..lineTo(bodyRect.right, tipEndY)
-      ..close();
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
-    canvas.drawPath(tagPath.shift(const Offset(0, 2)), shadowPaint);
-    canvas.drawPath(tipPath.shift(const Offset(0, 2)), shadowPaint);
-
-    final tagPaint = Paint()..color = const Color(0xFFE53935);
-    canvas.drawPath(tagPath, tagPaint);
-    canvas.drawPath(tipPath, tagPaint);
-
-    final holePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(
-      Offset(bodyRect.left + 5, bodyRect.center.dy),
-      2,
-      holePaint,
-    );
-
-    final textPainter = TextPainter(
-      textDirection: TextDirection.ltr,
-      text: TextSpan(
-        text: String.fromCharCode(Icons.local_offer.codePoint),
-        style: TextStyle(
-          fontSize: 16,
-          fontFamily: Icons.local_offer.fontFamily,
-          package: Icons.local_offer.fontPackage,
-          color: Colors.white,
-        ),
-      ),
-    )..layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        bodyRect.center.dx - textPainter.width / 2 + 1.5,
-        bodyRect.center.dy - textPainter.height / 2,
-      ),
-    );
-
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(imageSize, imageSize);
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
   }
 
   Future<void> _fetchCurrentLocation({bool requestIfDenied = true}) async {
@@ -302,16 +149,12 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
   void dispose() {
     _searchController.dispose();
     _searchFocus.dispose();
-    _couponStripAnim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final asyncLots = ref.watch(parkingLotsProvider);
-    final asyncStores = ref.watch(storesProvider);
-    final query = ref.watch(parkingSearchQueryProvider);
-    final activeRoute = ref.watch(activeRouteProvider);
 
     ref.listen<DirectionsRoute?>(activeRouteProvider, (prev, next) {
       if (next != null && next != prev) {
@@ -326,158 +169,13 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('読み込み失敗: $e')),
         data: (lots) {
-          final normalizedQuery = query.trim().toLowerCase();
-          final stores = asyncStores.asData?.value ?? const <Store>[];
-          final filter = ref.watch(mapFilterProvider);
-          final favorites = ref.watch(favoriteParkingsProvider);
-
-          Iterable<ParkingLot> filtered = normalizedQuery.isEmpty
-              ? lots
-              : lots.where(
-                  (p) => p.name.toLowerCase().contains(normalizedQuery),
-                );
-          if (filter.availableOnly) {
-            filtered = filtered.where((p) => p.available > 0);
-          }
-          if (filter.favoriteOnly) {
-            filtered = filtered.where((p) => favorites.contains(p.id));
-          }
-          if (filter.within15MinutesOnly) {
-            final origin =
-                _currentLocation ?? ParkingMapPage._initialCamera.target;
-            filtered = filtered.where(
-              (p) =>
-                  Geo.haversineMeters(origin, p.position) <=
-                  _fifteenMinuteBikeRadiusMeters,
-            );
-          }
-          if (filter.couponOnly) {
-            filtered = filtered.where((p) {
-              for (final s in stores) {
-                if (Geo.haversineMeters(p.position, s.position) <= 300) {
-                  return true;
-                }
-              }
-              return false;
-            });
-          }
-          final visibleLots = filtered.toList();
-          final searchActive =
-              _searchFocus.hasFocus || normalizedQuery.isNotEmpty;
-          final showMapControls = _showMapControls || searchActive;
-          final couponStripVisible =
-              stores.isNotEmpty && !searchActive && _showCouponStrip;
-          final couponToggleVisible =
-              stores.isNotEmpty && !searchActive && !_showCouponStrip;
-          final recenterButtonBottom = couponStripVisible
-              ? 154.0
-              : couponToggleVisible
-                  ? 68.0
-                  : 16.0;
-
-          final markers = <Marker>{};
-          for (final p in visibleLots) {
-            final usageRate = p.usageRatePercent;
-            final markerHue = usageRate >= 85
-                ? BitmapDescriptor.hueRed
-                : usageRate >= 60
-                    ? BitmapDescriptor.hueOrange
-                    : BitmapDescriptor.hueGreen;
-            markers.add(Marker(
-              markerId: MarkerId('lot-${p.id}'),
-              position: p.position,
-              icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
-              onTap: () {
-                ref.read(selectedParkingProvider.notifier).state = p;
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  showDragHandle: true,
-                  builder: (_) => ParkingDetailSheet(parking: p),
-                );
-              },
-              infoWindow: InfoWindow(
-                title: p.name,
-                snippet:
-                    '空き ${p.available}/${p.capacity}（稼働${p.usageRatePercent}%）',
-              ),
-            ));
-          }
-          for (final s in stores) {
-            markers.add(Marker(
-              markerId: MarkerId('store-${s.id}'),
-              position: s.position,
-              icon: _couponIcon ??
-                  BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueRose,
-                  ),
-              onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  showDragHandle: true,
-                  builder: (_) => StorePreviewSheet(store: s),
-                );
-              },
-              infoWindow: InfoWindow(
-                title: s.name,
-                snippet: '🎁 ${s.benefit}',
-              ),
-            ));
-          }
-
-          if (_currentLocation != null) {
-            markers.add(
-              Marker(
-                markerId: const MarkerId('current_location'),
-                position: _currentLocation!,
-                infoWindow: const InfoWindow(title: '現在地'),
-                icon: _currentLocationIcon ??
-                    BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueBlue,
-                    ),
-                zIndexInt: 2,
-              ),
-            );
-          }
-
-          final circles = _currentLocation == null
-              ? <Circle>{}
-              : {
-                  Circle(
-                    circleId: const CircleId('current_location_accuracy'),
-                    center: _currentLocation!,
-                    radius: 25,
-                    fillColor: AppColors.navigation.withValues(alpha: 0.18),
-                    strokeColor: AppColors.navigation.withValues(alpha: 0.7),
-                    strokeWidth: 2,
-                    zIndex: 1,
-                  ),
-                };
-
-          final polylines = <Polyline>{};
-          if (activeRoute != null && activeRoute.polyline.isNotEmpty) {
-            polylines.add(Polyline(
-              polylineId: PolylineId('route-${activeRoute.parkingLotId}'),
-              points: activeRoute.polyline,
-              color: AppColors.accent,
-              width: 6,
-              startCap: Cap.roundCap,
-              endCap: Cap.roundCap,
-              jointType: JointType.round,
-            ));
-          }
-
           return Stack(
             children: [
-              GoogleMap(
-                initialCameraPosition: ParkingMapPage._initialCamera,
-                markers: markers,
-                circles: circles,
-                polylines: polylines,
-                myLocationEnabled: true,
-                zoomControlsEnabled: false,
-                myLocationButtonEnabled: false,
+              _MapCanvas(
+                lots: lots,
+                currentLocation: _currentLocation,
+                currentLocationIcon: _currentLocationIcon,
+                couponIcon: _couponIcon,
                 onMapCreated: (controller) {
                   _mapController = controller;
                   final initialRoute = ref.read(activeRouteProvider);
@@ -485,201 +183,21 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
                     _animateToRoute(initialRoute);
                   }
                 },
-                onTap: (_) => _searchFocus.unfocus(),
+                onMapTap: () => _searchFocus.unfocus(),
               ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: showMapControls
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding:
-                                  const EdgeInsets.only(left: 4, bottom: 10),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: GlassDecoration.pill(context),
-                                    child: Icon(Icons.directions_bike,
-                                        size: 18, color: AppColors.accent),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      'Bicycle Go',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w900,
-                                            color: context.textPrimary,
-                                          ),
-                                    ),
-                                  ),
-                                  if (!searchActive) ...[
-                                    const SizedBox(width: 10),
-                                    _MapControlsToggle(
-                                      icon: Icons.keyboard_arrow_up_rounded,
-                                      label: '上部を隠す',
-                                      tooltip: '検索と条件を隠す',
-                                      onTap: _collapseMapControls,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            DecoratedBox(
-                              decoration:
-                                  GlassDecoration.light(context, radius: 16),
-                              child: TextField(
-                                controller: _searchController,
-                                focusNode: _searchFocus,
-                                textInputAction: TextInputAction.search,
-                                decoration: InputDecoration(
-                                  hintText: '駐輪場を検索',
-                                  prefixIcon: Icon(Icons.search,
-                                      color: context.textSecondary),
-                                  suffixIcon: query.isEmpty
-                                      ? null
-                                      : IconButton(
-                                          icon: Icon(Icons.close_rounded,
-                                              color: context.textSecondary),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                          },
-                                        ),
-                                  filled: false,
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 16),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: LocationPermissionBanner(
-                                onGranted: () => _fetchCurrentLocation(
-                                  requestIfDenied: false,
-                                ),
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.only(top: 10),
-                              child: _MapFilterBar(),
-                            ),
-                            if (!searchActive)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: _MapInsightCard(
-                                  visibleLots: visibleLots,
-                                  stores: stores,
-                                  referenceLocation: _currentLocation ??
-                                      ParkingMapPage._initialCamera.target,
-                                  expanded: _showInsightDetails,
-                                  onToggle: () => setState(
-                                    () => _showInsightDetails =
-                                        !_showInsightDetails,
-                                  ),
-                                ),
-                              ),
-                            if (_searchFocus.hasFocus ||
-                                normalizedQuery.isNotEmpty)
-                              // Flexible で残り高さに合わせてドロップダウンを自動収縮。
-                              // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
-                              Flexible(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: _SearchResultsDropdown(
-                                    query: normalizedQuery,
-                                    allLots: lots,
-                                    filteredLots: visibleLots,
-                                    currentLocation: _currentLocation,
-                                    onTap: _focusParking,
-                                  ),
-                                ),
-                              ),
-                            if (activeRoute != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: _RouteBanner(
-                                  route: activeRoute,
-                                  onClose: () {
-                                    ref
-                                        .read(activeRouteProvider.notifier)
-                                        .state = null;
-                                  },
-                                ),
-                              ),
-                          ],
-                        )
-                      : Align(
-                          alignment: Alignment.topRight,
-                          child: _MapControlsToggle(
-                            icon: Icons.keyboard_arrow_down_rounded,
-                            label: '検索・条件を表示',
-                            tooltip: '検索と条件を表示',
-                            onTap: _expandMapControls,
-                          ),
-                        ),
-                ),
-              ),
-              if (!searchActive)
-                Positioned(
-                  right: 16,
-                  bottom: recenterButtonBottom,
-                  child: _MapFloatingButton(
-                    icon: Icons.my_location_rounded,
-                    tooltip: '現在地へ移動',
-                    onTap: () => _fetchCurrentLocation(),
+              Positioned.fill(
+                child: _MapOverlay(
+                  lots: lots,
+                  searchController: _searchController,
+                  searchFocus: _searchFocus,
+                  currentLocation: _currentLocation,
+                  onParkingSelected: _focusParking,
+                  onRecenter: () => _fetchCurrentLocation(),
+                  onLocationGranted: () => _fetchCurrentLocation(
+                    requestIfDenied: false,
                   ),
                 ),
-              if (stores.isNotEmpty && !searchActive)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 16,
-                  child: _showCouponStrip
-                      ? _CouponStripReveal(
-                          animation: _couponStripAnim,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 0, 16, 6),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: _CouponStripToggle(
-                                    icon: Icons.close,
-                                    label: '配信中クーポンを隠す',
-                                    onTap: _closeCouponStrip,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                height: 112,
-                                child: _CouponPreviewStrip(stores: stores),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: _CouponHandle(
-                              count: stores.length,
-                              onTap: _openCouponStrip,
-                            ),
-                          ),
-                        ),
-                ),
+              ),
             ],
           );
         },
@@ -688,1018 +206,443 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage>
   }
 }
 
-class _MapControlsToggle extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  const _MapControlsToggle({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Tooltip(
-      message: tooltip,
-      child: DecoratedBox(
-        decoration: GlassDecoration.pill(context),
-        child: Material(
-          color: Colors.transparent,
-          shape: const StadiumBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            splashColor: AppColors.accent.withValues(alpha: 0.08),
-            highlightColor: AppColors.accent.withValues(alpha: 0.04),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 16, color: AppColors.accent),
-                  const SizedBox(width: 5),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppColors.accent,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MapFloatingButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _MapFloatingButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: DecoratedBox(
-        decoration: GlassDecoration.pill(context),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            splashColor: AppColors.accent.withValues(alpha: 0.1),
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: Icon(icon, color: AppColors.accent, size: 22),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 右下のチップを起点に、吹き出しのようにクーポン一覧を展開／収納する。
-class _CouponStripReveal extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget child;
-  const _CouponStripReveal({
-    required this.animation,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scale = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutBack,
-      reverseCurve: Curves.easeInCubic,
-    );
-    final fade = CurvedAnimation(
-      parent: animation,
-      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
-      reverseCurve: Curves.easeIn,
-    );
-    return FadeTransition(
-      opacity: fade,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.55, end: 1.0).animate(scale),
-        alignment: Alignment.bottomRight,
-        child: child,
-      ),
-    );
-  }
-}
-
-class _CouponStripToggle extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _CouponStripToggle({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: GlassDecoration.pill(context),
-      child: Material(
-        color: Colors.transparent,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          splashColor: AppColors.accent.withValues(alpha: 0.08),
-          highlightColor: AppColors.accent.withValues(alpha: 0.04),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: AppColors.accent),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CouponPreviewStrip extends StatelessWidget {
-  final List<Store> stores;
-  const _CouponPreviewStrip({required this.stores});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      itemCount: stores.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 10),
-      itemBuilder: (context, i) {
-        final s = stores[i];
-        final theme = Theme.of(context);
-        final scheme = theme.colorScheme;
-        return DecoratedBox(
-          decoration: GlassDecoration.accentCard(context, radius: 20),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                showDragHandle: true,
-                builder: (_) => StorePreviewSheet(store: s),
-              ),
-              child: Container(
-                width: 240,
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            s.category.label,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.accent,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.local_offer,
-                              size: 14, color: AppColors.accent),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      s.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      s.benefit,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: scheme.primary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CouponHandle extends StatelessWidget {
-  final int count;
-  final VoidCallback onTap;
-  const _CouponHandle({
-    required this.count,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: GlassDecoration.pill(context),
-      child: Material(
-        color: Colors.transparent,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          splashColor: AppColors.accent.withValues(alpha: 0.08),
-          highlightColor: AppColors.accent.withValues(alpha: 0.04),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.local_offer_rounded,
-                    size: 16, color: AppColors.accent),
-                const SizedBox(width: 6),
-                Text(
-                  '配信中クーポン $count件',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(Icons.keyboard_arrow_up_rounded,
-                    size: 16, color: AppColors.accent),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MapInsightCard extends StatelessWidget {
-  final List<ParkingLot> visibleLots;
-  final List<Store> stores;
-  final LatLng referenceLocation;
-  final bool expanded;
-  final VoidCallback onToggle;
-
-  const _MapInsightCard({
-    required this.visibleLots,
-    required this.stores,
-    required this.referenceLocation,
-    required this.expanded,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final openLots = visibleLots.where((p) => p.available > 0).length;
-    final availableSpots =
-        visibleLots.fold<int>(0, (sum, p) => sum + p.available);
-    final within15 = visibleLots
-        .where(
-          (p) =>
-              Geo.haversineMeters(referenceLocation, p.position) <=
-              _fifteenMinuteBikeRadiusMeters,
-        )
-        .length;
-
-    return DecoratedBox(
-      decoration: GlassDecoration.light(context, radius: 16),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onToggle,
-          splashColor: AppColors.accent.withValues(alpha: 0.08),
-          child: AnimatedSize(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(11),
-                        ),
-                        child: Icon(Icons.location_city_rounded,
-                            size: 16, color: AppColors.success),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '大阪市北区・梅田周辺',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: context.textPrimary,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Flexible(
-                        child: Text(
-                          '空き$availableSpots台・15分圏$within15件・特典${stores.length}件',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: AppColors.accent,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        expanded
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                        color: context.textSecondary,
-                      ),
-                    ],
-                  ),
-                  if (expanded) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      openLots == 0
-                          ? '条件を変えると候補が見つかりやすくなります'
-                          : '今すぐ停められる候補を優先表示中',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: context.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _InsightMetric(
-                            label: '空き',
-                            value: '$availableSpots台',
-                            icon: Icons.event_available_rounded,
-                            color: AppColors.success,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _InsightMetric(
-                            label: '15分圏',
-                            value: '$within15件',
-                            icon: Icons.schedule_rounded,
-                            color: AppColors.accent,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _InsightMetric(
-                            label: '特典',
-                            value: '${stores.length}件',
-                            icon: Icons.local_offer_rounded,
-                            color: AppColors.warning,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InsightMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _InsightMetric({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: context.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: context.textPrimary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SearchResultsDropdown extends ConsumerWidget {
-  final String query;
-  final List<ParkingLot> allLots;
-  final List<ParkingLot> filteredLots;
+/// GoogleMap 本体とマーカー・円・ポリライン。
+///
+/// オーバーレイ側の表示トグル（検索フォーカス・クーポン帯の開閉など）の
+/// setState で地図とマーカー群が再構築されないよう、ページから分離している。
+class _MapCanvas extends ConsumerWidget {
+  final List<ParkingLot> lots;
   final LatLng? currentLocation;
-  final ValueChanged<ParkingLot> onTap;
+  final BitmapDescriptor? currentLocationIcon;
+  final BitmapDescriptor? couponIcon;
+  final void Function(GoogleMapController) onMapCreated;
+  final VoidCallback onMapTap;
 
-  const _SearchResultsDropdown({
-    required this.query,
-    required this.allLots,
-    required this.filteredLots,
+  const _MapCanvas({
+    required this.lots,
     required this.currentLocation,
-    required this.onTap,
+    required this.currentLocationIcon,
+    required this.couponIcon,
+    required this.onMapCreated,
+    required this.onMapTap,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final recommendedStoresAsync = currentLocation != null
-        ? ref.watch(recommendedStoresProvider(currentLocation!))
-        : const AsyncValue.data(<Store>[]);
-    final recommendedStores =
-        recommendedStoresAsync.asData?.value ?? const <Store>[];
+    final stores =
+        ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final normalizedQuery =
+        ref.watch(parkingSearchQueryProvider).trim().toLowerCase();
+    final filter = ref.watch(mapFilterProvider);
+    final favorites = ref.watch(favoriteParkingsProvider);
+    final activeRoute = ref.watch(activeRouteProvider);
 
-    final sortMode = ref.watch(parkingSortModeProvider);
+    final visibleLots = filterParkingLots(
+      lots: lots,
+      normalizedQuery: normalizedQuery,
+      filter: filter,
+      favoriteIds: favorites,
+      stores: stores,
+      origin: currentLocation ?? ParkingMapPage._initialCamera.target,
+    );
 
-    final source = query.isEmpty ? allLots : filteredLots;
-    final recommendations = <String, ParkingRecommendation>{
-      for (final p in source)
-        p.id: computeRecommendation(
-          parking: p,
-          recommendedStores: recommendedStores,
-          userLocation: currentLocation,
+    final markers = <Marker>{};
+    for (final p in visibleLots) {
+      final markerHue = usageMarkerHue(p.usageLevel);
+      markers.add(Marker(
+        markerId: MarkerId('lot-${p.id}'),
+        position: p.position,
+        icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
+        onTap: () {
+          showAppBottomSheet<void>(
+            context,
+            builder: (_) => ParkingDetailSheet(parking: p),
+          );
+        },
+        infoWindow: InfoWindow(
+          title: p.name,
+          snippet: '空き ${p.available}/${p.capacity}（稼働${p.usageRatePercent}%）',
         ),
-    };
-    final sorted = [...source];
-    if (sortMode == ParkingSortMode.recommend) {
-      sorted.sort((a, b) =>
-          recommendations[b.id]!.score.compareTo(recommendations[a.id]!.score));
-    } else if (currentLocation != null) {
-      sorted.sort((a, b) => Geo.haversineMeters(currentLocation!, a.position)
-          .compareTo(Geo.haversineMeters(currentLocation!, b.position)));
+      ));
+    }
+    for (final s in stores) {
+      markers.add(Marker(
+        markerId: MarkerId('store-${s.id}'),
+        position: s.position,
+        icon: couponIcon ??
+            BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRose,
+            ),
+        onTap: () {
+          showAppBottomSheet<void>(
+            context,
+            builder: (_) => StorePreviewSheet(store: s),
+          );
+        },
+        infoWindow: InfoWindow(
+          title: s.name,
+          snippet: '🎁 ${s.benefit}',
+        ),
+      ));
     }
 
-    if (sorted.isEmpty) {
-      return Container(
-        decoration: GlassDecoration.light(context, radius: 16),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.search_off_rounded,
-                size: 18, color: context.textSecondary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                '「$query」に該当する駐輪場はありません',
-                style: theme.textTheme.bodyMedium,
+    if (currentLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current_location'),
+          position: currentLocation!,
+          infoWindow: const InfoWindow(title: '現在地'),
+          icon: currentLocationIcon ??
+              BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueBlue,
               ),
-            ),
-          ],
+          zIndexInt: 2,
         ),
       );
     }
 
-    return Container(
-      decoration: GlassDecoration.light(context, radius: 16),
-      clipBehavior: Clip.antiAlias,
-      // Flexible 親が残り高さを渡すので、ここは "それ以上は伸ばさない" という上限として機能する。
-      constraints: const BoxConstraints(maxHeight: 360),
-      child: Material(
-        color: Colors.transparent,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _SortToggleRow(
-              mode: sortMode,
-              onChanged: (m) =>
-                  ref.read(parkingSortModeProvider.notifier).state = m,
+    final circles = currentLocation == null
+        ? <Circle>{}
+        : {
+            Circle(
+              circleId: const CircleId('current_location_accuracy'),
+              center: currentLocation!,
+              radius: 25,
+              fillColor: AppColors.navigation.withValues(alpha: 0.18),
+              strokeColor: AppColors.navigation.withValues(alpha: 0.7),
+              strokeWidth: 2,
+              zIndex: 1,
             ),
-            Divider(
-              height: 1,
-              color: context.subtleBorder,
-            ),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                itemCount: sorted.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: context.subtleBorder,
-                  indent: 62,
-                ),
-                itemBuilder: (_, i) {
-                  final p = sorted[i];
-                  final rec = recommendations[p.id]!;
-                  final usage = p.usageRatePercent;
-                  final usageColor = usage >= 85
-                      ? AppColors.danger
-                      : usage >= 60
-                          ? AppColors.warning
-                          : AppColors.success;
-                  final distance = currentLocation == null
-                      ? null
-                      : Geo.haversineMeters(currentLocation!, p.position);
-                  final distanceLabel = distance == null
-                      ? null
-                      : distance >= 1000
-                          ? '${(distance / 1000).toStringAsFixed(1)}km'
-                          : '${distance.round()}m';
-                  return InkWell(
-                    onTap: () => onTap(p),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: usageColor.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(Icons.local_parking_rounded,
-                                size: 20, color: usageColor),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        p.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                    if (rec.isRecommended) ...[
-                                      const SizedBox(width: 6),
-                                      _RecommendBadge(
-                                        bonusPercent: rec.bonusPointsPercent,
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    Text(
-                                      '空き${p.available}/${p.capacity}',
-                                      style:
-                                          theme.textTheme.bodySmall?.copyWith(
-                                        color: usageColor,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    Text(
-                                      ' ・ 稼働${p.usageRatePercent}%'
-                                      '${distanceLabel != null ? ' ・ $distanceLabel' : ''}',
-                                      style: theme.textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(Icons.north_east_rounded,
-                              size: 16, color: context.textSecondary),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+          };
 
-class _SortToggleRow extends StatelessWidget {
-  final ParkingSortMode mode;
-  final ValueChanged<ParkingSortMode> onChanged;
-  const _SortToggleRow({required this.mode, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-      child: Row(
-        children: [
-          Icon(Icons.sort_rounded, size: 16, color: context.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            '並び替え',
-            style: theme.textTheme.labelMedium,
-          ),
-          const Spacer(),
-          _SortToggleButton(
-            label: '距離順',
-            selected: mode == ParkingSortMode.distance,
-            onTap: () => onChanged(ParkingSortMode.distance),
-          ),
-          const SizedBox(width: 6),
-          _SortToggleButton(
-            label: 'おすすめ順',
-            selected: mode == ParkingSortMode.recommend,
-            onTap: () => onChanged(ParkingSortMode.recommend),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SortToggleButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _SortToggleButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected ? AppColors.accent : Colors.transparent,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected ? Colors.transparent : context.subtleBorder,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: selected ? Colors.white : context.textPrimary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RecommendBadge extends StatelessWidget {
-  final int bonusPercent;
-  const _RecommendBadge({required this.bonusPercent});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.accent, AppColors.accentAlt],
-        ),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.auto_awesome_rounded, size: 10, color: Colors.white),
-          const SizedBox(width: 3),
-          Text(
-            bonusPercent > 0 ? 'おすすめ +$bonusPercent%' : 'おすすめ',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-              fontSize: 10,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MapFilterBar extends ConsumerWidget {
-  const _MapFilterBar();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final filter = ref.watch(mapFilterProvider);
-    final notifier = ref.read(mapFilterProvider.notifier);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _FilterChipItem(
-            icon: Icons.event_available_rounded,
-            label: '空きのみ',
-            selected: filter.availableOnly,
-            onTap: () => notifier.state =
-                filter.copyWith(availableOnly: !filter.availableOnly),
-          ),
-          const SizedBox(width: 8),
-          _FilterChipItem(
-            icon: Icons.local_offer_rounded,
-            label: 'クーポンあり',
-            selected: filter.couponOnly,
-            onTap: () => notifier.state =
-                filter.copyWith(couponOnly: !filter.couponOnly),
-          ),
-          const SizedBox(width: 8),
-          _FilterChipItem(
-            icon: Icons.schedule_rounded,
-            label: '15分以内',
-            selected: filter.within15MinutesOnly,
-            onTap: () => notifier.state = filter.copyWith(
-                within15MinutesOnly: !filter.within15MinutesOnly),
-          ),
-          const SizedBox(width: 8),
-          _FilterChipItem(
-            icon: Icons.star_rounded,
-            label: 'お気に入り',
-            selected: filter.favoriteOnly,
-            onTap: () => notifier.state =
-                filter.copyWith(favoriteOnly: !filter.favoriteOnly),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterChipItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _FilterChipItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: selected
-          ? BoxDecoration(
-              color: AppColors.accent,
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.accent.withValues(alpha: 0.25),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            )
-          : GlassDecoration.pill(context),
-      child: Material(
-        color: Colors.transparent,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          splashColor: AppColors.accent.withValues(alpha: 0.1),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 14,
-                  color: selected ? Colors.white : AppColors.accent,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: selected ? Colors.white : context.textPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RouteBanner extends StatelessWidget {
-  final DirectionsRoute route;
-  final VoidCallback onClose;
-  const _RouteBanner({required this.route, required this.onClose});
-
-  String get _distanceLabel {
-    final m = route.distanceMeters;
-    if (m >= 1000) {
-      return '${(m / 1000).toStringAsFixed(1)}km';
+    final polylines = <Polyline>{};
+    if (activeRoute != null && activeRoute.polyline.isNotEmpty) {
+      polylines.add(Polyline(
+        polylineId: PolylineId('route-${activeRoute.parkingLotId}'),
+        points: activeRoute.polyline,
+        color: AppColors.accent,
+        width: 6,
+        startCap: Cap.roundCap,
+        endCap: Cap.roundCap,
+        jointType: JointType.round,
+      ));
     }
-    return '${m}m';
+
+    return GoogleMap(
+      initialCameraPosition: ParkingMapPage._initialCamera,
+      markers: markers,
+      circles: circles,
+      polylines: polylines,
+      myLocationEnabled: true,
+      zoomControlsEnabled: false,
+      myLocationButtonEnabled: false,
+      onMapCreated: onMapCreated,
+      onTap: (_) => onMapTap(),
+    );
+  }
+}
+
+/// 地図の上に被せる UI（検索バー・フィルタ・インサイト・クーポン帯・現在地ボタン）。
+/// 開閉トグルや検索フォーカスの状態はここに閉じる。
+class _MapOverlay extends ConsumerStatefulWidget {
+  final List<ParkingLot> lots;
+  final TextEditingController searchController;
+  final FocusNode searchFocus;
+  final LatLng? currentLocation;
+  final ValueChanged<ParkingLot> onParkingSelected;
+  final VoidCallback onRecenter;
+  final VoidCallback onLocationGranted;
+
+  const _MapOverlay({
+    required this.lots,
+    required this.searchController,
+    required this.searchFocus,
+    required this.currentLocation,
+    required this.onParkingSelected,
+    required this.onRecenter,
+    required this.onLocationGranted,
+  });
+
+  @override
+  ConsumerState<_MapOverlay> createState() => _MapOverlayState();
+}
+
+class _MapOverlayState extends ConsumerState<_MapOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _couponStripAnim;
+  bool _showCouponStrip = false;
+  bool _showMapControls = true;
+  bool _showInsightDetails = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _couponStripAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      reverseDuration: const Duration(milliseconds: 220),
+    );
+    widget.searchFocus.addListener(_onFocusChanged);
   }
 
-  String get _durationLabel {
-    final minutes = (route.durationSeconds / 60).round();
-    if (minutes < 60) return '約$minutes分';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    return m == 0 ? '約$h時間' : '約$h時間$m分';
+  @override
+  void dispose() {
+    widget.searchFocus.removeListener(_onFocusChanged);
+    _couponStripAnim.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _openCouponStrip() {
+    if (_showCouponStrip) return;
+    setState(() => _showCouponStrip = true);
+    _couponStripAnim.forward();
+  }
+
+  void _closeCouponStrip() {
+    if (!_showCouponStrip) return;
+    _couponStripAnim.reverse().whenComplete(() {
+      if (mounted) setState(() => _showCouponStrip = false);
+    });
+  }
+
+  void _collapseMapControls() {
+    widget.searchFocus.unfocus();
+    setState(() {
+      _showMapControls = false;
+      _showInsightDetails = false;
+    });
+  }
+
+  void _expandMapControls() {
+    setState(() => _showMapControls = true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: GlassDecoration.light(context, radius: 16),
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.directions_bike_rounded,
-                size: 18, color: AppColors.accent),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  route.parkingName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: context.textPrimary,
+    final stores =
+        ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final query = ref.watch(parkingSearchQueryProvider);
+    final normalizedQuery = query.trim().toLowerCase();
+    final filter = ref.watch(mapFilterProvider);
+    final favorites = ref.watch(favoriteParkingsProvider);
+    final activeRoute = ref.watch(activeRouteProvider);
+
+    final visibleLots = filterParkingLots(
+      lots: widget.lots,
+      normalizedQuery: normalizedQuery,
+      filter: filter,
+      favoriteIds: favorites,
+      stores: stores,
+      origin: widget.currentLocation ?? ParkingMapPage._initialCamera.target,
+    );
+
+    final searchActive =
+        widget.searchFocus.hasFocus || normalizedQuery.isNotEmpty;
+    final showMapControls = _showMapControls || searchActive;
+    final couponStripVisible =
+        stores.isNotEmpty && !searchActive && _showCouponStrip;
+    final couponToggleVisible =
+        stores.isNotEmpty && !searchActive && !_showCouponStrip;
+    final recenterButtonBottom = couponStripVisible
+        ? 154.0
+        : couponToggleVisible
+            ? 68.0
+            : 16.0;
+
+    return Stack(
+      children: [
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: showMapControls
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 10),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: GlassDecoration.pill(context),
+                              child: Icon(Icons.directions_bike,
+                                  size: 18, color: AppColors.accent),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Bicycle Go',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: context.textPrimary,
+                                    ),
+                              ),
+                            ),
+                            if (!searchActive) ...[
+                              const SizedBox(width: 10),
+                              MapControlsToggle(
+                                icon: Icons.keyboard_arrow_up_rounded,
+                                label: '上部を隠す',
+                                tooltip: '検索と条件を隠す',
+                                onTap: _collapseMapControls,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      DecoratedBox(
+                        decoration: GlassDecoration.light(context, radius: 16),
+                        child: TextField(
+                          controller: widget.searchController,
+                          focusNode: widget.searchFocus,
+                          textInputAction: TextInputAction.search,
+                          decoration: InputDecoration(
+                            hintText: '駐輪場を検索',
+                            prefixIcon: Icon(Icons.search,
+                                color: context.textSecondary),
+                            suffixIcon: query.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: Icon(Icons.close_rounded,
+                                        color: context.textSecondary),
+                                    onPressed: () {
+                                      widget.searchController.clear();
+                                    },
+                                  ),
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 16),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: LocationPermissionBanner(
+                          onGranted: widget.onLocationGranted,
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10),
+                        child: MapFilterBar(),
+                      ),
+                      if (!searchActive)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: MapInsightCard(
+                            visibleLots: visibleLots,
+                            stores: stores,
+                            referenceLocation: widget.currentLocation ??
+                                ParkingMapPage._initialCamera.target,
+                            expanded: _showInsightDetails,
+                            onToggle: () => setState(
+                              () =>
+                                  _showInsightDetails = !_showInsightDetails,
+                            ),
+                          ),
+                        ),
+                      if (widget.searchFocus.hasFocus ||
+                          normalizedQuery.isNotEmpty)
+                        // Flexible で残り高さに合わせてドロップダウンを自動収縮。
+                        // キーボードや上部ウィジェットの実寸が読めなくても overflow しない。
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: SearchResultsDropdown(
+                              query: normalizedQuery,
+                              allLots: widget.lots,
+                              filteredLots: visibleLots,
+                              currentLocation: widget.currentLocation,
+                              onTap: widget.onParkingSelected,
+                            ),
+                          ),
+                        ),
+                      if (activeRoute != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: RouteBanner(
+                            route: activeRoute,
+                            onClose: () {
+                              ref.read(activeRouteProvider.notifier).state =
+                                  null;
+                            },
+                          ),
+                        ),
+                    ],
+                  )
+                : Align(
+                    alignment: Alignment.topRight,
+                    child: MapControlsToggle(
+                      icon: Icons.keyboard_arrow_down_rounded,
+                      label: '検索・条件を表示',
+                      tooltip: '検索と条件を表示',
+                      onTap: _expandMapControls,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(Icons.route_rounded,
-                        size: 14, color: context.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      _distanceLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Icon(Icons.schedule_rounded,
-                        size: 14, color: context.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      _durationLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: context.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          ),
+        ),
+        if (!searchActive)
+          Positioned(
+            right: 16,
+            bottom: recenterButtonBottom,
+            child: MapFloatingButton(
+              icon: Icons.my_location_rounded,
+              tooltip: '現在地へ移動',
+              onTap: widget.onRecenter,
             ),
           ),
-          IconButton(
-            tooltip: 'ルートを消す',
-            onPressed: onClose,
-            icon: Icon(Icons.close_rounded,
-                size: 18, color: context.textSecondary),
+        if (stores.isNotEmpty && !searchActive)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 16,
+            child: _showCouponStrip
+                ? CouponStripReveal(
+                    animation: _couponStripAnim,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: CouponStripToggle(
+                              icon: Icons.close,
+                              label: '配信中クーポンを隠す',
+                              onTap: _closeCouponStrip,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 112,
+                          child: CouponPreviewStrip(stores: stores),
+                        ),
+                      ],
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: CouponHandle(
+                        count: stores.length,
+                        onTap: _openCouponStrip,
+                      ),
+                    ),
+                  ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

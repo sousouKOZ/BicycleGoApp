@@ -18,12 +18,17 @@ class SessionMiniBar extends ConsumerStatefulWidget {
 class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
   Timer? _ticker;
 
-  @override
-  void initState() {
-    super.initState();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
+  /// カウントダウン表示中だけ 1 秒ティッカーを回す。
+  /// セッションが無い間（＝バー非表示）に毎秒 rebuild しないため。
+  void _syncTicker({required bool needed}) {
+    if (needed && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!needed && _ticker != null) {
+      _ticker!.cancel();
+      _ticker = null;
+    }
   }
 
   @override
@@ -39,21 +44,24 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
         session.authenticatedAt == null ||
         session.status == ParkingSessionStatus.completed ||
         session.status == ParkingSessionStatus.expired) {
+      _syncTicker(needed: false);
       return const SizedBox.shrink();
     }
 
     if (session.status == ParkingSessionStatus.parked) {
+      // 駐輪継続中バーは _ParkedBar が自前の 30 秒ティッカーで更新する。
+      _syncTicker(needed: false);
       return _ParkedBar(authenticatedAt: session.authenticatedAt!);
     }
 
+    _syncTicker(needed: true);
+
     final theme = Theme.of(context);
     final total = ParkingSession.earnThreshold.inSeconds;
-    // デモ時はローカル時計で作ったdetectedAtを使い時計ズレを防止。
-    // 実機（本番）時はサーバーが記録したauthenticatedAtを正しく使う。
-    final basis = ParkingSession.isDemoMode
-        ? session.detectedAt
-        : session.authenticatedAt!;
-    final elapsed = DateTime.now().difference(basis).inSeconds.clamp(0, total);
+    final elapsed = DateTime.now()
+        .difference(session.elapsedBasis!)
+        .inSeconds
+        .clamp(0, total);
     final left = total - elapsed;
     final progress = elapsed / total;
     final achieved = session.status == ParkingSessionStatus.achieved;

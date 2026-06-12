@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/api/api_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../core/widgets/app_bottom_sheet.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../../core/domain/store.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
-import '../../user/providers/user_providers.dart';
 import '../../../core/domain/coupon.dart';
 import '../providers/coupon_filter_providers.dart';
 import '../providers/coupon_providers.dart';
+import 'coupon_actions.dart';
 import 'coupon_detail_page.dart';
 import 'widgets/coupon_ticket.dart';
 import 'widgets/swipe_to_use.dart';
@@ -95,7 +97,7 @@ class CouponListPage extends ConsumerWidget {
                   const _CouponFilterBar(),
                   const SizedBox(height: 16),
                   if (visibleStores.isNotEmpty) ...[
-                    const _SectionHeader(
+                    const SectionHeader(
                       title: '配信中',
                       subtitle: '近くの提携駐輪場に15分停めると獲得できます',
                       accent: AppColors.accent,
@@ -106,7 +108,7 @@ class CouponListPage extends ConsumerWidget {
                     const SizedBox(height: 24),
                   ],
                   if (owned.isNotEmpty) ...[
-                    _SectionHeader(
+                    SectionHeader(
                       title: '利用可能',
                       subtitle: sortMode == CouponSortMode.expiringSoon
                           ? '期限が近い順に表示中'
@@ -118,7 +120,7 @@ class CouponListPage extends ConsumerWidget {
                     const SizedBox(height: 24),
                   ],
                   if (used.isNotEmpty) ...[
-                    const _SectionHeader(
+                    const SectionHeader(
                       title: '使用済み',
                       subtitle: 'ご利用ありがとうございました',
                       accent: AppColors.onSurfaceSecondary,
@@ -128,7 +130,7 @@ class CouponListPage extends ConsumerWidget {
                     const SizedBox(height: 24),
                   ],
                   if (expired.isNotEmpty) ...[
-                    const _SectionHeader(
+                    const SectionHeader(
                       title: '期限切れ',
                       subtitle: '—',
                       accent: AppColors.danger,
@@ -207,10 +209,8 @@ class _DistributingCouponCard extends StatelessWidget {
       tintColor: AppColors.accent,
       benefit: store.benefit,
       subtitle: '${store.name} ・ ${store.category.label}',
-      onTap: () => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
+      onTap: () => showAppBottomSheet<void>(
+        context,
         builder: (_) => StorePreviewSheet(store: store),
       ),
     );
@@ -260,7 +260,10 @@ class _CouponCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isUsable = coupon.isUsable;
-    final remaining = _formatRemaining(coupon.expiresAt);
+    final remainingDiff = coupon.expiresAt.difference(DateTime.now());
+    final remaining = remainingDiff.isNegative
+        ? '—'
+        : 'あと${formatRemainingCompact(remainingDiff)}';
     final benefitColor = isUsable ? context.textPrimary : context.textSecondary;
 
     // チケット上部（特典本体）。タップで詳細へ。
@@ -376,12 +379,10 @@ class _CouponCard extends ConsumerWidget {
   }
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
-    final api = ref.read(apiClientProvider);
-    final userId = ref.read(currentUserIdProvider);
-    await api.redeemCoupon(userId: userId, couponId: coupon.id);
-    ref.invalidate(userCouponsProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    await redeemCouponAndRefresh(ref, messenger, coupon);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(content: Text('${coupon.storeName}で使用しました')),
     );
   }
@@ -485,71 +486,6 @@ class _TicketCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final Color accent;
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    required this.accent,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 4,
-            height: 28,
-            decoration: BoxDecoration(
-              color: accent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: context.textPrimary,
-                    )),
-                Text(subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.textSecondary,
-                    )),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _formatRemaining(DateTime expiresAt) {
-  final now = DateTime.now();
-  final diff = expiresAt.difference(now);
-  if (diff.isNegative) return '—';
-  final days = diff.inDays;
-  final hours = diff.inHours % 24;
-  if (days >= 1) return 'あと$days日 $hours時間';
-  final minutes = diff.inMinutes % 60;
-  if (diff.inHours >= 1) return 'あと${diff.inHours}時間 $minutes分';
-  return 'あと${diff.inMinutes}分';
 }
 
 class _CouponFilterBar extends ConsumerStatefulWidget {

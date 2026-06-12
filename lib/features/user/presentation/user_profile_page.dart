@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
+import '../../../core/widgets/section_header.dart';
 import '../../auth/domain/account_status.dart';
 import '../../auth/presentation/email_login_page.dart';
 import '../../auth/presentation/email_signup_page.dart';
@@ -17,7 +18,7 @@ class UserProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProfileProvider);
-    final asyncDeviceId = ref.watch(deviceIdProvider);
+    final asyncInstallId = ref.watch(installIdProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -94,7 +95,7 @@ class UserProfilePage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 22),
-            const _SectionLabel(label: 'プロフィール'),
+            const SectionLabel(label: 'プロフィール'),
             const SizedBox(height: 10),
             DecoratedBox(
               decoration: GlassDecoration.light(context, radius: 18),
@@ -112,11 +113,11 @@ class UserProfilePage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 22),
-            const _SectionLabel(label: 'デバイス'),
+            const SectionLabel(label: 'デバイス'),
             const SizedBox(height: 10),
             DecoratedBox(
               decoration: GlassDecoration.light(context, radius: 18),
-              child: asyncDeviceId.when(
+              child: asyncInstallId.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.all(20),
                   child:
@@ -153,7 +154,7 @@ class UserProfilePage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 22),
-            const _SectionLabel(label: 'アカウント'),
+            const SectionLabel(label: 'アカウント'),
             const SizedBox(height: 10),
             _AccountCard(status: ref.watch(accountStatusProvider)),
           ],
@@ -198,25 +199,6 @@ class UserProfilePage extends ConsumerWidget {
     );
     if (next == null) return;
     await ref.read(userProfileProvider.notifier).setNickname(next);
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-      ),
-    );
   }
 }
 

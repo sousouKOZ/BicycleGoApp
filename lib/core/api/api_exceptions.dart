@@ -7,10 +7,6 @@ class ApiException implements Exception {
   String toString() => 'ApiException($code): $message';
 }
 
-class GpsMismatchException extends ApiException {
-  const GpsMismatchException(String message) : super('gps_mismatch', message);
-}
-
 class AuthGraceExpiredException extends ApiException {
   const AuthGraceExpiredException(String message)
       : super('auth_grace_expired', message);

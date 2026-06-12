@@ -1,6 +1,21 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-enum StoreCategory { cafe, restaurant, bakery, retail, sweets, bar }
+enum StoreCategory {
+  cafe,
+  restaurant,
+  bakery,
+  retail,
+  sweets,
+  bar;
+
+  /// DB の文字列表現（enum 名と同一）から変換する。未知の値は null。
+  static StoreCategory? fromDb(String s) {
+    for (final v in values) {
+      if (v.name == s) return v;
+    }
+    return null;
+  }
+}
 
 extension StoreCategoryLabel on StoreCategory {
   String get label {
@@ -45,21 +60,13 @@ class Store {
   });
 
   factory Store.fromJson(Map<String, dynamic> json) {
-    StoreCategory parseCategory(String cat) {
-      switch (cat.toLowerCase()) {
-        case 'cafe': return StoreCategory.cafe;
-        case 'bakery': return StoreCategory.bakery;
-        case 'sweets': return StoreCategory.sweets;
-        case 'bar': return StoreCategory.bar;
-        case 'retail': return StoreCategory.retail;
-        default: return StoreCategory.restaurant;
-      }
-    }
-
     return Store(
       id: json['id'] as String,
       name: json['name'] as String,
-      category: parseCategory(json['category'] as String),
+      // レコメンド API 由来のデータは未知カテゴリを restaurant に倒す。
+      category:
+          StoreCategory.fromDb((json['category'] as String).toLowerCase()) ??
+              StoreCategory.restaurant,
       position: LatLng((json['lat'] as num).toDouble(), (json['lng'] as num).toDouble()),
       benefit: json['benefit'] as String,
       recommendWeight: (json['recommend_weight'] as num?)?.toDouble() ?? 0.5,

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../providers/auth_controller.dart';
 import 'password_reset_page.dart';
+import 'widgets/auth_form_fields.dart';
 import 'widgets/auth_header.dart';
 
 /// メールアドレス + パスワードでログインする画面。
@@ -61,7 +62,6 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(),
       body: SafeArea(
@@ -79,32 +79,13 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextFormField(
+                  AuthEmailField(
                     initialValue: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'メールアドレス',
-                      prefixIcon: Icon(Icons.mail_outline_rounded),
-                    ),
-                    validator: (v) {
-                      final s = v?.trim() ?? '';
-                      if (s.isEmpty) return 'メールアドレスを入力してください';
-                      if (!s.contains('@')) return 'メールアドレスの形式が正しくありません';
-                      return null;
-                    },
                     onChanged: (v) => _email = v,
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
+                  AuthPasswordField(
                     initialValue: _password,
-                    obscureText: true,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: 'パスワード',
-                      prefixIcon: Icon(Icons.lock_outline_rounded),
-                    ),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? 'パスワードを入力してください' : null,
                     onChanged: (v) => _password = v,
@@ -112,26 +93,13 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
+                    AuthErrorText(error: _error!),
                   ],
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _busy ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    child: _busy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('ログイン'),
+                  AuthSubmitButton(
+                    busy: _busy,
+                    label: 'ログイン',
+                    onPressed: _submit,
                   ),
                   const SizedBox(height: 8),
                   TextButton(

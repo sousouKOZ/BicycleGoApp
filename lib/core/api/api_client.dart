@@ -5,24 +5,25 @@ import '../domain/parking_session.dart';
 import '../domain/session_record.dart';
 import '../domain/store.dart';
 
-/// Flaskバックエンド仕様（§8.2）に対応するAPI契約。
-/// 実装は現状モックだが、インタフェースはHTTP版に差し替え可能なように設計。
+/// バックエンドとの API 契約。
+/// 現行実装は [SupabaseApiClient]（Edge Function + PostgREST）。
+/// テストやバックエンド差し替え時はこのインタフェースを実装する。
 abstract class ApiClient {
-  /// POST /api/parking/detect
-  /// IoTデバイスからの駐輪検知送信を模倣。
+  /// 駐輪検知の送信（Edge Function: parking_detect）。
+  /// 本来は IoT デバイス（MCU）が行う処理で、アプリからはデモ用に呼ぶ。
   Future<ParkingSession> postParkingDetect({
     required String deviceId,
     required DateTime detectedAt,
   });
 
-  /// POST /api/parking/auth
-  /// モバイルアプリからのNFC認証。ユーザーはサーバが JWT から解決するため
-  /// 送信するのは機体IDのみ。5分猶予超過時は例外を投げる。
+  /// NFC 認証（Edge Function: parking_auth）。
+  /// ユーザーはサーバが JWT から解決するため送信するのは機体IDのみ。
+  /// 5分猶予超過時は例外を投げる。
   Future<ParkingSession> postParkingAuth({
     required String deviceId,
   });
 
-  /// GET /api/user/coupons
+  /// 自分のクーポン一覧を取得する。
   Future<List<Coupon>> getUserCoupons(String userId);
 
   /// クーポン消込（スワイプto使用）。
@@ -58,10 +59,10 @@ abstract class ApiClient {
     required Duration validity,
   });
 
-  /// マップ表示用の空き状況一覧（§7.1）。
+  /// マップ表示用の空き状況一覧。
   Future<List<ParkingLot>> getParkingLots();
 
-  /// マップ表示用の提携店舗一覧（§7.1）。
+  /// マップ表示用の提携店舗一覧。
   Future<List<Store>> getStores();
 
   /// 現在のアクティブセッション取得（NFCスキャン直後の計測画面復帰用）。

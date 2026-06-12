@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../auth_constants.dart';
 import '../providers/auth_controller.dart';
+import 'widgets/auth_form_fields.dart';
 import 'widgets/auth_header.dart';
 
 /// パスワード再設定リンクを開いた後（passwordRecovery 発火後）に表示し、
@@ -45,7 +46,6 @@ class _SetNewPasswordPageState extends ConsumerState<SetNewPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(automaticallyImplyLeading: false),
       body: SafeArea(
@@ -63,15 +63,10 @@ class _SetNewPasswordPageState extends ConsumerState<SetNewPasswordPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextFormField(
+                  AuthPasswordField(
                     initialValue: _password,
-                    obscureText: true,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(
-                      labelText: '新しいパスワード',
-                      prefixIcon: Icon(Icons.lock_outline_rounded),
-                      helperText: kPasswordRuleLabel,
-                    ),
+                    labelText: '新しいパスワード',
+                    helperText: kPasswordRuleLabel,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'パスワードを入力してください';
                       if (!isPasswordPolicyCompliant(v)) {
@@ -84,26 +79,13 @@ class _SetNewPasswordPageState extends ConsumerState<SetNewPasswordPage> {
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      _error!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
+                    AuthErrorText(error: _error!),
                   ],
                   const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _busy ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                    ),
-                    child: _busy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('パスワードを変更'),
+                  AuthSubmitButton(
+                    busy: _busy,
+                    label: 'パスワードを変更',
+                    onPressed: _submit,
                   ),
                 ],
               ),

@@ -1,4 +1,5 @@
-/// 完了したセッションの履歴エントリ。端末ローカルに永続化される。
+/// 完了したセッションの履歴エントリ。
+/// サーバ `parking_sessions` を真実の源として API 経由で取得する。
 class SessionRecord {
   final String id;
   final String parkingId;
