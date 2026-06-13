@@ -229,8 +229,7 @@ class _MapCanvas extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stores =
-        ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
     final normalizedQuery =
         ref.watch(parkingSearchQueryProvider).trim().toLowerCase();
     final filter = ref.watch(mapFilterProvider);
@@ -423,8 +422,7 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final stores =
-        ref.watch(storesProvider).asData?.value ?? const <Store>[];
+    final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
     final query = ref.watch(parkingSearchQueryProvider);
     final normalizedQuery = query.trim().toLowerCase();
     final filter = ref.watch(mapFilterProvider);
@@ -491,7 +489,7 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
                               const SizedBox(width: 10),
                               MapControlsToggle(
                                 icon: Icons.keyboard_arrow_up_rounded,
-                                label: '上部を隠す',
+                                label: '検索・条件を隠す',
                                 tooltip: '検索と条件を隠す',
                                 onTap: _collapseMapControls,
                               ),
@@ -547,8 +545,7 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
                                 ParkingMapPage._initialCamera.target,
                             expanded: _showInsightDetails,
                             onToggle: () => setState(
-                              () =>
-                                  _showInsightDetails = !_showInsightDetails,
+                              () => _showInsightDetails = !_showInsightDetails,
                             ),
                           ),
                         ),
