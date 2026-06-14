@@ -13,6 +13,7 @@ import '../../stores/providers/store_providers.dart';
 import '../../../core/domain/coupon.dart';
 import '../providers/coupon_providers.dart';
 import 'coupon_actions.dart';
+import 'widgets/coupon_redeemed_overlay.dart';
 import 'widgets/swipe_to_use.dart';
 
 class CouponDetailPage extends ConsumerStatefulWidget {
@@ -157,14 +158,15 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
     await redeemCouponAndRefresh(ref, messenger, widget.coupon);
     if (!context.mounted) return;
-    messenger.showSnackBar(
-      SnackBar(content: Text('${widget.coupon.storeName}で使用しました')),
+    await showCouponRedeemedOverlay(
+      context,
+      storeName: widget.coupon.storeName,
+      benefit: widget.coupon.benefit,
     );
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!context.mounted) return;
-    Navigator.of(context).maybePop();
+    navigator.maybePop();
   }
 }
 

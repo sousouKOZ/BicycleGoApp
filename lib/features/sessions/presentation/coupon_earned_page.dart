@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../../core/domain/coupon.dart';
 import '../../coupons/presentation/coupon_actions.dart';
+import '../../coupons/presentation/widgets/coupon_redeemed_overlay.dart';
 import '../../coupons/presentation/widgets/swipe_to_use.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../../core/domain/parking_session.dart';
@@ -135,18 +136,10 @@ class _CouponEarnedPageState extends ConsumerState<CouponEarnedPage>
     await _acknowledgeSession(ref);
     ref.read(latestEarnedCouponProvider.notifier).state = null;
     if (!context.mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('ありがとうございました'),
-        content: Text('${coupon.storeName} でご利用いただきました。'),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+    await showCouponRedeemedOverlay(
+      context,
+      storeName: coupon.storeName,
+      benefit: coupon.benefit,
     );
     if (!context.mounted) return;
     Navigator.of(context).popUntil((r) => r.isFirst);
