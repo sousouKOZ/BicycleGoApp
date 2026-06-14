@@ -192,6 +192,29 @@ class DataStore:
                     max_affinity = sim
         return max_affinity
 
+    def increment_visit(self, user_id, venue_id, category_name):
+        """
+        指定ユーザーの指定店舗・カテゴリの訪問回数を+1する。
+        もし存在しないユーザー・店舗・カテゴリであれば新規追加する。
+        """
+        user_id = str(user_id)
+        venue_id = str(venue_id)
+        category_name = str(category_name)
+
+        # user_item_matrix の更新
+        if user_id not in self.user_item_matrix.index:
+            self.user_item_matrix.loc[user_id] = 0
+        if venue_id not in self.user_item_matrix.columns:
+            self.user_item_matrix[venue_id] = 0
+        self.user_item_matrix.loc[user_id, venue_id] += 1
+
+        # user_cat_matrix の更新
+        if user_id not in self.user_cat_matrix.index:
+            self.user_cat_matrix.loc[user_id] = 0
+        if category_name not in self.user_cat_matrix.columns:
+            self.user_cat_matrix[category_name] = 0
+        self.user_cat_matrix.loc[user_id, category_name] += 1
+
     # ------------------------------------------------------------------
     # 店舗関連
     # ------------------------------------------------------------------

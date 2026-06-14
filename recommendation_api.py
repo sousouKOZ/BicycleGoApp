@@ -189,8 +189,8 @@ def recommend():
 
         # 統合ベーススコア
         s_base = 0.5 * s_item_cf + 0.2 * s_cat_cf + 0.3 * s_personal
-        if s_base == 0:
-            s_base = 0.05  # フォールバック
+        if s_base < 0.3:
+            s_base = 0.3  # フォールバック（未訪問・低スコア店舗の基礎スコアを底上げ）
 
         # 4. 距離減衰ブースト
         dist_boost = max(0.1, 1.0 - (venue['distance'] / RADIUS_M))
@@ -205,12 +205,13 @@ def recommend():
         elif not is_stay_oriented and is_travel:
             profile_boost = 1.5
 
-        # 6. 訪問回数ペナルティ
+        # 6. 訪問回数ペナルティと新規開拓ボーナス
         if m_uv == 0:
-            p_visit = 1.0
+            # 未訪問店舗には新規開拓（セレンディピティ）ボーナス
+            p_visit = 1.5
         else:
-            delta_n = m_uv - n_min
-            p_visit = max(0.4, 0.9 ** delta_n)
+            # 訪問回数が増えるごとにペナルティを課す（同じ店舗ばかり出ないようにする）
+            p_visit = max(0.1, 0.7 ** m_uv)
 
         # 最終スコア
         final_score = s_base * dist_boost * profile_boost * p_visit
@@ -263,6 +264,40 @@ def recommend():
 
 
 # ------------------------------------------------------------------
+# 訪問回数のインクリメントAPI（軽量アップデート）
+# ------------------------------------------------------------------
+@app.route('/api/v2/increment_visit', methods=['POST'])
+@require_internal_api_key
+def increment_visit():
+    """
+    クーポンの利用時などに呼び出し、対象店舗の訪問回数をインクリメントする。
+    
+    Request Body:
+        {
+            "user_id": str,
+            "venue_id": str,
+            "category_name": str
+        }
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'JSON object body is required'}), 400
+
+    user_id = data.get('user_id')
+    venue_id = data.get('venue_id')
+    category_name = data.get('category_name')
+
+    if not user_id or not venue_id or not category_name:
+        return jsonify({'error': 'user_id, venue_id, category_name are required'}), 400
+
+    try:
+        store.increment_visit(user_id, venue_id, category_name)
+        return jsonify({'status': 'ok', 'message': 'Visit incremented successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------------------------------------------------
 # サーバー起動
 # ------------------------------------------------------------------
 if __name__ == '__main__':
@@ -277,5 +312,6 @@ if __name__ == '__main__':
     print("    GET  /api/v2/users")
     print("    GET  /api/v2/random_location")
     print("    POST /api/v2/recommend")
+    print("    POST /api/v2/increment_visit")
     print("=" * 50)
     app.run(host=host, port=port, debug=debug)

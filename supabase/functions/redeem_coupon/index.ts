@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   // 1. クーポンを取得して所有者・状態チェック
   const { data: coupon, error: fetchErr } = await supabase
     .from("coupons")
-    .select("id, user_id, status, expires_at")
+    .select("id, user_id, status, expires_at, store_id")
     .eq("id", couponId)
     .maybeSingle();
   if (fetchErr) {
@@ -82,6 +82,43 @@ Deno.serve(async (req) => {
   if (!updated) {
     // 直前の SELECT 後に他プロセスで already_used になった
     return errorResponse(409, "already_used", "coupon already used");
+  }
+
+  // 3. レコメンドAPIにインクリメント通知 (非同期、エラーを投げない)
+  try {
+    const storeId = coupon.store_id;
+    
+    // 提携店舗の場合のみ（'exchange-'プレフィックス等ではない）、店舗カテゴリを取得して通知
+    if (storeId && !storeId.startsWith('exchange-')) {
+      const { data: storeData } = await supabase
+        .from("stores")
+        .select("category")
+        .eq("id", storeId)
+        .maybeSingle();
+
+      const categoryName = storeData?.category;
+      const pythonApiUrl = Deno.env.get("PYTHON_API_URL") || "http://host.docker.internal:5001";
+      const pythonApiKey = Deno.env.get("PYTHON_API_KEY")?.trim();
+      const pythonHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (pythonApiKey) {
+        pythonHeaders.Authorization = `Bearer ${pythonApiKey}`;
+      }
+
+      // fire-and-forget
+      fetch(`${pythonApiUrl}/api/v2/increment_visit`, {
+        method: "POST",
+        headers: pythonHeaders,
+        body: JSON.stringify({
+          user_id: userId,
+          venue_id: storeId,
+          category_name: categoryName
+        })
+      }).catch(err => console.error("[redeem_coupon] Failed to call increment_visit:", err));
+    }
+  } catch (err) {
+    console.error("[redeem_coupon] Error preparing increment_visit:", err);
   }
 
   return jsonResponse(updated, 200);

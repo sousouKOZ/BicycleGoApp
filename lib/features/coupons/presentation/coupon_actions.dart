@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_providers.dart';
 import '../../../core/domain/coupon.dart';
 import '../../user/providers/user_providers.dart';
+import '../../parking/providers/recommendation_providers.dart';
 import '../providers/coupon_providers.dart';
 
 /// クーポンを消込み、一覧（userCouponsProvider）を再取得する。
@@ -29,4 +30,5 @@ Future<void> redeemCouponAndRefresh(
     rethrow;
   }
   ref.invalidate(userCouponsProvider);
+  ref.invalidate(recommendedStoresProvider);
 }
