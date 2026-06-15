@@ -13,7 +13,6 @@ import '../../stores/providers/store_providers.dart';
 import '../../../core/domain/coupon.dart';
 import '../providers/coupon_providers.dart';
 import 'coupon_actions.dart';
-import 'widgets/coupon_redeemed_overlay.dart';
 import 'widgets/swipe_to_use.dart';
 
 class CouponDetailPage extends ConsumerStatefulWidget {
@@ -24,12 +23,29 @@ class CouponDetailPage extends ConsumerStatefulWidget {
   ConsumerState<CouponDetailPage> createState() => _CouponDetailPageState();
 }
 
-class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
+class _CouponDetailPageState extends ConsumerState<CouponDetailPage>
+    with SingleTickerProviderStateMixin {
   Timer? _ticker;
+
+  /// この画面でスワイプ消込を完了したか。完了後は provider 反映を待たずに
+  /// 「使用済み」表示へ倒し、CTA も無効状態のまま固定する。
+  bool _redeemed = false;
+
+  /// 消込確定時のカード演出（光の走り → ギフトのポップ → 使用済みスタンプ → ディム）。
+  /// 0.0〜1.0 を約1秒で進め、4段階を短いタイムラインに収める。
+  late final AnimationController _celebrate;
 
   @override
   void initState() {
     super.initState();
+    _celebrate = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    // 既に使用済みのクーポンを開いた場合は、演出を再生せず最終状態を即表示する。
+    if (widget.coupon.status == CouponStatus.used) {
+      _celebrate.value = 1.0;
+    }
     if (widget.coupon.isUsable) {
       _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
         if (mounted) setState(() {});
@@ -40,6 +56,7 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _celebrate.dispose();
     super.dispose();
   }
 
@@ -95,7 +112,11 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
               ),
             ),
             const SizedBox(height: 18),
-            _BenefitHero(benefit: coupon.benefit),
+            _BenefitHero(
+              benefit: coupon.benefit,
+              used: _redeemed || coupon.status == CouponStatus.used,
+              celebrate: _celebrate,
+            ),
             const SizedBox(height: 16),
             _ExpiryCountdown(coupon: coupon),
             const SizedBox(height: 18),
@@ -133,13 +154,17 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
             const SizedBox(height: 8),
             _InfoTable(coupon: coupon),
             const SizedBox(height: 28),
-            if (coupon.isUsable)
+            // 消込後も同じ SwipeToUse を保持し、完了状態（チェック・バウンド）を
+            // provider 反映の有無に関わらず保つ。
+            if (coupon.isUsable || _redeemed) ...[
               SwipeToUse(
                 label: '会計時にスワイプして消込',
                 completedLabel: '消込完了 ✓',
                 onCompleted: () => _redeem(context, ref),
-              )
-            else
+              ),
+              // モーダルで流れを止めず、CTA 直下に状態変化として確認を出す。
+              _RedeemConfirmation(visible: _redeemed, celebrate: _celebrate),
+            ] else
               _DisabledState(coupon: coupon),
           ],
         ),
@@ -158,15 +183,13 @@ class _CouponDetailPageState extends ConsumerState<CouponDetailPage> {
 
   Future<void> _redeem(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
+    // 失敗時は redeemCouponAndRefresh が rethrow し、SwipeToUse がスワイプを巻き戻す。
     await redeemCouponAndRefresh(ref, messenger, widget.coupon);
-    if (!context.mounted) return;
-    await showCouponRedeemedOverlay(
-      context,
-      storeName: widget.coupon.storeName,
-      benefit: widget.coupon.benefit,
-    );
-    navigator.maybePop();
+    if (!mounted) return;
+    // 全画面モーダルではなく、その場の状態変化として「確定」を見せる。
+    // SwipeToUse 側がチェックのバウンドと haptic を担い、カード演出はここで再生する。
+    setState(() => _redeemed = true);
+    _celebrate.forward(from: 0);
   }
 }
 
@@ -223,70 +246,252 @@ class _StatusBadgeRow extends StatelessWidget {
   }
 }
 
+/// 特典カード。消込確定時に「光の走り → ギフトのポップ → 使用済みスタンプ →
+/// カードのディム」を [celebrate] のタイムライン上で順に再生し、特典が使われたことを伝える。
 class _BenefitHero extends StatelessWidget {
   final String benefit;
-  const _BenefitHero({required this.benefit});
+  final bool used;
+  final Animation<double> celebrate;
+
+  const _BenefitHero({
+    required this.benefit,
+    required this.used,
+    required this.celebrate,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.accent, AppColors.accentAlt],
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x3300A88F),
-            blurRadius: 24,
-            spreadRadius: -8,
-            offset: Offset(0, 12),
+    return AnimatedBuilder(
+      animation: celebrate,
+      builder: (context, _) {
+        final t = celebrate.value;
+        // ギフトのポップ（0.1〜0.5 で弾む）。
+        final popT = ((t - 0.1) / 0.4).clamp(0.0, 1.0);
+        final giftScale =
+            used ? 0.6 + 0.4 * Curves.elasticOut.transform(popT) : 1.0;
+        // 光の走り（前半のみ。終わると画面外へ抜けるため描画しない）。
+        final sweepT = (t / 0.55).clamp(0.0, 1.0);
+        final showSweep = used && t > 0.0 && t < 0.55;
+        // 使用済みスタンプ／ディム（0.45〜1.0 でフェードイン）。
+        final stampT =
+            used ? Curves.easeOut.transform(((t - 0.45) / 0.55).clamp(0.0, 1.0)) : 0.0;
+
+        return Stack(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.accent, AppColors.accentAlt],
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x3300A88F),
+                    blurRadius: 24,
+                    spreadRadius: -8,
+                    offset: Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Transform.scale(
+                    scale: giftScale,
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        used
+                            ? Icons.redeem_rounded
+                            : Icons.card_giftcard_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '特典',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          benefit,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // カード内に収めるためのオーバーレイ群（光の走り・ディム・スタンプ）。
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: IgnorePointer(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // 落ち着いた色へ少しだけ沈める。
+                      if (stampT > 0)
+                        ColoredBox(
+                          color: const Color(0xFF0D2A28)
+                              .withValues(alpha: 0.28 * stampT),
+                        ),
+                      if (showSweep) _LightSweep(progress: sweepT),
+                      if (stampT > 0)
+                        Center(child: _UsedStamp(progress: stampT)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 特典カードを横切る一筋の光。斜めの明るい帯を左から右へ走らせる。
+class _LightSweep extends StatelessWidget {
+  final double progress; // 0..1
+  const _LightSweep({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final dx = -w * 0.6 + (w * 1.6) * progress;
+        // 中央で最も明るく、両端でフェードして自然に抜ける。
+        final intensity =
+            (1 - (progress - 0.5).abs() * 2).clamp(0.0, 1.0);
+        return Transform.translate(
+          offset: Offset(dx, 0),
+          child: Transform.rotate(
+            angle: -0.35,
+            child: Container(
+              width: w * 0.32,
+              height: constraints.maxHeight * 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    Colors.white.withValues(alpha: 0),
+                    Colors.white.withValues(alpha: 0.42 * intensity),
+                    Colors.white.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
+        );
+      },
+    );
+  }
+}
+
+/// 「使用済み」スタンプ。半透明の枠付きで斜めに、弾むように現れる。
+class _UsedStamp extends StatelessWidget {
+  final double progress; // 0..1
+  const _UsedStamp({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    // 少し大きめから定位置へ。
+    final scale = 1.3 - 0.3 * progress;
+    return Opacity(
+      opacity: progress,
+      child: Transform.rotate(
+        angle: -0.21,
+        child: Transform.scale(
+          scale: scale,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.9),
+                width: 2.5,
+              ),
             ),
-            child: const Icon(Icons.card_giftcard_rounded,
-                color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '特典',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  benefit,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
+            child: Text(
+              '使用済み',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
-                    letterSpacing: -0.2,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
                   ),
-                ),
-              ],
             ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+/// CTA 直下に出す軽い確認表示。完了演出の後半でフェードアップする。
+class _RedeemConfirmation extends StatelessWidget {
+  final bool visible;
+  final Animation<double> celebrate;
+  const _RedeemConfirmation({required this.visible, required this.celebrate});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return AnimatedBuilder(
+      animation: celebrate,
+      builder: (context, _) {
+        final t = ((celebrate.value - 0.5) / 0.5).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 8 * (1 - t)),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      size: 18, color: AppColors.success),
+                  const SizedBox(width: 6),
+                  Text(
+                    'クーポンを使用しました',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
