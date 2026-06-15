@@ -783,7 +783,7 @@ class _NearbyCouponsSection extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '近くで使えるクーポン',
+                  '選ばれやすいクーポン',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(

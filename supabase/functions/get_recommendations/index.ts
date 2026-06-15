@@ -58,7 +58,23 @@ Deno.serve(async (req) => {
       pythonHeaders.Authorization = `Bearer ${pythonApiKey}`;
     }
 
-    // 1. Python レコメンド API を呼び出す
+    // 1. ユーザーの現在所持中のクーポンを集計
+    const supabase = serviceClient();
+    const { data: ownedCouponsData } = await supabase
+      .from("coupons")
+      .select("store_id")
+      .eq("user_id", userId)
+      .eq("status", "owned");
+    
+    const ownedCouponsMap: Record<string, number> = {};
+    if (ownedCouponsData) {
+      for (const row of ownedCouponsData) {
+        if (!row.store_id || row.store_id.startsWith("exchange-")) continue;
+        ownedCouponsMap[row.store_id] = (ownedCouponsMap[row.store_id] || 0) + 1;
+      }
+    }
+
+    // 2. Python レコメンド API を呼び出す
     let pyResponse;
     try {
       const pyReq = await fetch(`${pythonApiUrl}/api/v2/recommend`, {
@@ -68,6 +84,7 @@ Deno.serve(async (req) => {
           user_id: userId,
           lat: parsedLat,
           lng: parsedLng,
+          owned_coupons: ownedCouponsMap,
         }),
       });
 
@@ -90,8 +107,7 @@ Deno.serve(async (req) => {
     // 2. Python が返した Venue ID のリストを取得
     const venueIds = pyRecs.map((r: any) => r.venue_id);
 
-    // 3. Supabase (PostgreSQL) から店舗詳細データ (benefit 等) を取得
-    const supabase = serviceClient();
+    // 4. Supabase (PostgreSQL) から店舗詳細データ (benefit 等) を取得
     const { data: stores, error } = await supabase
       .from("stores")
       .select("id, name, category, lat, lng, benefit, recommend_weight, created_at")

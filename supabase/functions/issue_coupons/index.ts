@@ -180,6 +180,21 @@ Deno.serve(async (req) => {
     let store: Store | undefined;
     let recommendReason: string | undefined;
     
+    // ユーザーの現在所持中のクーポンを集計
+    const { data: ownedCouponsData } = await supabase
+      .from("coupons")
+      .select("store_id")
+      .eq("user_id", session.user_id)
+      .eq("status", "owned");
+    
+    const ownedCouponsMap: Record<string, number> = {};
+    if (ownedCouponsData) {
+      for (const row of ownedCouponsData) {
+        if (!row.store_id || row.store_id.startsWith("exchange-")) continue;
+        ownedCouponsMap[row.store_id] = (ownedCouponsMap[row.store_id] || 0) + 1;
+      }
+    }
+
     try {
       const pyReq = await fetch(`${pythonApiUrl}/api/v2/recommend`, {
         method: "POST",
@@ -188,6 +203,7 @@ Deno.serve(async (req) => {
           user_id: session.user_id,
           lat: parkingLot.lat,
           lng: parkingLot.lng,
+          owned_coupons: ownedCouponsMap,
         }),
       });
       if (pyReq.ok) {
@@ -198,7 +214,7 @@ Deno.serve(async (req) => {
           let totalWeight = 0;
           const weightedStores = pyRecs.map((r: any) => {
             // pyRecs には score フィールドが含まれる前提。もしなければ0.1とする。
-            const weight = Math.pow(r.score || 0.1, 3);
+            const weight = Math.pow(r.score || 0.1, 2);
             totalWeight += weight;
             return { ...r, weight };
           });

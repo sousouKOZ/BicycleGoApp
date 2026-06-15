@@ -126,6 +126,7 @@ def recommend():
     user_id = str(data.get('user_id', '')).strip()
     current_lat = parse_coordinate(data.get('lat'), -90, 90)
     current_lng = parse_coordinate(data.get('lng'), -180, 180)
+    owned_coupons = data.get('owned_coupons', {})
 
     if not user_id or len(user_id) > 128 or current_lat is None or current_lng is None:
         return jsonify({'error': 'valid user_id, lat, lng are required'}), 400
@@ -145,7 +146,6 @@ def recommend():
                 candidate_scores[item] = candidate_scores.get(item, 0) + sim_score
 
     n_min = store.get_user_min_visit_count(user_id)
-    user_categories = store.get_user_visited_categories(user_id)
 
     # ----- 2. ユーザープロファイル分析（滞在型 vs 通過型） -----
     user_history_df = store.get_user_history(user_id)
@@ -181,14 +181,14 @@ def recommend():
         s_item_cf = min(candidate_scores.get(vid, 0.0), 1.0)
         
         # 2. カテゴリベース協調スコア (0.0~1.0)
-        s_cat_cf = store.get_category_affinity(user_categories, cat_name)
+        s_cat_cf = store.get_category_affinity(user_id, cat_name)
         
-        # 3. 個人訪問加点 (0.0~1.0)
+        # 3. 個人訪問加点 (0.0~1.0に漸近)
         m_uv = store.get_user_visit_count(user_id, vid)
-        s_personal = min(1.0, m_uv / 10.0)
+        s_personal = m_uv / (m_uv + 2.0)
 
         # 統合ベーススコア
-        s_base = 0.5 * s_item_cf + 0.2 * s_cat_cf + 0.3 * s_personal
+        s_base = 0.5 * s_item_cf + 0.3 * s_cat_cf + 0.2 * s_personal
         if s_base < 0.3:
             s_base = 0.3  # フォールバック（未訪問・低スコア店舗の基礎スコアを底上げ）
 
@@ -208,27 +208,38 @@ def recommend():
         # 6. 訪問回数ペナルティと新規開拓ボーナス
         if m_uv == 0:
             # 未訪問店舗には新規開拓（セレンディピティ）ボーナス
-            p_visit = 1.5
+            p_visit = 1.2
         else:
-            # 訪問回数が増えるごとにペナルティを課す（同じ店舗ばかり出ないようにする）
-            p_visit = max(0.1, 0.7 ** m_uv)
+            # 訪問回数が増えるごとにペナルティを課すが、下限（0.6倍）を設けて適度なリピートを可能にする
+            p_visit = max(0.6, 0.9 ** m_uv)
+
+        # 7. 未使用クーポンの溜め込みペナルティ
+        owned_count = owned_coupons.get(vid, 0)
+        p_owned = 0.3 ** owned_count
 
         # 最終スコア
-        final_score = s_base * dist_boost * profile_boost * p_visit
+        final_score = s_base * dist_boost * profile_boost * p_visit * p_owned
 
-        # 理由テキストの生成
-        if m_uv > 0:
-            reason_text = f"🔁 リピートおすすめ（{m_uv}回訪問）"
-        elif s_item_cf > 0.1:
-            reason_text = "📝 似た嗜好のユーザーがよく利用しています。"
-        elif s_cat_cf > 0.3:
-            reason_text = "🏷️ あなたが好むカテゴリと関連が高い店舗です。"
-        elif is_stay_oriented and is_food:
-            reason_text = "【滞在型プロファイル】過去の飲食店履歴から推薦"
-        elif not is_stay_oriented and is_travel:
-            reason_text = "【通過型プロファイル】利便性重視の移動・買い物傾向から推薦"
+        # 理由テキストの生成 (動的判定)
+        # s_personal が漸近関数になり 1.0 に届かなくなったため、単純比較では常に s_cat_cf(=1.0) が勝ってしまうバグを修正
+        if m_uv >= 1.5:
+            reason_text = f"🔁 リピートおすすめ（{int(round(m_uv))}回訪問）"
+        elif m_uv > 0:
+            reason_text = "🎯 過去に訪問したことがある店舗です"
         else:
-            reason_text = "距離が近く好みに合致"
+            scores = {
+                'cat': s_cat_cf,
+                'item': s_item_cf
+            }
+            max_reason = max(scores, key=scores.get)
+            max_score = scores[max_reason]
+            
+            if max_score == 0:
+                reason_text = "🚲 距離が近くて通いやすい店舗です（新規開拓）"
+            elif max_reason == 'cat':
+                reason_text = "🏷️ あなたが好むカテゴリと関連が高い店舗です。"
+            elif max_reason == 'item':
+                reason_text = "📝 似た嗜好のユーザーがよく利用しています。"
 
         venue_copy = venue.copy()
         venue_copy['final_score'] = final_score

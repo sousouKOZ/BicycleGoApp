@@ -39,19 +39,32 @@ class DataStore:
         FROM seed_checkins
         """
         df_seed = pd.read_sql(query_seed, conn)
+        df_seed['weight'] = 0.1  # シードデータは過去の履歴とみなし、弱い重みを設定
         
         # 2. 本番データ (coupons) の読み込み（実質的なチェックイン）
         query_prod = """
         SELECT 
             c.user_id::text AS "User ID", 
             c.store_id AS "Venue ID", 
-            s.category::text AS "Venue Category Name"
+            s.category::text AS "Venue Category Name",
+            c.used_at AS "used_at"
         FROM coupons c
         JOIN stores s ON c.store_id = s.id
         WHERE c.status = 'used'
         """
         df_prod = pd.read_sql(query_prod, conn)
         
+        # 時間減衰（Time Decay）の計算
+        if not df_prod.empty:
+            now = pd.Timestamp.now(tz='UTC')
+            df_prod['used_at'] = pd.to_datetime(df_prod['used_at'], utc=True)
+            df_prod['days_ago'] = (now - df_prod['used_at']).dt.days
+            # 半減期90日の指数減衰モデル
+            df_prod['weight'] = 0.5 ** (df_prod['days_ago'] / 90.0)
+            df_prod['weight'] = df_prod['weight'].clip(lower=0.1, upper=1.0)
+        else:
+            df_prod['weight'] = pd.Series(dtype=float)
+
         # 実データとシードデータを結合
         self.df_checkins = pd.concat([df_seed, df_prod], ignore_index=True)
 
@@ -82,7 +95,7 @@ class DataStore:
 
         print("[DataStore] Precomputing User-Item Similarity Matrix...")
         self.user_item_matrix = self.df_checkins.pivot_table(
-            index='User ID', columns='Venue ID', aggfunc='size', fill_value=0
+            index='User ID', columns='Venue ID', values='weight', aggfunc='sum', fill_value=0
         )
         if not self.user_item_matrix.empty:
             user_sim = cosine_similarity(self.user_item_matrix)
@@ -96,7 +109,7 @@ class DataStore:
 
         print("[DataStore] Precomputing Category-Category Similarity Matrix...")
         self.user_cat_matrix = self.df_checkins.pivot_table(
-            index='User ID', columns='Venue Category Name', aggfunc='size', fill_value=0
+            index='User ID', columns='Venue Category Name', values='weight', aggfunc='sum', fill_value=0
         )
         
         # category_affinity は DB に事前計算済みがある場合はそれを優先するロジックも可能だが、
@@ -157,20 +170,20 @@ class DataStore:
         return self.user_item_matrix.loc[user_id]
 
     def get_user_visit_count(self, user_id, venue_id):
-        """指定ユーザーが指定店舗にチェックインした回数を返す"""
+        """指定ユーザーが指定店舗にチェックインした回数（時間減衰を加味した重みスコア）を返す"""
         if user_id not in self.user_item_matrix.index or venue_id not in self.user_item_matrix.columns:
-            return 0
-        return int(self.user_item_matrix.loc[user_id, venue_id])
+            return 0.0
+        return float(self.user_item_matrix.loc[user_id, venue_id])
 
     def get_user_min_visit_count(self, user_id):
-        """ユーザーが訪問した全店舗における最小訪問回数を返す"""
+        """ユーザーが訪問した全店舗における最小訪問スコアを返す"""
         if user_id not in self.user_item_matrix.index:
-            return 0
+            return 0.0
         user_vector = self.user_item_matrix.loc[user_id]
         visited_counts = user_vector[user_vector > 0]
         if visited_counts.empty:
-            return 0
-        return int(visited_counts.min())
+            return 0.0
+        return float(visited_counts.min())
 
     def get_user_visited_categories(self, user_id):
         """ユーザーが過去にチェックインしたカテゴリ名の集合を返す"""
@@ -179,18 +192,29 @@ class DataStore:
         user_cat = self.user_cat_matrix.loc[user_id]
         return set(user_cat[user_cat > 0].index)
 
-    def get_category_affinity(self, user_categories, target_category):
-        """ユーザーの訪問カテゴリ群と対象カテゴリの間のコサイン類似度の最大値を返す"""
-        if target_category not in self.cat_sim_df.index:
+    def get_category_affinity(self, user_id, target_category):
+        """
+        ユーザーの各カテゴリ訪問重みと対象カテゴリの類似度を掛け合わせた合計スコアを算出し、
+        0.0~1.0に漸近させて返す。
+        """
+        if user_id not in self.user_cat_matrix.index:
             return 0.0
         
-        max_affinity = 0.0
-        for cat in user_categories:
-            if cat in self.cat_sim_df.columns:
-                sim = float(self.cat_sim_df.loc[target_category, cat])
-                if sim > max_affinity:
-                    max_affinity = sim
-        return max_affinity
+        user_vector = self.user_cat_matrix.loc[user_id]
+        
+        raw_score = 0.0
+        for cat, weight in user_vector.items():
+            if weight > 0:
+                if cat == target_category:
+                    sim = 1.0
+                elif target_category in self.cat_sim_df.index and cat in self.cat_sim_df.columns:
+                    sim = float(self.cat_sim_df.loc[target_category, cat])
+                else:
+                    sim = 0.0
+                raw_score += weight * sim
+        
+        # 0.0 ~ 1.0 に漸近させる（+3.0は調整係数。3.0の重みでスコア0.5）
+        return raw_score / (raw_score + 3.0)
 
     def increment_visit(self, user_id, venue_id, category_name):
         """
@@ -206,14 +230,14 @@ class DataStore:
             self.user_item_matrix.loc[user_id] = 0
         if venue_id not in self.user_item_matrix.columns:
             self.user_item_matrix[venue_id] = 0
-        self.user_item_matrix.loc[user_id, venue_id] += 1
+        self.user_item_matrix.loc[user_id, venue_id] += 1.0
 
         # user_cat_matrix の更新
         if user_id not in self.user_cat_matrix.index:
             self.user_cat_matrix.loc[user_id] = 0
         if category_name not in self.user_cat_matrix.columns:
             self.user_cat_matrix[category_name] = 0
-        self.user_cat_matrix.loc[user_id, category_name] += 1
+        self.user_cat_matrix.loc[user_id, category_name] += 1.0
 
     # ------------------------------------------------------------------
     # 店舗関連
