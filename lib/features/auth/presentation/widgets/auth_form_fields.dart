@@ -1,10 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Supabase のレート制限（メール送信・リクエスト過多）に該当するエラーか判定する。
+/// 該当時はユーザーに「時間をおいて再試行」を促す文言を出すのに使う。
+bool isRateLimitError(AuthException e) {
+  if (e.statusCode == '429') return true;
+  final code = e.code?.toLowerCase() ?? '';
+  if (code.contains('rate')) return true;
+  final msg = e.message.toLowerCase();
+  return msg.contains('rate limit') || msg.contains('too many');
+}
+
+/// レート制限時に表示する共通文言。
+const String kRateLimitMessage = '短時間に試行しすぎました。しばらく時間をおいてから再度お試しください。';
+
+/// メールアドレスの形式チェック用の正規表現。
+/// 厳密な RFC 準拠ではなく、よくある打ち間違い（@ 抜け・ドメイン無し・空白混入）を
+/// はじく実用的なパターン。最終的な有効性確認はサーバ側に委ねる。
+final _emailRegExp = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
 
 /// メールアドレスの共通バリデーション。
 String? validateEmail(String? v) {
   final s = v?.trim() ?? '';
   if (s.isEmpty) return 'メールアドレスを入力してください';
-  if (!s.contains('@')) return 'メールアドレスの形式が正しくありません';
+  if (!_emailRegExp.hasMatch(s)) return 'メールアドレスの形式が正しくありません';
   return null;
 }
 
@@ -44,7 +63,8 @@ class AuthEmailField extends StatelessWidget {
 /// 認証フォーム共通のパスワード入力欄。
 /// バリデーションは画面によって異なる（ログインは入力必須のみ、
 /// 登録・再設定はパスワードポリシー準拠）ため呼び出し側が渡す。
-class AuthPasswordField extends StatelessWidget {
+/// 末尾アイコンで表示/非表示を切り替えられる。
+class AuthPasswordField extends StatefulWidget {
   final String initialValue;
   final String labelText;
   final String? helperText;
@@ -63,19 +83,35 @@ class AuthPasswordField extends StatelessWidget {
   });
 
   @override
+  State<AuthPasswordField> createState() => _AuthPasswordFieldState();
+}
+
+class _AuthPasswordFieldState extends State<AuthPasswordField> {
+  bool _obscured = true;
+
+  @override
   Widget build(BuildContext context) {
     return TextFormField(
-      initialValue: initialValue,
-      obscureText: true,
+      initialValue: widget.initialValue,
+      obscureText: _obscured,
+      enableSuggestions: false,
+      autocorrect: false,
       textInputAction: TextInputAction.done,
       decoration: InputDecoration(
-        labelText: labelText,
+        labelText: widget.labelText,
         prefixIcon: const Icon(Icons.lock_outline_rounded),
-        helperText: helperText,
+        helperText: widget.helperText,
+        suffixIcon: IconButton(
+          tooltip: _obscured ? 'パスワードを表示' : 'パスワードを隠す',
+          icon: Icon(_obscured
+              ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined),
+          onPressed: () => setState(() => _obscured = !_obscured),
+        ),
       ),
-      validator: validator,
-      onChanged: onChanged,
-      onFieldSubmitted: onFieldSubmitted,
+      validator: widget.validator,
+      onChanged: widget.onChanged,
+      onFieldSubmitted: widget.onFieldSubmitted,
     );
   }
 }

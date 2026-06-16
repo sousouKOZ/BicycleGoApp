@@ -24,6 +24,7 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
   final _formKey = GlobalKey<FormState>();
   String _email = '';
   String _password = '';
+  String _passwordConfirm = '';
   bool _busy = false;
   String? _error;
 
@@ -69,6 +70,7 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
   }
 
   String _friendlyMessage(AuthException e) {
+    if (isRateLimitError(e)) return kRateLimitMessage;
     final msg = e.message.toLowerCase();
     if (msg.contains('already registered') ||
         msg.contains('already been registered') ||
@@ -121,6 +123,17 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
                       return null;
                     },
                     onChanged: (v) => _password = v,
+                  ),
+                  const SizedBox(height: 14),
+                  AuthPasswordField(
+                    initialValue: _passwordConfirm,
+                    labelText: 'パスワード（確認）',
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return '確認用のパスワードを入力してください';
+                      if (v != _password) return 'パスワードが一致しません';
+                      return null;
+                    },
+                    onChanged: (v) => _passwordConfirm = v,
                     onFieldSubmitted: (_) => _submit(),
                   ),
                   if (_error != null) ...[
