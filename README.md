@@ -46,8 +46,10 @@
 | 出庫 | マイコン検知でサーバが自動 `completed` 化 | ✅ 実装済み（サーバ側） |
 | ポイント | 残高・交換カタログ・交換確認・交換履歴 | ✅ 実装済み |
 | 履歴 | 駐輪履歴一覧（サーバ真実源） | ✅ 実装済み |
-| 認証 | メール+PW・ゲスト・匿名→永続昇格・パスワード再設定 | ✅ 実装済み |
-| 認証 | Google / Apple ソーシャルログイン | ❌ 未実装 |
+| 認証 | メール+PW・ゲスト・匿名→永続昇格・パスワード再設定/変更 | ✅ 実装済み |
+| 認証 | アカウント削除（退会）・利用規約/プライバシー同意導線 | ✅ 実装済み（要 `delete_account` デプロイ・規約URL差し替え） |
+| 認証 | Google ログイン（ブラウザ OAuth・連携/解除） | ⚠️ アプリ実装済み（Supabase/Google 側の設定待ち） |
+| 認証 | Apple ソーシャルログイン | ❌ 未実装 |
 | 認証 | メール確認（Confirm email） | ❌ 本番 OFF |
 | 認証 | ゲスト→昇格時のローカルデータ引き継ぎ | ❌ 未対応 |
 | 通知 | Android プッシュ（FCM） | ✅ 実装済み |
@@ -164,7 +166,7 @@
 - **有効期限カウントダウン** — `あと N日 H時間` 形式で30秒ごとに自動更新
 - **「店舗を地図で開く」** — `url_launcher` で Google Maps を外部起動（緯度経度クエリ）
 - 利用方法（3ステップ）・クーポン情報テーブル（発行日時／有効期限／使用日時／クーポンID）
-- 利用可能なクーポンは画面下部に [SwipeToUse](lib/features/coupons/presentation/widgets/swipe_to_use.dart) を表示、消込後は自動で前画面に戻る
+- 利用可能なクーポンは画面下部に [SwipeToUse](lib/features/coupons/presentation/widgets/swipe_to_use.dart) を表示。消込は全画面オーバーレイを出さず、その場の状態変化で「確定」を見せる演出 — スワイプ進行→「消込中…」→チェックのバウンド＋リング＋haptic、同時に特典カードへ光の走り→ギフトのポップ→「使用済み」スタンプ→ディム、CTA は「消込完了」無効化、直下に「クーポンを使用しました」を表示
 - 使用済み・期限切れは無効状態のラベルカードを表示
 
 ### マイページ [MyPage](lib/features/mypage/presentation/my_page.dart)
@@ -218,7 +220,13 @@
 - **ゲート判定** [appGateProvider](lib/features/auth/providers/auth_providers.dart) — `onboarding / authLanding / home` を返すソフトゲート。匿名（`isAnonymous`）かつゲスト未承認なら AuthLanding、非匿名 or ゲスト承認済みなら HomeShell
 - **匿名 → 永続アカウント昇格** — ゲストが「アカウント作成」すると `updateUser(email, password)` で昇格。**uid 不変**のためポイント・クーポン・履歴を保持したままアカウント化（[server_implementation.md §3.3](docs/server_implementation.md)）
 - **別端末ログイン復元** — `signInWithPassword` で auth ユーザーが切替わると [AuthController](lib/features/auth/providers/auth_controller.dart) が `authSessionKeyProvider` をバンプして HomeShell をフル再マウント（Realtime チャンネル `home_session_$uid` を dispose→再 init）+ user スコープ provider を invalidate + FCM トークン再登録
-- **パスワード再設定**（Phase 2）— [PasswordResetPage](lib/features/auth/presentation/password_reset_page.dart) で `resetPasswordForEmail` → メールのリンク（`io.supabase.bicyclego://login-callback`）→ SDK が `passwordRecovery` 発火 → [SetNewPasswordPage](lib/features/auth/presentation/set_new_password_page.dart)
+- **パスワード再設定** — [PasswordResetPage](lib/features/auth/presentation/password_reset_page.dart) で `resetPasswordForEmail` → メールのリンク（`io.supabase.bicyclego://login-callback`）→ SDK が `passwordRecovery` 発火 → [SetNewPasswordPage](lib/features/auth/presentation/set_new_password_page.dart)
+- **ログイン中のパスワード変更** — [ChangePasswordPage](lib/features/auth/presentation/change_password_page.dart)。現在のパスワードで再認証（`signInWithPassword`）してから `updateUser` で更新
+- **Google ログイン（ブラウザ OAuth）** — [GoogleAuthButton](lib/features/auth/presentation/widgets/google_auth_button.dart) をランディング/ログイン/登録/プロフィールに設置。ゲスト（匿名）は `linkIdentity` で **uid 不変連携**しデータを引き継ぎ、それ以外は `signInWithOAuth`。完了は `io.supabase.bicyclego://login-callback` のディープリンクで戻り、`AuthController` が push 済み認証ページを畳む（フラグで OAuth 復帰時のみ）
+- **Google 連携 / 解除** — プロフィールから未連携なら連携、連携済み（かつ他のログイン手段が残る場合のみ）解除。最後の1手段は解除不可
+- **アカウント削除（退会）** — プロフィールから強確認ダイアログ → [delete_account](supabase/functions/delete_account/index.ts) Edge Function が `auth.admin.deleteUser`（FK カスケードでユーザーデータ削除）→ ローカルセッションを `signOut(scope: local)` で破棄
+- **利用規約 / プライバシーポリシー同意** — [LegalConsentText](lib/features/auth/presentation/widgets/legal_consent_text.dart)（みなし同意＋リンク）をランディング/登録に表示。URL は [legal_links.dart](lib/core/config/legal_links.dart)
+- **フォーム改善** — パスワード表示/非表示トグル、登録時のパスワード確認欄、メール形式バリデーション、レート制限時の文言出し分け（[auth_form_fields.dart](lib/features/auth/presentation/widgets/auth_form_fields.dart)）
 - **サインアウト** — プロフィールのアカウントカードから。匿名ユーザーは自動再生成しない（AuthLanding に戻る）
 - お気に入り駐輪場は端末ローカル（`shared_preferences`）保存のため、ログインしても**引き継がれない**
 
@@ -349,7 +357,7 @@ lib/
 │   ├── theme/             # カラー・グラス装飾・テーマ
 │   └── widgets/, utils/   # 共通ウィジェット・ユーティリティ
 └── features/
-    ├── auth/              # ログイン/新規登録/ゲスト・昇格・パスワード再設定
+    ├── auth/              # ログイン/新規登録/ゲスト・昇格・PW再設定/変更・Google連携・退会・規約同意
     ├── parking/           # 駐輪場・地図・位置情報パーミッション
     ├── stores/            # 提携店舗
     ├── coupons/           # クーポン・詳細ページ・フィルタ・スワイプ消込
@@ -368,7 +376,7 @@ lib/
 
 ```
 supabase/
-├── config.toml                 # ローカル Supabase 設定（Anonymous Auth 有効）
+├── config.toml                 # Supabase 設定（Anonymous + Google OAuth 有効）
 ├── seed.sql                    # 駐輪場5・店舗5・デバイス5・カタログ6
 ├── migrations/
 │   ├── initial_schema.sql      # 9テーブル + ENUM + index + auth トリガ
@@ -386,7 +394,8 @@ supabase/
     ├── notify_long_parking/    # 24h超の長時間駐輪を警告 push（cron 毎時起動）
     ├── redeem_coupon/          # スワイプ消込
     ├── end_session/            # 出庫 + occupied 減算
-    └── issue_exchange_coupon/  # ポイント交換（PL/pgSQL RPC 経由でアトミック）
+    ├── issue_exchange_coupon/  # ポイント交換（PL/pgSQL RPC 経由でアトミック）
+    └── delete_account/         # アカウント削除（退会・admin.deleteUser）
 ```
 
 **状態管理** — Riverpod (`flutter_riverpod ^2.5.1`)
@@ -418,7 +427,7 @@ supabase/
 - **pg_cron + pg_net** — 15分達成判定 + クーポン自律発行を毎分、長時間駐輪の警告を毎時スケジュール実行
 - **Realtime** — `parking_sessions` の UPDATE をクライアントに WebSocket 配信
 - **Vault** — Edge Function URL / service_role key を暗号化保管
-- **Supabase Auth** — 匿名サインイン + メール/パスワード認証。匿名→永続アカウント昇格で uid 不変・データ保持。パスワード再設定はディープリンク（SMTP は Resend）
+- **Supabase Auth** — 匿名サインイン + メール/パスワード認証 + Google OAuth（ブラウザ）。匿名→永続アカウント昇格・Google 連携で uid 不変・データ保持。パスワード再設定/変更、アカウント削除（退会・`admin.deleteUser`）、規約同意導線。パスワード再設定はディープリンク（SMTP は Resend）
 
 ### 通知配信
 - **Firebase Cloud Messaging (HTTP v1 API)** — `issue_coupons` / `notify_long_parking`
@@ -562,8 +571,9 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 
 新規プロジェクトを立ち上げる際に必要。日常開発ではすでに完了済みなので読み飛ばし OK。
 
-- Supabase プロジェクト作成（Tokyo region）+ `supabase link` + `supabase db push` + `supabase functions deploy` 一式
+- Supabase プロジェクト作成（Tokyo region）+ `supabase link` + `supabase db push` + `supabase functions deploy` 一式（`delete_account` 含む）
 - `Allow anonymous sign-ins` を ON、`pg_cron` / `pg_net` Extensions 有効化、Vault に `edge_functions_url` / `edge_functions_service_role_key` 登録
+- **Google ログイン用**: Authentication → Providers で Google を有効化（Google Cloud の OAuth クライアント client_id/secret を設定）、Manual Linking を ON、URL Configuration の Redirect URLs に `io.supabase.bicyclego://login-callback` を登録
 - Firebase プロジェクト作成 + Android アプリ追加（パッケージ名 `com.example.bicycle_go`）
 - Firebase サービスアカウント JSON を Supabase の env var `FCM_SERVICE_ACCOUNT_JSON` に登録
 
@@ -605,12 +615,15 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 - 🟡 **ルート案内が大阪駅周辺座標を前提**（[directions_service.dart](lib/features/parking/data/directions_service.dart)）。本番座標への一本化が必要
 
 ### 認証・アカウント
-- 🟠 **Apple Sign In**（iOS の App Store 審査で実質必須になりやすい）
-- 🟠 **Google ログイン**（Phase 3。`signInWithOAuth` / 昇格は `linkIdentity`。サーバで Google プロバイダ有効化 + Manual Linking 必要）
-- 🟠 **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要）
+- 🟠 **Google ログインの外部設定** — アプリ側は実装済み（ブラウザ OAuth・連携/解除）。動作には Google Cloud の OAuth クライアント発行 + Supabase で Google プロバイダ有効化 + Manual Linking + Redirect URLs 登録 + 環境変数が必要
+- 🟠 **アカウント削除 Edge Function のデプロイ** — `supabase functions deploy delete_account` が必要（アプリ側 UI・関数コードは実装済み）
+- 🟠 **利用規約 / プライバシーポリシーの公開URL** — [legal_links.dart](lib/core/config/legal_links.dart) はプレースホルダ。実ページに差し替えが必要（ストア審査でページ実在が必須）
+- 🟠 **Apple Sign In**（iOS の App Store 審査で実質必須になりやすい。iOS 自体が未対応のため保留）
+- 🟠 **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要。SMTP 設定が前提）
+- 🟠 **メールアドレス変更** — UI 未実装（`double_confirm_changes` は設定済み。SMTP 設定が前提）
 - 🟠 **ゲスト→アカウント昇格時のローカルデータ引き継ぎ** — お気に入り等は `shared_preferences` 保存のため昇格・別端末ログインで引き継がれない（[help_page.dart](lib/features/settings/presentation/help_page.dart) の「端末ローカル保存」文言も実態と要整合）
 - 🟠 `applicationId` を正式な逆ドメインへ（現状はテンプレ既定 `com.example.bicycle_go`。Google OAuth / ストア提出前）
-- 🟡 孤児匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に空の匿名行が増える）
+- 🟡 未連携のまま残った匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に、アカウント連携されない空の匿名行が増える）
 
 ### 通知
 - 🟠 **iOS への FCM/APNs 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
@@ -672,4 +685,4 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 | 達成通知 | Edge Function → FCM（kill 中） / Realtime → アプリ（前面） |
 | 駐輪履歴の保持 | `parking_sessions` テーブル（クライアントは fetch のみ） |
 | アプリ kill 後も発行 | ✅ |
-| 機種変更データ引き継ぎ | △（同じ Anonymous user でログインできれば） |
+| 機種変更データ引き継ぎ | ✅ メール/Google アカウントでログイン（ゲストのままは △） |
