@@ -18,5 +18,16 @@ class AccountStatus {
 
   bool get isGuest => kind == AccountKind.guest;
 
+  /// メール+パスワードのログイン手段を持つか（パスワード変更導線の出し分けに使う）。
+  /// email+google 連携でも email identity があれば true。
+  bool get hasPasswordLogin =>
+      kind == AccountKind.emailLinked || providers.contains('email');
+
+  /// Google が連携済みか。
+  bool get hasGoogleLinked => providers.contains('google');
+
+  /// Google 連携を解除できるか（他にログイン手段が残る場合のみ）。
+  bool get canUnlinkGoogle => hasGoogleLinked && providers.length > 1;
+
   static const guest = AccountStatus(kind: AccountKind.guest);
 }

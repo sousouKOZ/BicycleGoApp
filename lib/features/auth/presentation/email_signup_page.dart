@@ -7,6 +7,8 @@ import '../providers/auth_controller.dart';
 import '../providers/auth_providers.dart';
 import 'widgets/auth_form_fields.dart';
 import 'widgets/auth_header.dart';
+import 'widgets/google_auth_button.dart';
+import 'widgets/legal_consent_text.dart';
 
 /// メールアドレス + パスワードでアカウントを新規作成する画面。
 /// 匿名（ゲスト）状態なら「昇格」となり、uid 不変でポイント・クーポン・履歴を
@@ -24,6 +26,22 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
   String _password = '';
   bool _busy = false;
   String? _error;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      // 匿名（ゲスト）なら linkIdentity で連携し uid 不変でデータを引き継ぐ。
+      // ブラウザ起動のみで、完了はディープリンク経由で画面ごと差し替わる。
+      await ref.read(authControllerProvider).signInWithGoogle();
+    } catch (_) {
+      setState(() => _error = 'Google ログインを開始できませんでした。');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -115,6 +133,15 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
                     label: isGuest ? 'アカウントを作成' : '登録',
                     onPressed: _submit,
                   ),
+                  const SizedBox(height: 16),
+                  const AuthOrDivider(),
+                  const SizedBox(height: 16),
+                  GoogleAuthButton(
+                    busy: _busy,
+                    onPressed: _signInWithGoogle,
+                  ),
+                  const SizedBox(height: 20),
+                  const LegalConsentText(),
                 ],
               ),
             ),

@@ -97,6 +97,32 @@ class AuthErrorText extends StatelessWidget {
   }
 }
 
+/// メール認証とソーシャルログインを区切る「または」の水平線。
+class AuthOrDivider extends StatelessWidget {
+  const AuthOrDivider({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.outline.withValues(alpha: 0.4);
+    return Row(
+      children: [
+        Expanded(child: Divider(color: color)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'または',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: color)),
+      ],
+    );
+  }
+}
+
 /// 認証フォーム共通の送信ボタン。busy 中は無効化してスピナーを出す。
 class AuthSubmitButton extends StatelessWidget {
   final bool busy;

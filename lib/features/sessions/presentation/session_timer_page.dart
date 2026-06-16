@@ -23,6 +23,11 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
   Duration _elapsed = Duration.zero;
   bool _demoTriggered = false;
 
+  /// ユーザーが「計測を中止」したか。activeSession が null になったときの
+  /// 画面遷移・スナックバーは listener が一括で行うが、自動終了（出庫検知）と
+  /// 文言を出し分けるためにこのフラグで区別する。
+  bool _manualCancel = false;
+
   @override
   void initState() {
     super.initState();
@@ -65,9 +70,11 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
         final messenger = ScaffoldMessenger.maybeOf(context);
         Navigator.of(context).popUntil((r) => r.isFirst);
         messenger?.showSnackBar(
-          const SnackBar(
-            content: Text('自転車が出されたため計測を終了しました'),
-            duration: Duration(seconds: 3),
+          SnackBar(
+            content: Text(_manualCancel
+                ? '計測を中止しました'
+                : '自転車が出されたため計測を終了しました'),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -217,6 +224,8 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
       Navigator.of(context).pop();
       return;
     }
+    // async ギャップ後の context 参照を避けるため、先に messenger を確保する。
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -239,11 +248,25 @@ class _SessionTimerPageState extends ConsumerState<SessionTimerPage> {
       ),
     );
     if (confirm != true) return;
-    await ref.read(apiClientProvider).endSession(session.id);
-    ref.read(activeSessionProvider.notifier).state = null;
-    ref.read(activeParkingInfoProvider.notifier).state = null;
+
+    try {
+      await ref.read(apiClientProvider).endSession(session.id);
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('計測の中止に失敗しました。通信環境をご確認ください。')),
+      );
+      return;
+    }
     if (!mounted) return;
-    Navigator.of(context).pop();
+
+    // 画面遷移とスナックバーは activeSessionProvider の listener が一括で行う。
+    // ここで pop すると listener の popUntil と二重になり root まで戻ってブラックアウト
+    // するため、手動 pop はしない。activeParkingInfo を先に、session を最後に null へ
+    // することで、listener 発火後に ref を触らないようにする。
+    _manualCancel = true;
+    ref.read(activeParkingInfoProvider.notifier).state = null;
+    ref.read(activeSessionProvider.notifier).state = null;
   }
 }
 
