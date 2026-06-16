@@ -66,6 +66,7 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
   }
 
   String _friendlyMessage(AuthException e) {
+    if (isRateLimitError(e)) return kRateLimitMessage;
     final msg = e.message.toLowerCase();
     if (msg.contains('invalid login') || msg.contains('credentials')) {
       return 'メールアドレスまたはパスワードが正しくありません。';

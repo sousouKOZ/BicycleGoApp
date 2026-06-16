@@ -31,8 +31,10 @@ class AuthController {
   String? _lastUid;
 
   /// Google OAuth のブラウザ起動中フラグ。ディープリンクで戻った時だけ
-  /// push 済み認証ページを畳むために使う。再認証（パスワード変更など）の
-  /// signInWithPassword では立てないので、その場合は畳まれない。
+  /// push 済み認証ページを畳むために使う。signInWithGoogle でのみ true にし、
+  /// 他のすべての認証アクション開始時に false へリセットする。
+  /// （ブラウザをキャンセルしてフラグが残ったまま、後続の再認証などで
+  ///   _handleAuthenticated が誤って画面を畳むのを防ぐため。）
   bool _awaitingOAuthRedirect = false;
 
   void dispose() {
@@ -97,6 +99,7 @@ class AuthController {
 
   /// メール新規登録。匿名ユーザーがいる場合は昇格（uid 不変・データ保持）。
   Future<void> signUpWithEmail(String email, String password) async {
+    _awaitingOAuthRedirect = false;
     final user = _client.auth.currentUser;
     if (user != null && user.isAnonymous) {
       await _client.auth.updateUser(
@@ -109,6 +112,7 @@ class AuthController {
 
   /// メールログイン（別アカウントへの切替を含む）。
   Future<void> signInWithEmail(String email, String password) async {
+    _awaitingOAuthRedirect = false;
     await _client.auth.signInWithPassword(email: email, password: password);
   }
 
@@ -147,6 +151,7 @@ class AuthController {
   /// プロフィールから行い、戻った後もプロフィールに留まって連携済み表示へ
   /// 更新されるだけにしたいため（push 済みページを畳まない）。
   Future<void> linkGoogle() async {
+    _awaitingOAuthRedirect = false;
     await _client.auth.linkIdentity(
       OAuthProvider.google,
       redirectTo: kAuthRedirectUrl,
@@ -157,6 +162,7 @@ class AuthController {
   ///
   /// 連携手段が1つしか無い場合はアカウントにログインできなくなるため拒否する。
   Future<void> unlinkGoogle() async {
+    _awaitingOAuthRedirect = false;
     final identities = _client.auth.currentUser?.identities ?? const [];
     if (identities.length <= 1) {
       throw AuthException('他のログイン方法がないため、Google 連携を解除できません。');
@@ -172,9 +178,14 @@ class AuthController {
       throw AuthException('Google 連携が見つかりません。');
     }
     await _client.auth.unlinkIdentity(google);
+    // unlinkIdentity はローカルセッションを自動更新しない。トークンを更新して
+    // identities / app_metadata.providers の最新状態を反映する（authState 発火で
+    // accountStatusProvider 経由のカード表示が連携解除済みに更新される）。
+    await _client.auth.refreshSession();
   }
 
   Future<void> signOut() async {
+    _awaitingOAuthRedirect = false;
     await _client.auth.signOut();
   }
 
@@ -183,8 +194,12 @@ class AuthController {
   /// ローカルセッションを signOut で破棄する。signOut で _handleSignedOut が走り、
   /// guestAck=false → ゲートが AuthLanding に戻る。
   Future<void> deleteAccount() async {
+    _awaitingOAuthRedirect = false;
     await _client.functions.invoke('delete_account');
-    await _client.auth.signOut();
+    // 既にサーバ側で削除済みのセッションに対する global signOut は、サーバへの
+    // 失効リクエストが失敗して例外になり得る（削除成功なのに UI が失敗表示になる）。
+    // ローカルセッションのみ破棄する local scope を使う。
+    await _client.auth.signOut(scope: SignOutScope.local);
   }
 
   /// パスワード再設定メールを送信。リンクは kAuthRedirectUrl に戻る。
@@ -207,6 +222,10 @@ class AuthController {
   /// _awaitingOAuthRedirect も立てていないため画面は畳まれない）。
   Future<void> changePassword(
       String currentPassword, String newPassword) async {
+    // 直前にキャンセルされた Google OAuth のフラグが残っていると、ここでの
+    // 再認証（signInWithPassword）で _handleAuthenticated が誤って画面を畳む。
+    // 念のため明示的にリセットする。
+    _awaitingOAuthRedirect = false;
     final email = _client.auth.currentUser?.email;
     if (email == null) {
       throw AuthException('アカウントにメールアドレスが設定されていません。');
@@ -220,6 +239,7 @@ class AuthController {
 
   /// ゲストとして利用を続行。匿名ユーザーが無ければ作成し、承認フラグを立てる。
   Future<void> continueAsGuest() async {
+    _awaitingOAuthRedirect = false;
     if (_client.auth.currentUser == null) {
       await _client.auth.signInAnonymously();
     }

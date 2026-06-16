@@ -32,8 +32,10 @@ class _PasswordResetPageState extends ConsumerState<PasswordResetPage> {
     try {
       await ref.read(authControllerProvider).sendPasswordReset(_email.trim());
       if (mounted) setState(() => _sent = true);
-    } on AuthException catch (_) {
-      setState(() => _error = '送信に失敗しました。メールアドレスをご確認ください。');
+    } on AuthException catch (e) {
+      setState(() => _error = isRateLimitError(e)
+          ? kRateLimitMessage
+          : '送信に失敗しました。メールアドレスをご確認ください。');
     } catch (_) {
       setState(() => _error = '通信に失敗しました。しばらくして再度お試しください。');
     } finally {
