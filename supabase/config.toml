@@ -327,6 +327,22 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
+# Google OAuth（Phase 3）。client_id / secret は Google Cloud の OAuth 2.0 クライアントから取得し、
+# 環境変数で注入する（secret は git にコミットしない）。本番は Supabase ダッシュボードの
+# Authentication → Providers → Google にも同じ値を設定すること。
+# ブラウザ OAuth + 匿名→Google の linkIdentity を使うため、ダッシュボードで Manual Linking を
+# 有効化し、Redirect URLs に io.supabase.bicyclego://login-callback を登録しておく。
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = ""
+url = ""
+# ローカルでブラウザ OAuth を使う場合は nonce チェックをスキップする。
+skip_nonce_check = true
+email_optional = false
+
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.
 [auth.web3.solana]

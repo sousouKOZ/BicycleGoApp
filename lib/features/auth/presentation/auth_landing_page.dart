@@ -5,6 +5,9 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/auth_controller.dart';
 import 'email_login_page.dart';
 import 'email_signup_page.dart';
+import 'widgets/auth_form_fields.dart';
+import 'widgets/google_auth_button.dart';
+import 'widgets/legal_consent_text.dart';
 
 /// オンボーディング後に表示するログイン/新規登録のランディング画面。
 /// 「ゲストで続ける」で匿名利用も可能。
@@ -33,6 +36,24 @@ class _AuthLandingPageState extends ConsumerState<AuthLandingPage> {
           const SnackBar(content: Text('開始できませんでした。通信環境をご確認ください。')),
         );
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _busy = true);
+    try {
+      // ブラウザ（カスタムタブ）を起動するだけ。サインイン成立はディープリンク経由で
+      // onAuthStateChange が処理し、appGate が home に切り替わる。
+      await ref.read(authControllerProvider).signInWithGoogle();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google ログインを開始できませんでした。')),
+        );
+      }
+    } finally {
+      // 起動後は busy を戻す（完了は戻り後に画面ごと差し替わる）。
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -121,6 +142,13 @@ class _AuthLandingPageState extends ConsumerState<AuthLandingPage> {
                       ),
                       child: const Text('ログイン'),
                     ),
+                    const SizedBox(height: 20),
+                    const AuthOrDivider(),
+                    const SizedBox(height: 20),
+                    GoogleAuthButton(
+                      busy: _busy,
+                      onPressed: _signInWithGoogle,
+                    ),
                     const SizedBox(height: 18),
                     TextButton(
                       onPressed: _busy ? null : _continueAsGuest,
@@ -142,6 +170,8 @@ class _AuthLandingPageState extends ConsumerState<AuthLandingPage> {
                         height: 1.4,
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    const LegalConsentText(),
                     SizedBox(height: compact ? 8 : 24),
                   ],
                 ),

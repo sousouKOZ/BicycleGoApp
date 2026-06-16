@@ -30,6 +30,11 @@ class AuthController {
   late final StreamSubscription<AuthState> _sub;
   String? _lastUid;
 
+  /// Google OAuth のブラウザ起動中フラグ。ディープリンクで戻った時だけ
+  /// push 済み認証ページを畳むために使う。再認証（パスワード変更など）の
+  /// signInWithPassword では立てないので、その場合は畳まれない。
+  bool _awaitingOAuthRedirect = false;
+
   void dispose() {
     _sub.cancel();
   }
@@ -59,6 +64,17 @@ class AuthController {
     _invalidateUserScoped();
     if (newUid != null) {
       unawaited(FcmService.instance.registerToken(userId: newUid));
+    }
+    // Google OAuth はブラウザから非同期にディープリンクで戻るため、その時点で
+    // push 済みの認証ページ（ランディング/ログイン/登録）を畳んで背後の
+    // HomeShell を表に出す。OAuth 起動時のみフラグを立てるので、再認証や
+    // パスワード変更（updateUser）では畳まれない。
+    if (_awaitingOAuthRedirect) {
+      _awaitingOAuthRedirect = false;
+      final nav = rootNavigatorKey.currentState;
+      if (nav != null && nav.canPop()) {
+        nav.popUntil((route) => route.isFirst);
+      }
     }
   }
 
@@ -96,7 +112,78 @@ class AuthController {
     await _client.auth.signInWithPassword(email: email, password: password);
   }
 
+  /// Google でサインイン / 連携する（ブラウザ OAuth）。
+  ///
+  /// 匿名（ゲスト）の場合は linkIdentity で連携し、uid 不変のまま
+  /// ポイント・クーポン・履歴を引き継ぐ。それ以外は通常サインイン（別アカウントへの
+  /// 切替を含む）。いずれもカスタムタブを起動するだけで、認証成立は
+  /// onAuthStateChange 側（_handleAuthenticated）で処理される。
+  Future<void> signInWithGoogle() async {
+    final user = _client.auth.currentUser;
+    // ディープリンク復帰時に push 済み認証ページを畳むためのフラグ。
+    _awaitingOAuthRedirect = true;
+    try {
+      if (user != null && user.isAnonymous) {
+        await _client.auth.linkIdentity(
+          OAuthProvider.google,
+          redirectTo: kAuthRedirectUrl,
+        );
+      } else {
+        await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          redirectTo: kAuthRedirectUrl,
+        );
+      }
+    } catch (e) {
+      // 起動自体に失敗したらフラグを戻す（後続の正常サインインを誤って畳まないため）。
+      _awaitingOAuthRedirect = false;
+      rethrow;
+    }
+  }
+
+  /// ログイン中のアカウントに Google を連携する（ブラウザ OAuth）。
+  ///
+  /// signInWithGoogle と違い _awaitingOAuthRedirect は立てない。連携は
+  /// プロフィールから行い、戻った後もプロフィールに留まって連携済み表示へ
+  /// 更新されるだけにしたいため（push 済みページを畳まない）。
+  Future<void> linkGoogle() async {
+    await _client.auth.linkIdentity(
+      OAuthProvider.google,
+      redirectTo: kAuthRedirectUrl,
+    );
+  }
+
+  /// Google 連携を解除する。
+  ///
+  /// 連携手段が1つしか無い場合はアカウントにログインできなくなるため拒否する。
+  Future<void> unlinkGoogle() async {
+    final identities = _client.auth.currentUser?.identities ?? const [];
+    if (identities.length <= 1) {
+      throw AuthException('他のログイン方法がないため、Google 連携を解除できません。');
+    }
+    UserIdentity? google;
+    for (final id in identities) {
+      if (id.provider == 'google') {
+        google = id;
+        break;
+      }
+    }
+    if (google == null) {
+      throw AuthException('Google 連携が見つかりません。');
+    }
+    await _client.auth.unlinkIdentity(google);
+  }
+
   Future<void> signOut() async {
+    await _client.auth.signOut();
+  }
+
+  /// アカウントを完全削除（退会）する。delete_account Edge Function が
+  /// auth.users を hard delete（FK カスケードでユーザーデータも削除）した後、
+  /// ローカルセッションを signOut で破棄する。signOut で _handleSignedOut が走り、
+  /// guestAck=false → ゲートが AuthLanding に戻る。
+  Future<void> deleteAccount() async {
+    await _client.functions.invoke('delete_account');
     await _client.auth.signOut();
   }
 
@@ -110,6 +197,24 @@ class AuthController {
 
   /// 復元セッション中に新しいパスワードを設定する。
   Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
+  }
+
+  /// ログイン中にパスワードを変更する。
+  ///
+  /// 現在のパスワードで signInWithPassword して本人確認（誤入力なら AuthException）
+  /// したうえで updateUser で更新する。再認証はゲートを揺らさない（uid 不変・
+  /// _awaitingOAuthRedirect も立てていないため画面は畳まれない）。
+  Future<void> changePassword(
+      String currentPassword, String newPassword) async {
+    final email = _client.auth.currentUser?.email;
+    if (email == null) {
+      throw AuthException('アカウントにメールアドレスが設定されていません。');
+    }
+    await _client.auth.signInWithPassword(
+      email: email,
+      password: currentPassword,
+    );
     await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 

@@ -6,6 +6,7 @@ import '../providers/auth_controller.dart';
 import 'password_reset_page.dart';
 import 'widgets/auth_form_fields.dart';
 import 'widgets/auth_header.dart';
+import 'widgets/google_auth_button.dart';
 
 /// メールアドレス + パスワードでログインする画面。
 /// 成功すると onAuthStateChange(signedIn) が AuthController で処理され、
@@ -23,6 +24,21 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
   String _password = '';
   bool _busy = false;
   String? _error;
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      // ブラウザを起動するだけ。完了はディープリンク経由で画面ごと差し替わる。
+      await ref.read(authControllerProvider).signInWithGoogle();
+    } catch (_) {
+      setState(() => _error = 'Google ログインを開始できませんでした。');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -111,6 +127,14 @@ class _EmailLoginPageState extends ConsumerState<EmailLoginPage> {
                               ),
                             ),
                     child: const Text('パスワードを忘れた場合'),
+                  ),
+                  const SizedBox(height: 12),
+                  const AuthOrDivider(),
+                  const SizedBox(height: 16),
+                  GoogleAuthButton(
+                    busy: _busy,
+                    label: 'Google でログイン',
+                    onPressed: _signInWithGoogle,
                   ),
                 ],
               ),
