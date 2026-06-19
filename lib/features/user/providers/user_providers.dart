@@ -54,38 +54,47 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     _load();
   }
 
-  static const _key = 'user_profile_v1';
+  // 旧来の uid 非スコープのキャッシュキー。アカウントを切り替えても前ユーザーの
+  // ニックネームが残ってしまう原因だったため廃止し、_load 時に破棄する。
+  static const _legacyKey = 'user_profile_v1';
+
+  /// 端末ローカルのプロフィールキャッシュは uid 別にスコープする。
+  /// 同じ端末で別アカウントに切り替えても、前のユーザー名を引き継がない。
+  static String _cacheKey(String userId) => 'user_profile_v1_$userId';
 
   Future<void> _load() async {
-    // 端末ローカルから先に読む（ネット切れでも即座に表示するため）
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
+    // 旧キーは混線の原因になるので破棄（このユーザーの値は uid 別キーで持つ）。
+    await prefs.remove(_legacyKey);
+
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    final key = _cacheKey(userId);
+
+    // このユーザー分のローカルキャッシュを先に読む（ネット切れでも即座に表示）。
+    final raw = prefs.getString(key);
     if (raw != null) {
       try {
-        final map = jsonDecode(raw) as Map<String, Object?>;
-        state = UserProfile.fromJson(map);
+        state = UserProfile.fromJson(jsonDecode(raw) as Map<String, Object?>);
       } catch (_) {}
     }
-    // サーバ側を真実の源として上書き
+
+    // サーバを真実の源として「無条件に」上書きする。
+    // 新規アカウントは nickname が空なので、ここで空に正されて「ゲスト」表示になる
+    // （以前は空だと上書きをスキップし、前アカウントの名前が残っていた）。
     try {
-      final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id;
-      if (userId == null) return;
-      final row = await client
+      final row = await Supabase.instance.client
           .from('users')
           .select('nickname, updated_at')
           .eq('id', userId)
           .maybeSingle();
-      final nickname = (row?['nickname'] as String?) ?? '';
-      if (nickname.isNotEmpty || raw == null) {
-        state = UserProfile(
-          nickname: nickname,
-          updatedAt: row?['updated_at'] != null
-              ? DateTime.parse(row!['updated_at'] as String)
-              : DateTime.now(),
-        );
-        await prefs.setString(_key, jsonEncode(state.toJson()));
-      }
+      state = UserProfile(
+        nickname: (row?['nickname'] as String?) ?? '',
+        updatedAt: row?['updated_at'] != null
+            ? DateTime.parse(row!['updated_at'] as String)
+            : DateTime.now(),
+      );
+      await prefs.setString(key, jsonEncode(state.toJson()));
     } catch (_) {
       // ネットワーク失敗時は端末ローカル値のまま
     }
@@ -94,11 +103,13 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
   Future<void> setNickname(String nickname) async {
     final trimmed = nickname.trim();
     state = UserProfile(nickname: trimmed, updatedAt: DateTime.now());
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(state.toJson()));
+    if (userId != null) {
+      await prefs.setString(_cacheKey(userId), jsonEncode(state.toJson()));
+    }
     try {
-      final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id;
       if (userId != null) {
         await client.from('users').update({'nickname': trimmed}).eq('id', userId);
       }

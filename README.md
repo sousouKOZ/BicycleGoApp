@@ -186,7 +186,7 @@
 - 交換確定で
   - `api.issueExchangeCoupon` を呼び、**即時 `owned` 状態のクーポン**を発行（駐輪達成と異なり15分待ち不要）
   - ポイント残高を減算
-  - [ExchangeHistory](lib/features/points/providers/exchange_providers.dart) に記録（`shared_preferences` に永続化、キー: `exchange_history_v1`）
+  - [ExchangeHistory](lib/features/points/providers/exchange_providers.dart) に記録（`shared_preferences` に **uid 別**で永続化、キー: `exchange_history_v1_<uid>`。同じ端末でもアカウント間で混ざらない）
   - `userCouponsProvider` を invalidate して利用可能クーポンに反映
 - 右上の履歴アイコンから [ExchangeHistoryPage](lib/features/points/presentation/exchange_history_page.dart) — 商品名・交換日時・消費pt を時系列表示
 
@@ -204,7 +204,7 @@
 
 ### お気に入り駐輪場 [FavoriteParkings](lib/features/parking/providers/favorite_providers.dart)
 - 駐輪場詳細シートの★タップでトグル
-- `shared_preferences` で端末ローカルに永続化（キー: `favorite_parking_ids_v1`）
+- `shared_preferences` で端末ローカルに **uid 別**で永続化（キー: `favorite_parking_ids_v1_<uid>`）。同じ端末でも別アカウントとは混ざらない（サーバ非保存のため別端末へは同期されない）
 - 地図の `お気に入り` フィルタ・マイページのセクション表示と連動
 
 ### オンボーディング [OnboardingPage](lib/features/onboarding/presentation/onboarding_page.dart)
@@ -228,7 +228,7 @@
 - **利用規約 / プライバシーポリシー同意** — [LegalConsentText](lib/features/auth/presentation/widgets/legal_consent_text.dart)（みなし同意＋リンク）をランディング/登録に表示。URL は [legal_links.dart](lib/core/config/legal_links.dart)
 - **フォーム改善** — パスワード表示/非表示トグル、登録時のパスワード確認欄、メール形式バリデーション、レート制限時の文言出し分け（[auth_form_fields.dart](lib/features/auth/presentation/widgets/auth_form_fields.dart)）
 - **サインアウト** — プロフィールのアカウントカードから。匿名ユーザーは自動再生成しない（AuthLanding に戻る）
-- お気に入り駐輪場は端末ローカル（`shared_preferences`）保存のため、ログインしても**引き継がれない**
+- お気に入り駐輪場・交換履歴は端末ローカル（`shared_preferences`）保存だが **uid 別にスコープ**。同じ端末でもアカウント間で混ざらず、ゲスト→昇格（uid 不変）では同端末で引き継がれる。サーバ非保存のため**別端末へは同期されない**（認証切替時は [AuthController](lib/features/auth/providers/auth_controller.dart) が再読込）
 
 ### プッシュ通知（FCM）
 - クーポン発行時に **サーバ自律で** Android プッシュを配信（アプリ kill 中でも届く）
@@ -599,7 +599,7 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 - 🟠 **Apple Sign In**（iOS の App Store 審査で実質必須になりやすい。iOS 自体が未対応のため保留）
 - 🟠 **メール確認（Confirm email）の本番 ON 化**（現状 OFF。ON にする場合は登録/昇格時の保留 UI が必要。SMTP 設定が前提）
 - 🟠 **メールアドレス変更** — UI 未実装（`double_confirm_changes` は設定済み。SMTP 設定が前提）
-- 🟠 **ゲスト→アカウント昇格時のローカルデータ引き継ぎ** — お気に入り等は `shared_preferences` 保存のため昇格・別端末ログインで引き継がれない（[help_page.dart](lib/features/settings/presentation/help_page.dart) の「端末ローカル保存」文言も実態と要整合）
+- 🟡 **端末ローカルデータの別端末引き継ぎ** — お気に入り・交換履歴は uid 別の端末ローカル保存。ゲスト→昇格（uid 不変）は同端末で引き継がれるが、サーバ非保存のため**別端末ログインでは引き継がれない**（[help_page.dart](lib/features/settings/presentation/help_page.dart) の「端末ローカル保存」文言も実態と要整合）
 - 🟠 `applicationId` を正式な逆ドメインへ（現状はテンプレ既定 `com.example.bicycle_go`。Google OAuth / ストア提出前）
 - 🟡 未連携のまま残った匿名ユーザーの定期クリーンアップ（ゲスト→再ログインの度に、アカウント連携されない空の匿名行が増える）
 

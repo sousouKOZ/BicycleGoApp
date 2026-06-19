@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/notifications/fcm_service.dart';
 import '../../coupons/providers/coupon_providers.dart';
+import '../../parking/providers/favorite_providers.dart';
+import '../../points/providers/exchange_providers.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/providers/session_history_providers.dart';
 import '../../user/providers/user_providers.dart';
@@ -93,6 +95,9 @@ class AuthController {
     _ref.invalidate(sessionHistoryProvider);
     _ref.invalidate(userCouponsProvider);
     _ref.invalidate(userProfileProvider);
+    // 端末ローカル保存だが uid 別スコープのため、認証切替で再読込が必要。
+    _ref.invalidate(exchangeHistoryProvider);
+    _ref.invalidate(favoriteParkingsProvider);
   }
 
   // ---- 認証アクション ----------------------------------------------------
