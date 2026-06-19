@@ -251,57 +251,39 @@
 ## 🔄 主要フロー
 
 ### 駐輪 → クーポン獲得
-```
-駐輪場マーカー選択
-  ↓ 「NFCで計測開始」
-NFC認証シート（スキャン → deviceId で認証 / 屋内対応のため GPS 照合は廃止）
-  ↓ 認証成功 → サーバ側 status='measuring'
-計測中画面（15分カウントダウン）
-
-  ┌── ここでアプリ kill されてもサーバは計測継続 ──┐
-  │                                                 │
-  │   pg_cron が毎分発火                            │
-  │     → status=measuring & 15分超過を検知         │
-  │     → 推薦ロジックで店舗選定                    │
-  │     → クーポン発行 + status='achieved'          │
-  │     → +10pt (point_transactions)                │
-  │     → users.fcm_token に FCM push 配信          │
-  │                                                 │
-  └─────────────────────────────────────────────────┘
-  ↓ 達成通知のルートは2系統が並行
-  │
-  ├─ アプリ起動中：Supabase Realtime が parking_sessions.UPDATE を
-  │  WebSocket 配信 → home_shell._onSessionUpdated が祝福画面 push
-  │
-  └─ アプリ kill / バックグラウンド：FCM 通知を OS が表示
-     → ユーザがタップして起動
-     → AppLifecycleState.resumed で _restoreFromServer が走り
-       achieved セッションがあれば祝福画面 push
-
-クーポン獲得画面（haptic + sparkle + share）
-  ↓ ① スワイプ消込 — redeem_coupon → status='used'（セッションは parked 継続）
-  ↓ ② 「あとで使う（駐輪は継続中）」 — セッションは parked
-自転車を取り出す
-  ↓ マイコンが parking_detect（status=exit）を送信
-セッション完了（status=completed、occupied -1、exited_at 確定）
-  ↓ Realtime でアプリのミニバーが自動消去
+```mermaid
+flowchart TD
+    A["駐輪場マーカー選択"] -->|"「NFCで計測開始」"| B["NFC認証シート<br/>スキャン → deviceId で認証<br/>(屋内対応のため GPS 照合は廃止)"]
+    B -->|"認証成功"| C["サーバ側 status='measuring'"]
+    C --> D["計測中画面（15分カウントダウン）"]
+    D --> E["アプリ kill されてもサーバは計測継続<br/>pg_cron が毎分発火<br/>・status=measuring かつ 15分超過を検知<br/>・推薦ロジックで店舗選定<br/>・クーポン発行 + status='achieved'<br/>・+10pt (point_transactions)<br/>・users.fcm_token に FCM push 配信"]
+    E --> F{"達成通知の2系統が並行"}
+    F -->|"アプリ起動中"| G["Supabase Realtime が parking_sessions.UPDATE を WebSocket 配信<br/>→ home_shell._onSessionUpdated が祝福画面 push"]
+    F -->|"アプリ kill / バックグラウンド"| H["FCM 通知を OS が表示 → タップして起動<br/>→ AppLifecycleState.resumed で _restoreFromServer が走り<br/>achieved セッションがあれば祝福画面 push"]
+    G --> I["クーポン獲得画面（haptic + sparkle + share）"]
+    H --> I
+    I -->|"① スワイプ消込 redeem_coupon"| J["status='used'（セッションは parked 継続）"]
+    I -->|"②「あとで使う（駐輪は継続中）」"| K["セッションは parked"]
+    J --> L["自転車を取り出す"]
+    K --> L
+    L -->|"マイコンが parking_detect (status=exit) を送信"| M["セッション完了<br/>status=completed / occupied -1 / exited_at 確定"]
+    M --> N["Realtime でアプリのミニバーが自動消去"]
 ```
 
 ### ポイント交換
-```
-マイページ「交換する」
-  ↓
-PointsExchangePage（カテゴリ絞り込み + 商品リスト）
-  ↓ 商品タップ
-ExchangeConfirmSheet（残高検証）
-  ↓ 「交換する」
-issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
-  ├─ 残高ロック取得 + 検証
-  ├─ クーポン INSERT (owned, distance_tier='exchange')
-  ├─ points 残高減算
-  └─ point_transactions に exchange 履歴
-  ↓
-クーポン一覧の「利用可能」セクションに反映
+```mermaid
+flowchart TD
+    A["マイページ「交換する」"] --> B["PointsExchangePage<br/>（カテゴリ絞り込み + 商品リスト）"]
+    B -->|"商品タップ"| C["ExchangeConfirmSheet（残高検証）"]
+    C -->|"「交換する」"| D["issue_exchange_coupon Edge Function<br/>PL/pgSQL RPC で原子的に処理"]
+    D --> D1["残高ロック取得 + 検証"]
+    D --> D2["クーポン INSERT (owned, distance_tier='exchange')"]
+    D --> D3["points 残高減算"]
+    D --> D4["point_transactions に exchange 履歴"]
+    D1 --> E["クーポン一覧の「利用可能」セクションに反映"]
+    D2 --> E
+    D3 --> E
+    D4 --> E
 ```
 
 5分以内にNFC認証されなかった場合は `expire_sessions` cron が `expired` 化（`AuthGraceExpiredException`）。
@@ -319,27 +301,23 @@ issue_exchange_coupon Edge Function → PL/pgSQL RPC で原子的に：
 
 ## 🧱 アーキテクチャ
 
-```
-┌─────────────────────────────────────────────┐
-│  Flutter アプリ (lib/)                       │
-│   ├─ SupabaseApiClient (HTTP/Realtime)      │
-│   ├─ FcmService        (Android push 受信)  │
-│   └─ Riverpod で状態管理                    │
-└─────────────────────────────────────────────┘
-                  │
-                  ▼
-   ┌──────────────────────────────────────┐
-   │ クラウド Supabase (Tokyo region)      │
-   │  ├─ Postgres + RLS + pg_cron          │
-   │  ├─ Edge Functions (Deno)             │
-   │  └─ Realtime (parking_sessions 配信)  │
-   └──────────────────────────────────────┘
-                  │ FCM HTTP v1
-                  ▼
-   ┌──────────────────────────────────────┐
-   │ Firebase Cloud Messaging              │
-   │  → Android 端末にプッシュ通知         │
-   └──────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph APP["Flutter アプリ (lib/)"]
+        A1["SupabaseApiClient (HTTP/Realtime)"]
+        A2["FcmService (Android push 受信)"]
+        A3["Riverpod で状態管理"]
+    end
+    subgraph SB["クラウド Supabase (Tokyo)"]
+        B1["Postgres + RLS + pg_cron"]
+        B2["Edge Functions (Deno)"]
+        B3["Realtime (parking_sessions 配信)"]
+    end
+    subgraph FB["Firebase Cloud Messaging"]
+        C1["Android 端末にプッシュ通知"]
+    end
+    APP --> SB
+    SB -->|"FCM HTTP v1"| FB
 ```
 
 ### Flutter 側（lib/）
