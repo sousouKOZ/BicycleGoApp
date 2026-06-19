@@ -21,8 +21,14 @@ class UserProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProfileProvider);
+    final status = ref.watch(accountStatusProvider);
     final asyncInstallId = ref.watch(installIdProvider);
     final theme = Theme.of(context);
+    // ニックネーム未設定でも、ログイン済みなら「ゲスト」と出さない。
+    final displayName = profile.nickname.isNotEmpty
+        ? profile.nickname
+        : status.fallbackDisplayName;
+    final initial = displayName.substring(0, 1).toUpperCase();
 
     return Scaffold(
       appBar: AppBar(
@@ -63,7 +69,7 @@ class UserProfilePage extends ConsumerWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Text(
-                      profile.initial,
+                      initial,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
@@ -76,7 +82,7 @@ class UserProfilePage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          profile.displayName,
+                          displayName,
                           style: theme.textTheme.titleLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,

@@ -20,6 +20,7 @@ import '../../points/presentation/points_exchange_page.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_history_page.dart';
 import '../../sessions/providers/session_history_providers.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../user/presentation/user_profile_page.dart';
 import '../../user/providers/user_providers.dart';
@@ -200,6 +201,11 @@ class _PageHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final profile = ref.watch(userProfileProvider);
+    final status = ref.watch(accountStatusProvider);
+    // ニックネーム未設定でも、ログイン済みなら「ゲスト」と出さない。
+    final displayName = profile.nickname.isNotEmpty
+        ? profile.nickname
+        : status.fallbackDisplayName;
     return Padding(
       padding: const EdgeInsets.only(left: 4, top: 8),
       child: Row(
@@ -218,7 +224,7 @@ class _PageHeader extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'こんにちは、${profile.displayName} さん',
+                  'こんにちは、$displayName さん',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

@@ -29,5 +29,16 @@ class AccountStatus {
   /// Google 連携を解除できるか（他にログイン手段が残る場合のみ）。
   bool get canUnlinkGoogle => hasGoogleLinked && providers.length > 1;
 
+  /// ニックネーム未設定時に表示名として使うフォールバック。
+  /// 実際のゲスト（匿名）だけ「ゲスト」とし、連携済みアカウントは
+  /// メールのローカル部（無ければ「ユーザー」）を返す。
+  /// ログイン済みなのに「ゲスト」と表示されてしまう混乱を防ぐ。
+  String get fallbackDisplayName {
+    if (isGuest) return 'ゲスト';
+    final e = email;
+    if (e != null && e.contains('@')) return e.split('@').first;
+    return 'ユーザー';
+  }
+
   static const guest = AccountStatus(kind: AccountKind.guest);
 }
