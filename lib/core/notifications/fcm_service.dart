@@ -51,24 +51,21 @@ class FcmService {
     try {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        await _saveToken(userId: userId, token: token);
+        await _saveToken(token);
       }
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-        _saveToken(userId: userId, token: newToken);
-      });
+      FirebaseMessaging.instance.onTokenRefresh.listen(_saveToken);
     } catch (e) {
       debugPrint('[FCM] registerToken failed: $e');
     }
   }
 
-  Future<void> _saveToken({
-    required String userId,
-    required String token,
-  }) async {
+  Future<void> _saveToken(String token) async {
     try {
+      // RPC（SECURITY DEFINER）で、同じ端末トークンを他ユーザー行から剥がしつつ
+      // 呼び出しユーザー（auth.uid()）へ割り当てる。端末トークンを常に1ユーザーだけに
+      // 対応させ、アカウント切替・ログアウト後の旧アカウント宛て push の誤配信を防ぐ。
       await Supabase.instance.client
-          .from('users')
-          .update({'fcm_token': token}).eq('id', userId);
+          .rpc('set_fcm_token', params: {'p_token': token});
     } catch (e) {
       debugPrint('[FCM] saveToken failed: $e');
     }

@@ -216,7 +216,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# 本番（クラウド）はダッシュボード Authentication → Providers → Email の「Confirm email」が正。
+# 有効化には SMTP（Resend 等）の設定が必須（未設定だと確認メールが届かず登録を完了できない）。
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.

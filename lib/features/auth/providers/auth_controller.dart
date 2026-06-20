@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/notifications/fcm_service.dart';
 import '../../coupons/providers/coupon_providers.dart';
 import '../../parking/providers/favorite_providers.dart';
+import '../../parking/providers/recommendation_providers.dart';
+import '../../parking/providers/session_providers.dart';
 import '../../points/providers/exchange_providers.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/providers/session_history_providers.dart';
@@ -64,6 +66,10 @@ class AuthController {
     if (newUid != _lastUid) {
       _lastUid = newUid;
       _ref.read(authSessionKeyProvider.notifier).update((v) => v + 1);
+      // 別アカウントへ切り替わった瞬間に、前アカウントのアクティブセッションを破棄する。
+      // これを怠ると _restoreFromServer が前セッションを掴んだままミニバー等が漏れる。
+      // パスワード変更など uid 不変のイベントでは消さない（このブロックに入らない）。
+      _resetSessionScoped();
     }
     _invalidateUserScoped();
     if (newUid != null) {
@@ -86,6 +92,7 @@ class AuthController {
     _lastUid = null;
     _ref.read(authSessionKeyProvider.notifier).update((v) => v + 1);
     _invalidateUserScoped();
+    _resetSessionScoped();
     // ゲスト承認を解除 → AuthLanding に戻す。匿名ユーザーは自動再生成しない。
     unawaited(_ref.read(guestAcknowledgedProvider.notifier).setAcknowledged(false));
   }
@@ -100,18 +107,34 @@ class AuthController {
     _ref.invalidate(favoriteParkingsProvider);
   }
 
+  /// アカウント切替・サインアウト時に、前アカウントのアクティブセッション/レコメンドを破棄する。
+  /// uid 不変のイベント（パスワード変更・連携）では呼ばない（駐輪中バーを消さないため）。
+  void _resetSessionScoped() {
+    _ref.invalidate(activeSessionProvider);
+    _ref.invalidate(activeParkingInfoProvider);
+    _ref.invalidate(recommendedStoresProvider);
+  }
+
   // ---- 認証アクション ----------------------------------------------------
 
   /// メール新規登録。匿名ユーザーがいる場合は昇格（uid 不変・データ保持）。
-  Future<void> signUpWithEmail(String email, String password) async {
+  ///
+  /// メール確認（Confirm email）が有効な場合は、登録/昇格の時点ではサインインされず
+  /// 確認メールが送られる。確認待ち（メール内リンクの確認が必要）なら true を返す。
+  /// 確認 OFF の場合は即サインイン状態になり false を返す（従来挙動）。
+  Future<bool> signUpWithEmail(String email, String password) async {
     _awaitingOAuthRedirect = false;
     final user = _client.auth.currentUser;
     if (user != null && user.isAnonymous) {
-      await _client.auth.updateUser(
+      // 匿名→永続アカウントへ昇格。確認有効時は確認まで保留（emailConfirmedAt が null）。
+      final res = await _client.auth.updateUser(
         UserAttributes(email: email, password: password),
       );
+      return res.user?.emailConfirmedAt == null;
     } else {
-      await _client.auth.signUp(email: email, password: password);
+      final res = await _client.auth.signUp(email: email, password: password);
+      // 確認有効時はセッションが張られない（= 確認待ち）。
+      return res.session == null;
     }
   }
 

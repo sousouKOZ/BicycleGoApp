@@ -26,6 +26,7 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
   String _password = '';
   String _passwordConfirm = '';
   bool _busy = false;
+  bool _confirmationSent = false;
   String? _error;
 
   Future<void> _signInWithGoogle() async {
@@ -51,13 +52,18 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider).signUpWithEmail(
-            _email.trim(),
-            _password,
-          );
-      // 確認 OFF（Phase 1）では即サインイン状態になりゲートが home に切り替わる。
-      // この画面は AuthLanding の上に push されているためルートまで戻す。
-      if (mounted) {
+      final needsConfirmation =
+          await ref.read(authControllerProvider).signUpWithEmail(
+                _email.trim(),
+                _password,
+              );
+      if (!mounted) return;
+      if (needsConfirmation) {
+        // メール確認が有効：この時点ではサインインされない。確認案内を表示する。
+        setState(() => _confirmationSent = true);
+      } else {
+        // 確認 OFF では即サインイン状態になりゲートが home に切り替わる。
+        // この画面は AuthLanding の上に push されているためルートまで戻す。
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on AuthException catch (e) {
@@ -87,6 +93,33 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
   Widget build(BuildContext context) {
     final isGuest = ref.watch(isGuestProvider);
     final title = isGuest ? 'アカウントを作成' : '新規登録';
+
+    if (_confirmationSent) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+            children: [
+              const AuthHeader(
+                icon: Icons.mark_email_read_rounded,
+                title: '確認メールを送信しました',
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '$_email 宛のメールに記載されたリンクを開くと登録が完了します。'
+                'リンクを開いた後、アプリに自動で戻ってログイン状態になります。'
+                'メールが届かない場合は迷惑メールフォルダもご確認ください。',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(),
