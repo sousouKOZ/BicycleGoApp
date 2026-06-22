@@ -70,3 +70,9 @@ final locationPermissionProvider =
     StateNotifierProvider<LocationPermissionNotifier, LocationGateStatus>(
   (_) => LocationPermissionNotifier(),
 );
+
+/// 位置情報が未許可のまま、ユーザーが「地図だけ見る」でゲートを抜けたか。
+///
+/// 許可されれば実質無視されるが、未許可でも地図を閲覧したいユーザーの逃げ道。
+/// セッション内のみ保持（再起動でリセット）。
+final locationGateSkippedProvider = StateProvider<bool>((_) => false);

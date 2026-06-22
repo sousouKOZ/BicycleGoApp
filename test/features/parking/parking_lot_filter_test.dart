@@ -96,13 +96,13 @@ void main() {
       expect(result, [fav]);
     });
 
-    test('within15MinutesOnly は origin から 3750m 以内', () {
+    test('within5MinutesOnly は origin から 1250m 以内', () {
       final near = lot(id: 'near'); // origin と同地点
       // 約 5.5km 北
       final far = lot(id: 'far', position: const LatLng(34.7525, 135.4959));
       final result = run(
         lots: [near, far],
-        filter: const MapFilter(within15MinutesOnly: true),
+        filter: const MapFilter(within5MinutesOnly: true),
       );
       expect(result, [near]);
     });

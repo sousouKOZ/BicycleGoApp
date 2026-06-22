@@ -3,26 +3,26 @@ class MapFilter {
   final bool availableOnly;
   final bool couponOnly;
   final bool favoriteOnly;
-  final bool within15MinutesOnly;
+  final bool within5MinutesOnly;
 
   const MapFilter({
     this.availableOnly = false,
     this.couponOnly = false,
     this.favoriteOnly = false,
-    this.within15MinutesOnly = false,
+    this.within5MinutesOnly = false,
   });
 
   MapFilter copyWith({
     bool? availableOnly,
     bool? couponOnly,
     bool? favoriteOnly,
-    bool? within15MinutesOnly,
+    bool? within5MinutesOnly,
   }) {
     return MapFilter(
       availableOnly: availableOnly ?? this.availableOnly,
       couponOnly: couponOnly ?? this.couponOnly,
       favoriteOnly: favoriteOnly ?? this.favoriteOnly,
-      within15MinutesOnly: within15MinutesOnly ?? this.within15MinutesOnly,
+      within5MinutesOnly: within5MinutesOnly ?? this.within5MinutesOnly,
     );
   }
 }

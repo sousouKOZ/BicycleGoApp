@@ -35,10 +35,10 @@ class MapFilterBar extends ConsumerWidget {
           const SizedBox(width: 8),
           _FilterChipItem(
             icon: Icons.schedule_rounded,
-            label: '15分以内',
-            selected: filter.within15MinutesOnly,
+            label: '5分以内',
+            selected: filter.within5MinutesOnly,
             onTap: () => notifier.state = filter.copyWith(
-                within15MinutesOnly: !filter.within15MinutesOnly),
+                within5MinutesOnly: !filter.within5MinutesOnly),
           ),
           const SizedBox(width: 8),
           _FilterChipItem(

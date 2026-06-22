@@ -8,11 +8,15 @@ import '../../../../core/theme/glass_decoration.dart';
 import '../../../../core/utils/geo.dart';
 import '../../domain/parking_lot_filter.dart';
 
-/// 表示中の駐輪場・店舗のサマリ（空き台数・15分圏・特典数）カード。
+/// 表示中の駐輪場・店舗のサマリ（空き台数・5分圏・特典数）カード。
 class MapInsightCard extends StatelessWidget {
   final List<ParkingLot> visibleLots;
   final List<Store> stores;
   final LatLng referenceLocation;
+
+  /// 現在地が取れず初期カメラ位置（大阪駅）を基準にしているか。
+  /// true のときは「現在地ではない」旨を明示する。
+  final bool usingFallbackLocation;
   final bool expanded;
   final VoidCallback onToggle;
 
@@ -21,6 +25,7 @@ class MapInsightCard extends StatelessWidget {
     required this.visibleLots,
     required this.stores,
     required this.referenceLocation,
+    this.usingFallbackLocation = false,
     required this.expanded,
     required this.onToggle,
   });
@@ -31,11 +36,11 @@ class MapInsightCard extends StatelessWidget {
     final openLots = visibleLots.where((p) => p.available > 0).length;
     final availableSpots =
         visibleLots.fold<int>(0, (sum, p) => sum + p.available);
-    final within15 = visibleLots
+    final within5 = visibleLots
         .where(
           (p) =>
               Geo.haversineMeters(referenceLocation, p.position) <=
-              fifteenMinuteBikeRadiusMeters,
+              fiveMinuteBikeRadiusMeters,
         )
         .length;
 
@@ -83,7 +88,7 @@ class MapInsightCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       Flexible(
                         child: Text(
-                          '空き$availableSpots台・15分圏$within15件・特典${stores.length}件',
+                          '空き$availableSpots台・5分圏$within5件・特典${stores.length}件',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.right,
@@ -106,13 +111,17 @@ class MapInsightCard extends StatelessWidget {
                   if (expanded) ...[
                     const SizedBox(height: 8),
                     Text(
-                      openLots == 0
-                          ? '条件を変えると候補が見つかりやすくなります'
-                          : '今すぐ停められる候補を優先表示中',
+                      usingFallbackLocation
+                          ? '現在地オフのため大阪駅周辺の目安です'
+                          : openLots == 0
+                              ? '条件を変えると候補が見つかりやすくなります'
+                              : '今すぐ停められる候補を優先表示中',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: context.textSecondary,
+                        color: usingFallbackLocation
+                            ? AppColors.warning
+                            : context.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -129,8 +138,8 @@ class MapInsightCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _InsightMetric(
-                            label: '15分圏',
-                            value: '$within15件',
+                            label: '5分圏',
+                            value: '$within5件',
                             icon: Icons.schedule_rounded,
                             color: AppColors.accent,
                           ),

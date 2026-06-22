@@ -19,6 +19,7 @@ import '../providers/parking_providers.dart';
 import '../providers/route_providers.dart';
 import 'parking_detail_sheet.dart';
 import 'widgets/coupon_strip.dart';
+import 'widgets/location_gate_overlay.dart';
 import 'widgets/location_permission_banner.dart';
 import 'widgets/map_controls.dart';
 import 'widgets/map_filter_bar.dart';
@@ -196,6 +197,11 @@ class _ParkingMapPageState extends ConsumerState<ParkingMapPage> {
                   onLocationGranted: () => _fetchCurrentLocation(
                     requestIfDenied: false,
                   ),
+                ),
+              ),
+              LocationGateOverlay(
+                onGranted: () => _fetchCurrentLocation(
+                  requestIfDenied: false,
                 ),
               ),
             ],
@@ -543,6 +549,7 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
                             stores: stores,
                             referenceLocation: widget.currentLocation ??
                                 ParkingMapPage._initialCamera.target,
+                            usingFallbackLocation: widget.currentLocation == null,
                             expanded: _showInsightDetails,
                             onToggle: () => setState(
                               () => _showInsightDetails = !_showInsightDetails,

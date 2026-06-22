@@ -8,8 +8,8 @@ import 'map_filter.dart';
 /// 自転車の想定速度（≒15km/h）。距離→所要時間の換算に使う。
 const bikeMetersPerMinute = 250.0;
 
-/// 「15分以内」フィルタの半径。
-const fifteenMinuteBikeRadiusMeters = bikeMetersPerMinute * 15;
+/// 「5分以内」フィルタの半径。
+const fiveMinuteBikeRadiusMeters = bikeMetersPerMinute * 5;
 
 /// 「クーポンあり」と見なす駐輪場〜店舗の距離。
 const couponProximityMeters = 300.0;
@@ -17,7 +17,7 @@ const couponProximityMeters = 300.0;
 /// 検索文字列と [MapFilter] の条件で駐輪場一覧を絞り込む。
 ///
 /// - [normalizedQuery] は trim + 小文字化済みの検索文字列（空なら全件）。
-/// - 「15分以内」は [origin]（現在地が無ければ初期カメラ位置）からの直線距離。
+/// - 「5分以内」は [origin]（現在地が無ければ初期カメラ位置）からの直線距離。
 /// - 「クーポンあり」は [couponProximityMeters] 以内に提携店舗がある駐輪場。
 List<ParkingLot> filterParkingLots({
   required List<ParkingLot> lots,
@@ -38,11 +38,11 @@ List<ParkingLot> filterParkingLots({
   if (filter.favoriteOnly) {
     filtered = filtered.where((p) => favoriteIds.contains(p.id));
   }
-  if (filter.within15MinutesOnly) {
+  if (filter.within5MinutesOnly) {
     filtered = filtered.where(
       (p) =>
           Geo.haversineMeters(origin, p.position) <=
-          fifteenMinuteBikeRadiusMeters,
+          fiveMinuteBikeRadiusMeters,
     );
   }
   if (filter.couponOnly) {
