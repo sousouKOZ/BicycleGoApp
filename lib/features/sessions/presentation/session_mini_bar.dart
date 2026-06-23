@@ -43,6 +43,7 @@ class _SessionMiniBarState extends ConsumerState<SessionMiniBar> {
     if (session == null ||
         session.authenticatedAt == null ||
         session.status == ParkingSessionStatus.completed ||
+        session.status == ParkingSessionStatus.cancelled ||
         session.status == ParkingSessionStatus.expired) {
       _syncTicker(needed: false);
       return const SizedBox.shrink();

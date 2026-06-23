@@ -5,7 +5,11 @@ enum ParkingSessionStatus {
   // クーポン獲得後も自転車をまだ出していない状態。
   // ユーザーが「自転車を出す」操作を行うまで保持される。
   parked,
+  // achieved/parked からの正常出庫（クーポン獲得済み）。
   completed,
+  // 15分達成前にユーザーがアプリで能動的に計測を中止した（クーポン未発行）。
+  // 猶予切れ/センサー出庫の expired とは区別する。
+  cancelled,
   expired;
 
   /// DB の文字列表現（enum 名と同一）から変換する。未知の値は null。

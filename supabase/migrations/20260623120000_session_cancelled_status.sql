@@ -1,0 +1,14 @@
+-- ============================================================
+-- parking_session_status に 'cancelled' を追加
+-- ============================================================
+-- measuring 中にユーザーがアプリで「計測を中止する」を押した【手動中止】を、
+-- 正規出庫(completed) や 猶予切れ/センサー出庫(expired) と区別するための終端ステータス。
+--
+-- 区別の意図:
+--   completed … achieved/parked から出庫（クーポン獲得済みの正常出庫）
+--   expired   … 認証猶予切れ / マイコン出庫検知で 15分前に取り出された
+--   cancelled … ユーザーがアプリで能動的に 15分前に中止（クーポン未発行）
+--
+-- 注: ALTER TYPE ... ADD VALUE は同一トランザクション内で「追加」のみなら PG12+ で安全
+--     （この値を同じ migration 内では使用しない）。
+ALTER TYPE parking_session_status ADD VALUE IF NOT EXISTS 'cancelled';

@@ -1,13 +1,18 @@
 /**
  * POST /functions/v1/end_session
  *
- * 駐輪セッションの終了（出庫）。
+ * 駐輪セッションの終了（出庫 / 計測中止）。
  *
  * 入力:  { sessionId: string }
- * 出力:  ParkingSession（status='completed', exited_at=now）
+ * 出力:  ParkingSession
+ *
+ * ステータス遷移（呼び出し時点の status で分岐）:
+ *   measuring          → cancelled  （15分達成前のユーザー手動中止。クーポン未発行）
+ *   achieved / parked  → completed  （クーポン獲得済みの正常出庫）
+ *   その他（終端）      → 何もしない（冪等。現在の行をそのまま返す）
  *
  * 副作用:
- *   - parking_lots.occupied -= 1（駐輪場の空き状況を更新）
+ *   - parking_lots.occupied -= 1（自転車を出すため空き状況を更新。cancelled/completed 共通）
  *
  * 認証: ユーザーJWT 必須（自分のセッションのみ終了可能）
  */
@@ -61,8 +66,9 @@ Deno.serve(async (req) => {
     return errorResponse(403, "unauthorized", "not your session");
   }
 
-  // 2. 既に completed なら冪等的に成功扱い（多重 tap 対策）
-  if (session.status === "completed") {
+  // 2. 既に終端（completed / cancelled / expired）なら冪等的に成功扱い（多重 tap 対策）
+  const terminalStatuses = ["completed", "cancelled", "expired"];
+  if (terminalStatuses.includes(session.status)) {
     const { data: already } = await supabase
       .from("parking_sessions")
       .select("*")
@@ -71,20 +77,24 @@ Deno.serve(async (req) => {
     return jsonResponse(already, 200);
   }
 
-  // 3. セッションを completed に
+  // 3. 呼び出し時点の status で遷移先を決定。
+  //    measuring（15分達成前の手動中止）は cancelled、
+  //    achieved / parked（クーポン獲得済みの出庫）は completed。
+  const nextStatus = session.status === "measuring" ? "cancelled" : "completed";
+
   const now = new Date().toISOString();
   const { data: updated, error: updateErr } = await supabase
     .from("parking_sessions")
-    .update({ status: "completed", exited_at: now })
+    .update({ status: nextStatus, exited_at: now })
     .eq("id", sessionId)
-    .neq("status", "completed")
+    .eq("status", session.status) // 楽観ロック: 直前に他プロセスが変えていれば skip
     .select("*")
     .maybeSingle();
   if (updateErr) {
     return errorResponse(500, "internal_error", updateErr.message);
   }
   if (!updated) {
-    // 直前に他プロセスが completed にした
+    // 直前に他プロセス（cron 達成判定 / マイコン出庫検知）が status を変えた
     const { data: fallback } = await supabase
       .from("parking_sessions")
       .select("*")

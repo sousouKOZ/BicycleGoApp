@@ -13,6 +13,7 @@ export type ParkingSessionStatus =
   | "achieved"
   | "parked"
   | "completed"
+  | "cancelled"
   | "expired";
 export type StoreCategory =
   | "cafe"

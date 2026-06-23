@@ -419,18 +419,266 @@ supabase/
 
 ---
 
-## 🚀 セットアップ
+## 🚀 セットアップ（ゼロから環境構築｜Windows / Mac 共通・完全版）
+
+このアプリを**何も入っていないマシン（Windows / Mac）から動かす**ための完全手順です。コマンドは「Mac / Linux（bash・zsh）」と「Windows（PowerShell）」を併記します。**特記がなければ、すべてプロジェクトルート `BicycleGoApp/` で実行**してください。
+
+### 🧩 全体像（3つのプロセスを同時に動かす）
+
+このアプリはローカルで動かすと **3つの部品**が連携します。順番に立ち上げます。
+
+```
+┌──────────────┐    HTTP     ┌─────────────────────┐    SQL     ┌──────────────────┐
+│ Flutter アプリ │ ──────────▶ │ Supabase (ローカル)   │ ◀───────── │ Python AIサーバー  │
+│ (端末/エミュ)   │  地図・認証   │ DB + Edge Functions  │  履歴/店舗   │ recommendation_api │
+└──────────────┘             │ (Docker で起動)       │            │ (Flask :5001)     │
+        ▲                    └─────────────────────┘            └──────────────────┘
+        │ Directions / Maps API（Google Cloud）
+        └─ 経路描画・地図タイル
+```
+
+| 部品 | 役割 | 起動コマンド（概要） |
+| --- | --- | --- |
+| **Supabase（ローカル）** | DB・認証・Edge Functions。Docker 上で動く | `supabase start` |
+| **Python AIサーバー** | おすすめ店舗のスコア計算（:5001） | `python recommendation_api.py` |
+| **Flutter アプリ** | 地図・NFC・クーポンの画面 | `flutter run --dart-define-from-file=env/dev.json` |
+
+> 💡 **ローカル完結 vs 本番接続**：本番クラウド Supabase に繋ぐだけなら Docker / Python は不要で、[開発ワークフロー → 通常起動](#通常起動) に進めます。ただし**AIレコメンドまで含めて手元で完全に再現するにはローカルフルスタック**（このセクション）が必要です。初めての人はまずローカルで一通り動かすことを推奨します。
+
+---
+
+### 0️⃣ 前提ツールのインストール（OS別）
+
+以下を上から順に入れます。インストール後は**ターミナル / PowerShell を開き直して** PATH を反映させてください。
+
+| ツール | 用途 | 必須？ |
+| --- | --- | --- |
+| Git | リポジトリ取得 | 必須 |
+| Flutter SDK（stable, 3.38 系で確認） | アプリ本体のビルド・実行 | 必須 |
+| Android Studio（Android SDK + エミュレータ） | Android 実行環境・`flutter doctor` 解決 | 必須 |
+| Xcode + CocoaPods | iOS / iOS シミュレータ実行 | **Mac のみ**・iOS をやる場合 |
+| Docker Desktop | ローカル Supabase の実行基盤 | ローカル起動に必須 |
+| Supabase CLI | DB 起動・マイグレーション・関数 | ローカル起動に必須 |
+| Python 3.9+ | AI レコメンドサーバー | ローカル起動に必須 |
+
+#### 🍎 Mac
+
+[Homebrew](https://brew.sh/) を入れてあると最短です。
 
 ```bash
-# 依存取得
-flutter pub get
+# Homebrew（未導入なら）
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# iOS Pods
-cd ios && pod install && cd ..
+# Git / Flutter / Supabase CLI / Python / CocoaPods
+brew install git
+brew install --cask flutter
+brew install supabase/tap/supabase
+brew install python@3.12
+brew install cocoapods
 
-# 実行（エミュレータまたは実機）
-flutter run
+# Docker Desktop（GUIアプリ。インストール後に必ず起動しておく）
+brew install --cask docker
+
+# Android Studio（Android SDK のために必要）
+brew install --cask android-studio
+
+# Xcode は App Store からインストール → 初回だけライセンス同意とツール導入
+sudo xcodebuild -license accept
+xcode-select --install
 ```
+
+#### 🪟 Windows
+
+[winget](https://learn.microsoft.com/ja-jp/windows/package-manager/winget/)（Windows 10/11 標準）を使うと最短です。**PowerShell を管理者として実行**してください。
+
+```powershell
+# Git / Flutter / Supabase CLI / Python
+winget install --id Git.Git -e
+winget install --id Flutter.Flutter -e          # 入らない場合は下の手動DLを参照
+winget install --id Supabase.CLI -e
+winget install --id Python.Python.3.12 -e
+
+# Docker Desktop（インストール後に起動。WSL2 バックエンド推奨）
+winget install --id Docker.DockerDesktop -e
+
+# Android Studio（Android SDK のために必要）
+winget install --id Google.AndroidStudio -e
+```
+
+> **Flutter が winget で入らない場合**：[公式の Windows 手順](https://docs.flutter.dev/get-started/install/windows)で zip を `C:\src\flutter` 等に展開し、`C:\src\flutter\bin` を**ユーザー環境変数 PATH に追加** → PowerShell を開き直す。
+> **Supabase CLI が winget で入らない場合**：[Scoop](https://scoop.sh/) で `scoop install supabase`、または[Releases](https://github.com/supabase/cli/releases) から exe を取得して PATH の通った場所へ。
+
+#### ✅ 共通：Android Studio の初期設定と doctor 確認
+
+1. Android Studio を一度起動し、セットアップウィザードで **Android SDK / SDK Command-line Tools / Android Emulator** を入れる。
+2. ライセンス同意とドクター確認：
+
+   ```bash
+   flutter doctor --android-licenses   # 出てくる規約にすべて y
+   flutter doctor                      # ✓ が並べばOK（iOSはMacのみ）
+   ```
+
+   `flutter doctor` で赤い × が出たら、その案内に従って不足分を解消してください。Windows で「Visual Studio」関連の × はデスクトップ版を作らない限り無視して構いません。
+
+---
+
+### 1️⃣ リポジトリ取得 & Flutter 依存解決
+
+```bash
+# 取得（URL は実際のリポジトリに置き換え）
+git clone <REPOSITORY_URL>
+cd BicycleGo/BicycleGoApp
+
+# Flutter パッケージ取得
+flutter pub get
+```
+
+**Mac で iOS も動かす場合**は CocoaPods も入れます（Android だけなら不要）。
+
+```bash
+cd ios && pod install && cd ..
+```
+
+---
+
+### 2️⃣ 設定ファイル・シークレットの配置
+
+git に含まれない設定ファイルを、テンプレート（`*.example.*`）からコピーして値を埋めます。**コピー後に中身を書き換える**のがポイントです。
+
+| コピー元（テンプレ） | コピー先（実ファイル・git管理外） | 中身 |
+| --- | --- | --- |
+| `env/dev.example.json` | `env/dev.json` | ローカル Supabase URL / anon key / Directions APIキー |
+| `ios/Flutter/Secrets.example.xcconfig` | `ios/Flutter/Secrets.xcconfig` | iOS の Maps SDK キー（Mac/iOSのみ） |
+| `android/secrets.example.properties` | `android/secrets.properties` | Android の Maps SDK キー |
+| `.env.example` | `.env` | Python スクリプト用 DB 接続情報（ローカルなら**作らなくてOK**・後述） |
+
+**Mac / Linux（bash・zsh）**
+```bash
+cp env/dev.example.json env/dev.json
+cp ios/Flutter/Secrets.example.xcconfig ios/Flutter/Secrets.xcconfig   # Mac/iOSのみ
+cp android/secrets.example.properties android/secrets.properties
+```
+
+**Windows（PowerShell）**
+```powershell
+Copy-Item env\dev.example.json env\dev.json
+Copy-Item android\secrets.example.properties android\secrets.properties
+# iOS は Mac 専用なので Windows では不要
+```
+
+> 🔑 **Google Maps / Directions APIキーの取得と GCP 側の制限**は下の [APIキーの設定（用途別に2種類）](#apiキーの設定用途別に2種類) を参照。**地図タイルとおすすめ機能を確認するだけ**なら、まず `env/dev.json` の `GOOGLE_DIRECTIONS_API_KEY` を有効なキーにすれば動きます（経路線の描画に使用）。Maps SDK キー未設定だと地図が灰色になります。
+
+`env/dev.json` の `SUPABASE_URL` / `SUPABASE_ANON_KEY` は次のステップで `supabase start` が表示する値に合わせます。エミュレータ別の URL の使い分けは:
+
+| アプリの実行先 | `SUPABASE_URL` に入れる値 |
+| --- | --- |
+| iOS シミュレータ / Mac デスクトップ | `http://127.0.0.1:54321` |
+| **Android エミュレータ** | `http://10.0.2.2:54321` |
+| 実機（同一 Wi-Fi） | `http://<PCのLAN IP>:54321` |
+
+---
+
+### 3️⃣ ローカルバックエンド（Supabase）の起動
+
+**Docker Desktop を起動した状態**で実行します（初回は Docker イメージの取得に数分かかります）。
+
+```bash
+# DB・認証・Edge Functions をローカルに起動
+supabase start
+
+# スキーマを作り直してクリーンな状態に（マイグレーション適用）
+supabase db reset
+```
+
+`supabase start` の最後に表示される **`API URL`** と **`anon key`** を、ステップ2で作った `env/dev.json` の `SUPABASE_URL` / `SUPABASE_ANON_KEY` に貼り付けます（あとから `supabase status` でも確認可）。
+
+> ブラウザで **Supabase Studio（GUI）= http://127.0.0.1:54323** を開くと、テーブルやデータを直接確認・編集できます。
+
+---
+
+### 4️⃣ データ投入（Python：履歴＋提携店舗）
+
+AI が使う**過去チェックイン履歴（約11万件）**と、地図に出る**提携店舗（30件）**を DB に流し込みます。**`supabase db reset` の直後に必ず1回**実行してください。これをしないと地図に店舗が出ず、レコメンドも動きません。
+
+まず Python の仮想環境を作って依存を入れます。
+
+**Mac / Linux**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+**Windows（PowerShell）**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+> PowerShell で `Activate.ps1` が実行ポリシーで弾かれる場合：`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を一度実行。
+
+そしてデータ投入:
+
+```bash
+python load_data.py
+```
+`Phase 2 complete! All data successfully loaded and calculated.` が出れば成功です。
+
+> ⚠️ **接続先に注意（重要）**：`load_data.py` は環境変数 `DATABASE_URL` があればそこへ、無ければ**ローカル Supabase（`localhost:54322`）**へ書き込みます。**ローカルに投入したいときは `.env` に `DATABASE_URL` を設定しない**でください（`.env` を作らない／その行をコメントアウト）。本番DBに投入したい時だけ `.env.example` をコピーして本番の接続文字列を入れます。
+
+---
+
+### 5️⃣ Python AI レコメンドサーバーの起動
+
+`load_data.py` と同じ仮想環境（有効化済み）で、別ターミナルを開いて起動します。**このターミナルは閉じずに起動したまま**にします。
+
+```bash
+python recommendation_api.py
+```
+`Running on http://127.0.0.1:5001` が出れば準備完了です（ポートは `RECOMMENDATION_API_PORT` で変更可）。
+
+---
+
+### 6️⃣ Flutter アプリの起動
+
+さらに別のターミナル（または VS Code のデバッグ）で起動します。エミュレータ／実機をあらかじめ立ち上げておきます。
+
+```bash
+# 起動可能なデバイスを確認
+flutter devices
+
+# デモ用フラグ付きで起動（達成しきい値15分→30秒に短縮：撮影・動作確認向き）
+flutter run --dart-define-from-file=env/dev.json --dart-define=DEMO=true
+```
+
+VS Code から起動する場合は、左の実行パネルで **"BicycleGo (dev)"** 構成を選んで F5 でも同じです（[.vscode/launch.json](.vscode/launch.json)）。
+
+> **Android エミュレータで Supabase に繋がらない**ときは、`env/dev.json` の `SUPABASE_URL` が `http://10.0.2.2:54321` になっているか確認（`127.0.0.1` はエミュレータ自身を指してしまう）。
+
+---
+
+### 🔍 動作確認チェックリスト
+
+- [ ] 地図が表示され、大阪駅周辺に駐輪場・特典アイコン（提携店舗）が並ぶ
+- [ ] 駐輪場をタップ → 詳細シートに「あなたへのおすすめ店舗トップ3」と理由が出る（= Python サーバー疎通OK）
+- [ ] NFC（または DEMO 経由）で駐輪を開始 → 約30秒（DEMO時）でクーポン獲得画面に遷移
+
+---
+
+### 🆘 トラブルシューティング（環境構築）
+
+| 症状 | 原因 / 対処 |
+| --- | --- |
+| `supabase start` が失敗・固まる | **Docker Desktop が起動していない**。起動してから再実行。初回はイメージ取得で時間がかかる |
+| 地図が灰色のまま | **Maps SDK キー未設定**。`ios/Flutter/Secrets.xcconfig` / `android/secrets.properties` を設定（[APIキーの設定](#apiキーの設定用途別に2種類)） |
+| 地図に店舗・特典が出ない | `load_data.py` を実行していない／別のDBに入った。ローカルに `DATABASE_URL` 無しで再投入（ステップ4） |
+| 詳細シートでおすすめが出ない | **Python サーバー（:5001）が未起動**。ステップ5を確認 |
+| Android エミュで Supabase に繋がらない | `SUPABASE_URL` を `http://10.0.2.2:54321` に |
+| `flutter doctor` に × | 案内に従い Android SDK / ライセンス / Xcode を解消。`flutter doctor --android-licenses` |
+| PowerShell で venv 有効化が拒否される | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` を一度実行 |
+| データを入れ直したい | `supabase db reset` → `python load_data.py` の順で再実行 |
+
+---
 
 ### APIキーの設定（用途別に2種類）
 
@@ -453,8 +701,13 @@ cp ios/Flutter/Secrets.example.xcconfig ios/Flutter/Secrets.xcconfig
 **Android** — [android/secrets.example.properties](android/secrets.example.properties) をコピーして値を書き換え。
 
 ```bash
+# Mac / Linux
 cp android/secrets.example.properties android/secrets.properties
 # secrets.properties の MAPS_API_KEY を編集
+```
+```powershell
+# Windows (PowerShell)
+Copy-Item android\secrets.example.properties android\secrets.properties
 ```
 
 - iOS は [Info.plist](ios/Runner/Info.plist) の `GMSApiKey` が `$(MAPS_API_KEY)` を参照し、[AppDelegate.swift](ios/Runner/AppDelegate.swift) がそれを読んで `GMSServices.provideAPIKey` に渡します。
@@ -465,8 +718,13 @@ cp android/secrets.example.properties android/secrets.properties
 [env/dev.example.json](env/dev.example.json) をコピーして値を書き換え。
 
 ```bash
+# Mac / Linux
 cp env/dev.example.json env/dev.json
 # env/dev.json の GOOGLE_DIRECTIONS_API_KEY を編集
+```
+```powershell
+# Windows (PowerShell)
+Copy-Item env\dev.example.json env\dev.json
 ```
 
 実行時は [.vscode/launch.json](.vscode/launch.json) から起動するか、コマンドラインで:

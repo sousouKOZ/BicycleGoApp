@@ -127,12 +127,18 @@ class AuthController {
     final user = _client.auth.currentUser;
     if (user != null && user.isAnonymous) {
       // 匿名→永続アカウントへ昇格。確認有効時は確認まで保留（emailConfirmedAt が null）。
+      // emailRedirectTo で、確認メールのリンクを開いた後アプリのディープリンクへ戻す。
       final res = await _client.auth.updateUser(
         UserAttributes(email: email, password: password),
+        emailRedirectTo: kAuthRedirectUrl,
       );
       return res.user?.emailConfirmedAt == null;
     } else {
-      final res = await _client.auth.signUp(email: email, password: password);
+      final res = await _client.auth.signUp(
+        email: email,
+        password: password,
+        emailRedirectTo: kAuthRedirectUrl,
+      );
       // 確認有効時はセッションが張られない（= 確認待ち）。
       return res.session == null;
     }
