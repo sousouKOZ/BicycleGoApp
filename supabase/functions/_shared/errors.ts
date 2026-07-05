@@ -12,6 +12,7 @@ export type ErrorCode =
   | "session_not_found"
   | "auth_grace_expired"
   | "no_recent_detection"
+  | "already_active"
   | "already_used"
   | "expired"
   | "insufficient_points"

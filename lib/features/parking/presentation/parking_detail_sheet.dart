@@ -15,6 +15,7 @@ import '../domain/parking_lot_filter.dart';
 import '../providers/favorite_providers.dart';
 import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
+import '../providers/session_providers.dart';
 import '../../nfc/presentation/nfc_lock_sheet.dart';
 import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_timer_page.dart';
@@ -97,6 +98,9 @@ class ParkingDetailSheet extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     final theme = Theme.of(context);
     final currentLocation = ref.watch(currentLocationProvider);
+    // 1ユーザー同時1駐輪。既にアクティブな駐輪があれば認証ボタンを無効化する
+    // （サーバー parking_auth も already_active で弾くが、UI 段階で気づけるように）。
+    final hasActiveSession = ref.watch(activeSessionProvider) != null;
     // ルートを取得済みなら同じ値（自転車経路の実距離・実所要時間）を使い、
     // 上部の _RouteBanner と完全に一致させる。
     // 未取得時は直線距離 + 自転車速度（250m/分 ≒ 15km/h）で見積もり。
@@ -317,7 +321,9 @@ class ParkingDetailSheet extends ConsumerWidget {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton.icon(
-                    onPressed: () async {
+                    onPressed: hasActiveSession
+                        ? null
+                        : () async {
                       final device = mockDevices.firstWhere(
                         (d) => d.parkingLotId == parking.id,
                         orElse: () => mockDevices.first,
@@ -352,8 +358,15 @@ class ParkingDetailSheet extends ConsumerWidget {
                             builder: (_) => const SessionTimerPage()),
                       );
                     },
-                    icon: const Icon(Icons.nfc_rounded, size: 20),
-                    label: const Text('タッチで計測開始'),
+                    icon: Icon(
+                      hasActiveSession
+                          ? Icons.directions_bike_rounded
+                          : Icons.nfc_rounded,
+                      size: 20,
+                    ),
+                    label: Text(
+                      hasActiveSession ? '他の駐輪を計測中' : 'タッチで計測開始',
+                    ),
                   ),
                 ),
               ],

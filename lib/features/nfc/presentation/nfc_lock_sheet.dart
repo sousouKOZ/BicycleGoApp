@@ -139,6 +139,11 @@ class _NfcLockSheetState extends ConsumerState<NfcLockSheet> {
       );
     } on DeviceNotFoundException catch (_) {
       _showError('このスタンドは BicycleGo に登録されていません。');
+    } on AlreadyActiveSessionException catch (_) {
+      _showError(
+        'すでに別の駐輪を計測中です。'
+        '先に今の駐輪を完了してから、もう一度お試しください。',
+      );
     } on ApiException catch (_) {
       _showError(
         '通信がうまくいきませんでした。'

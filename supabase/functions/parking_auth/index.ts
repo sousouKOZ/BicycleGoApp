@@ -10,10 +10,13 @@
  *
  * 処理ロジック:
  *   1. JWT から userId を取得
- *   2. 該当 deviceId の認証猶予内（5分以内）の unauthenticated セッションを検索
+ *   2. ユーザーが既にアクティブなセッション（measuring/achieved/parked）を
+ *      持っていれば already_active で拒否（1ユーザー同時1駐輪。二重セッション・
+ *      二重クーポン防止の最終防衛線。クライアントにもガードはあるが信用しない）
+ *   3. 該当 deviceId の認証猶予内（5分以内）の unauthenticated セッションを検索
  *      - 無ければ auth_grace_expired
- *   3. user_id 紐付け + status='measuring' + authenticated_at=now()
- *   4. GPS 照合は実装しない（屋内・隣接スタンド誤判定対策で廃止済み）
+ *   4. user_id 紐付け + status='measuring' + authenticated_at=now()
+ *   5. GPS 照合は実装しない（屋内・隣接スタンド誤判定対策で廃止済み）
  */
 
 import { handleCorsPreflight } from "../_shared/cors.ts";
@@ -65,6 +68,30 @@ Deno.serve(async (req) => {
   }
   if (!device) {
     return errorResponse(404, "device_not_found", `device ${deviceId} not found`);
+  }
+
+  // 3.5 同時駐輪は不可。ユーザーが既にアクティブなセッション
+  //     （measuring/achieved/parked）を持っていれば認証を拒否する。
+  //     これを怠ると 1 ユーザーが複数の measuring を同時に持ち、issue_coupons が
+  //     セッション毎にクーポン＋ポイントを発行してしまう（二重取得）。
+  //     クライアント側にもガードはあるが、デモのモック検知やアプリ再起動で
+  //     回避され得るため、サーバーを最終防衛線とする。
+  const { data: activeOwn, error: activeOwnErr } = await supabase
+    .from("parking_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .in("status", ["measuring", "achieved", "parked"])
+    .limit(1)
+    .maybeSingle();
+  if (activeOwnErr) {
+    return errorResponse(500, "internal_error", activeOwnErr.message);
+  }
+  if (activeOwn) {
+    return errorResponse(
+      409,
+      "already_active",
+      "user already has an active parking session",
+    );
   }
 
   // 4. 5分以内の unauthenticated セッションを取得。MCU が parking_detect で

@@ -56,6 +56,17 @@ class App extends ConsumerWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
+      // 端末の「文字サイズ／表示サイズ」設定が大きい場合の UI 見切れを防ぐため、
+      // 文字スケールの上限を 1.3 倍にクランプする（縮小側は端末設定を尊重）。
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: mediaQuery.textScaler.clamp(maxScaleFactor: 1.3),
+          ),
+          child: child!,
+        );
+      },
       home: home,
     );
   }

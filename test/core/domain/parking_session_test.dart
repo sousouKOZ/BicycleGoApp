@@ -27,6 +27,24 @@ void main() {
     });
   });
 
+  group('ParkingSession.elapsedBasis（タイマ経過の起点／No.41）', () {
+    test('通常ビルドでは認証時刻(authenticatedAt)を起点にする', () {
+      final authAt = detectedAt.add(const Duration(minutes: 1));
+      final s = build(authenticatedAt: authAt);
+      expect(s.elapsedBasis, authAt);
+    });
+
+    test('未認証（authenticatedAt=null）では起点が無い', () {
+      final s = build();
+      expect(s.elapsedBasis, isNull);
+    });
+
+    test('通常ビルドは撮影用デモモードではない', () {
+      // DEMO 未指定でビルドした場合、15分しきい値・本番起点が選ばれること。
+      expect(ParkingSession.isDemoMode, isFalse);
+    });
+  });
+
   group('ParkingSession.copyWith', () {
     test('不変フィールド(id/deviceId/detectedAt)は保持する', () {
       final s = build();

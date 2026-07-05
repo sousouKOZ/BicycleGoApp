@@ -23,6 +23,13 @@ class DeviceNotFoundException extends ApiException {
       : super('device_not_found', message);
 }
 
+/// 既にアクティブな駐輪セッションがあるため、新たな認証を受け付けられない
+/// （1ユーザー同時1駐輪。サーバー parking_auth が 409 で返す）。
+class AlreadyActiveSessionException extends ApiException {
+  const AlreadyActiveSessionException(String message)
+      : super('already_active', message);
+}
+
 class SessionNotFoundException extends ApiException {
   const SessionNotFoundException(String message)
       : super('session_not_found', message);

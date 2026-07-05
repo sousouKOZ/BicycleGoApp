@@ -10,6 +10,11 @@ Future<T?> showAppBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: builder,
+    // 端末下端のジェスチャー／ナビゲーションバー領域にシート内ボタンが
+    // 被らないよう、下端のシステムインセットだけ SafeArea で確保する。
+    builder: (context) => SafeArea(
+      top: false,
+      child: builder(context),
+    ),
   );
 }

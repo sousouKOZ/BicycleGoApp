@@ -69,6 +69,8 @@ class SupabaseApiClient implements ApiClient {
         throw AuthGraceExpiredException(msg);
       case 'no_recent_detection':
         throw NoRecentDetectionException(msg);
+      case 'already_active':
+        throw AlreadyActiveSessionException(msg);
       default:
         throw ApiException(code ?? 'internal_error', msg);
     }
