@@ -41,6 +41,7 @@
 | --- | --- | --- |
 | 地図 | 駐輪場/クーポン表示・検索・距離/おすすめソート・フィルタ・アプリ内ルート表示 | ✅ 実装済み |
 | 駐輪フロー | NFC認証シート・15分計測・常駐ミニバー・kill後の状態復元 | ✅ 実装済み |
+| 駐輪フロー | 同時1駐輪ガード（`already_active` 拒否 + 認証ボタン無効化） | ✅ 実装済み |
 | NFC | スキャンUI・deviceId認証 | ⚠️ タグ内容は未読取（deviceId はモック由来） |
 | クーポン | 獲得演出（haptic/sparkle/share）・一覧・詳細・スワイプ消込 | ✅ 実装済み |
 | 出庫 | マイコン検知でサーバが自動 `completed` 化 | ✅ 実装済み（サーバ側） |
@@ -54,9 +55,9 @@
 | 認証 | ゲスト→昇格時のローカルデータ引き継ぎ | ❌ 未対応 |
 | 通知 | Android プッシュ（FCM） | ✅ 実装済み |
 | 通知 | iOS プッシュ（APNs） | ❌ 未対応 |
-| 通知 | 24h 長時間駐輪アラート | ❌ 未実装（定数のみ） |
+| 通知 | 24h 長時間駐輪アラート | ⚠️ サーバ push 実装済み（毎時 cron・Android のみ。アプリ内の警告 UI はなし） |
 | データ | 駐輪場/店舗マスタ（地図表示） | ✅ Supabase 接続（デバイス解決は一部モック） |
-| 品質 | 自動テスト | ⚠️ ドメイン中心の4本のみ |
+| 品質 | 自動テスト | ⚠️ ユニット10本 + 本番APIの結合テストエビデンス3件（provider/widget テストなし） |
 
 > 凡例: ✅ 実装済み ／ ⚠️ 部分的・制約あり ／ ❌ 未実装。詳細は各セクションと [未実装機能・既知の制約](#-未実装機能既知の制約) を参照。
 
@@ -106,6 +107,7 @@
 - **お気に入り★ボタン** — ヘッダーに常設、1タップでお気に入り登録／解除（端末ローカルに永続化）
 - **近くで使えるクーポンセクション** — 300m以内の提携店舗をチップ表示、タップで店舗プレビュー。遠距離ボーナス %も表示
 - 「NFCで計測開始」ボタンでNFC認証シートを表示
+- **同時1駐輪ガード（UI面）** — 既にアクティブな駐輪セッションを保持している間は認証ボタンを無効化（サーバの `already_active` 拒否に加え、UI 段階で気づけるように）
 
 ### 店舗プレビューシート [StorePreviewSheet](lib/features/stores/presentation/store_preview_sheet.dart)
 - 配信中バッジ・カテゴリチップ・レコメンド星スコア
@@ -117,6 +119,7 @@
 - 各ステージでアクセントカラーとアイコンが切り替わる
 - 認証は `deviceId` を `parking_auth` Edge Function に送信し、サーバが直近の `unauthenticated` セッションと照合（屋内・隣接スタンド誤判定対策で GPS 照合は廃止）
 - 本番では IoT 検知イベントとの紐付けで強化する想定（[docs/server_implementation.md §13](docs/server_implementation.md)）
+- **同時1駐輪ガード（サーバ面）** — 既にアクティブなセッション（unauthenticated / measuring / achieved / parked）を持つユーザーの認証は `parking_auth` が `already_active`（409）で拒否。二重セッション・二重クーポン発行を防止（クライアントは [AlreadyActiveSessionException](lib/core/api/api_exceptions.dart) としてエラー表示）
 - エラー時は「もう一度」で再スキャン可能
 - ⚠️ **現状の制約** — タグの検出（`onDiscovered`）はするが**タグのペイロード（スタンドID）は未解析**で、`deviceId` は呼び出し元の駐輪場詳細が [mockDevices](lib/features/parking/data/parking_mock_data.dart) から解決した値を使用している。実タグ → スタンドID の読取・照合は未実装（[未実装機能・既知の制約](#-未実装機能既知の制約)参照）
 
@@ -287,6 +290,7 @@ flowchart TD
 ```
 
 5分以内にNFC認証されなかった場合は `expire_sessions` cron が `expired` 化（`AuthGraceExpiredException`）。
+既にアクティブなセッションを持つユーザーが別のスタンドで認証しようとした場合は `parking_auth` が `already_active`（409）で拒否します（1ユーザー同時1駐輪）。
 
 ---
 
@@ -296,6 +300,7 @@ flowchart TD
 - **カラーパレット** — [app_colors.dart](lib/core/theme/app_colors.dart) に集約。ブランドカラーは**ティール `#00A88F`** を基調に、用途別アクセント（`navigation` = ブルー `#2E7CF6` / `coupon` = オレンジ `#F4A43A`）を併用
 - **ガラス装飾** — [glass_decoration.dart](lib/core/theme/glass_decoration.dart) で再利用可能な `BoxDecoration` を提供
 - **テーマ** — [app_theme.dart](lib/core/theme/app_theme.dart) でMaterial 3 + Google Fonts（Inter / Noto Sans JP）統一
+- **文字サイズ耐性** — 端末の文字/表示サイズ拡大時のレイアウト見切れ防止に `textScaler` を最大1.3倍でクランプ（[app.dart](lib/app.dart)）
 
 ---
 
@@ -360,16 +365,25 @@ supabase/
 │   ├── initial_schema.sql      # 9テーブル + ENUM + index + auth トリガ
 │   ├── rls_policies.sql        # 全テーブル RLS（自分のデータのみ可視）
 │   ├── pg_cron_jobs.sql        # 毎分 issue_coupons / expire_sessions
-│   ├── long_park_warning.sql   # 24h超の長時間駐輪警告（カラム + index + 毎時 cron）
 │   ├── exchange_rpc.sql        # ポイント交換アトミック関数
-│   └── cron_helper_for_cloud.sql  # Vault 経由で URL/キー解決
+│   ├── cron_helper_for_cloud.sql   # Vault 経由で URL/キー解決
+│   ├── atomic_helpers.sql      # ポイント加算/occupied 減算の原子的 RPC（race 対策）
+│   ├── devices_last_seen_at.sql    # マイコン在席通知カラム（置き逃げクーポン詐取対策）
+│   ├── recommendation_seed_tables.sql  # レコメンド用シードテーブル（load_data.py が投入）
+│   ├── security_hardening.sql  # クライアント直接 UPDATE の閉鎖（変更は Edge Function 経由に限定）
+│   ├── long_park_warning.sql   # 24h超の長時間駐輪警告（カラム + index + 毎時 cron）
+│   ├── set_fcm_token_rpc.sql   # FCM トークンを常に1ユーザーに紐付け（旧アカウント誤配信防止）
+│   ├── session_cancelled_status.sql    # status に cancelled（ユーザー能動中止）追加
+│   └── fix_devices_rls_for_history.sql # 完了済みセッションでも自分の履歴のデバイス参照可に
 └── functions/                  # Edge Functions（Deno + TypeScript）
     ├── _shared/                # 定数・CORS・型・推薦ロジック
     ├── parking_detect/         # IoT 検知 → unauthenticated session 作成
-    ├── parking_auth/           # NFC 認証 → measuring 遷移
+    ├── parking_auth/           # NFC 認証 → measuring 遷移（already_active で同時1駐輪ガード）
     ├── issue_coupons/          # 達成判定 + クーポン自律発行（cron 起動）
     ├── expire_sessions/        # 認証猶予クリーンナップ（cron 起動）
     ├── notify_long_parking/    # 24h超の長時間駐輪を警告 push（cron 毎時起動）
+    ├── acknowledge_earned_coupon/  # 獲得画面の確認 → achieved から parked へ遷移
+    ├── get_recommendations/    # Python レコメンドAPI への中継 + 店舗詳細マージ
     ├── redeem_coupon/          # スワイプ消込
     ├── end_session/            # 出庫 + occupied 減算
     ├── issue_exchange_coupon/  # ポイント交換（PL/pgSQL RPC 経由でアトミック）
@@ -849,6 +863,7 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 - 🔴 **deviceId のモックデータ依存** — [parking_detail_sheet.dart](lib/features/parking/presentation/parking_detail_sheet.dart) が `mockDevices.firstWhere(...)` で駐輪場→デバイスを解決。本番は「駐輪場 ↔ 物理デバイス」マッピングを Supabase から引く必要（現状 `getParkingForDevice` の逆引きが無い）
 - 🔴 **実機駐輪場データの取得方法**（公開 API 連携 or 手動登録 or IoT 連動）。地図一覧は Supabase 接続済みだが [parking_mock_data.dart](lib/features/parking/data/parking_mock_data.dart) / [store_mock_data.dart](lib/features/stores/data/store_mock_data.dart) が残存
 - 🟡 **ルート案内が大阪駅周辺座標を前提**（[directions_service.dart](lib/features/parking/data/directions_service.dart)）。本番座標への一本化が必要
+- 🟡 **孤児セッションのクリーンアップ** — 同時1駐輪ガードの導入により、出庫検知が来ないまま残った `measuring` / `parked` セッションが次回の認証を塞ぎ続ける。`expire_sessions` は `unauthenticated` の5分猶予のみ対応で、古いアクティブセッションの自動掃除は未実装
 
 ### 認証・アカウント
 - 🟠 **Google ログインの外部設定** — アプリ側は実装済み（ブラウザ OAuth・連携/解除）。動作には Google Cloud の OAuth クライアント発行 + Supabase で Google プロバイダ有効化 + Manual Linking + Redirect URLs 登録 + 環境変数が必要
@@ -863,7 +878,7 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 
 ### 通知
 - 🟠 **iOS への FCM/APNs 対応**（現状 Android のみ。APNs 認証鍵 + `GoogleService-Info.plist` 設定が必要）
-- 🟡 **24時間長時間駐輪アラート** — `ParkingSession.longTermAlert`（24h）定数はあるが**どこからも参照されておらず**、通知・警告 UI が未実装。[features/alerts](lib/features/alerts) は空ディレクトリ（providers のみ）
+- 🟡 **長時間駐輪アラートのアプリ内表示** — サーバ push（`notify_long_parking`・毎時 cron）は実装済みだが、アプリ内の警告 UI・通知一覧は未実装。[features/alerts](lib/features/alerts) は空ディレクトリ（providers のみ）
 - 🟡 通知センター画面
 
 ### その他機能
@@ -873,7 +888,7 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 - 🟡 多言語対応（i18n の土台）
 
 ### 品質・保守
-- 🟠 **自動テストの拡充** — 現状 `test/` は4本（セッション/クーポン/ポイントのドメイン中心）。API/プロバイダ/結合テストが無く、状態のサーバ永続化漏れのようなリグレッションを検知できない
+- 🟠 **自動テストの拡充** — 現状 `test/` はユニット10本（ドメイン・API パース・ユーティリティ・地図フィルタ/レコメンド）。本番 API に対する結合テストは [docs/test_evidence/](docs/test_evidence/integration_api_tests_2026-07-07.md) にエビデンス3件（parking_detect / parking_auth / クーポン一覧）あり。provider / widget レベルの自動テストが無く、UI リグレッションは検知できない
 - 🟡 **空ディレクトリの整理** — [lib/features/alerts/](lib/features/alerts) / [lib/features/history/](lib/features/history) はプレースホルダ（履歴の実体は [sessions/](lib/features/sessions) 配下）。実装するか削除する
 - 🟡 モックデータの本番一本化（上記コア項目と連動）
 
@@ -901,6 +916,9 @@ flutter run --dart-define-from-file=env/prod.json --dart-define=DEMO=true
 - `parked` → クーポン獲得後も自転車を出していない（ミニバーは緑モード）
 - `completed` → 出庫完了
 - `expired` → 5分以内に認証されなかった
+- `cancelled` → 計測中にユーザーが「計測を中止する」で能動的に中止（クーポン未発行）
+
+なお、アクティブなセッション（`unauthenticated` / `measuring` / `achieved` / `parked`）は1ユーザー1件まで。保持中の新規認証は `parking_auth` が `already_active` で拒否する。
 
 ### クーポン発行タイミング
 - **駐輪達成クーポン** — 15分経過後にサーバ自律発行（pg_cron が毎分判定 → `issue_coupons` Edge Function が発行 → Realtime / FCM でアプリに通知）。距離に応じて `near / far / exchange` tier
