@@ -20,4 +20,17 @@ class Geo {
             math.pow(math.sin(dLng / 2), 2);
     return earthRadiusMeters * 2 * math.asin(math.sqrt(h.toDouble()));
   }
+
+  /// [from] から [to] を向く方位角（真北 0°、時計回り 0〜360）。
+  /// ナビのカメラ回転・進行方向アイコンの向きに使う。
+  static double bearingDegrees(LatLng from, LatLng to) {
+    final lat1 = _toRadians(from.latitude);
+    final lat2 = _toRadians(to.latitude);
+    final dLng = _toRadians(to.longitude - from.longitude);
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    final deg = math.atan2(y, x) * (180.0 / math.pi);
+    return (deg + 360.0) % 360.0;
+  }
 }

@@ -16,13 +16,10 @@ import '../providers/favorite_providers.dart';
 import '../providers/recommendation_providers.dart';
 import '../providers/route_providers.dart';
 import '../providers/session_providers.dart';
-import '../../nfc/presentation/nfc_lock_sheet.dart';
-import '../../points/providers/points_providers.dart';
 import '../../sessions/presentation/session_timer_page.dart';
-import '../data/parking_mock_data.dart';
 import '../../../core/domain/parking_lot.dart';
-import '../../../core/domain/parking_session.dart';
 import '../providers/parking_providers.dart';
+import 'start_parking_flow.dart';
 
 class ParkingDetailSheet extends ConsumerWidget {
   final ParkingLot parking;
@@ -324,40 +321,16 @@ class ParkingDetailSheet extends ConsumerWidget {
                     onPressed: hasActiveSession
                         ? null
                         : () async {
-                      final device = mockDevices.firstWhere(
-                        (d) => d.parkingLotId == parking.id,
-                        orElse: () => mockDevices.first,
-                      );
-                      final navigator = Navigator.of(context);
-                      final session =
-                          await showAppBottomSheet<ParkingSession?>(
-                        context,
-                        builder: (_) => NfcLockSheet(
-                          parkingId: parking.id,
-                          parkingName: parking.name,
-                          deviceId: device.id,
-                        ),
-                      );
-                      if (session == null) {
-                        return;
-                      }
-                      // 付与はサーバ(issue_coupons)が15分後に行う。ここでは
-                      // 残高表示を最新化するだけ。
-                      ref.read(pointsProvider.notifier).refresh();
-                      final earnSec = ParkingSession.earnThreshold.inSeconds;
-                      final earnLabel =
-                          earnSec >= 60 ? '${earnSec ~/ 60}分' : '$earnSec秒';
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text('認証完了！$earnLabel後にクーポンが届きます'),
-                        ),
-                      );
-                      navigator.pop();
-                      await navigator.push(
-                        MaterialPageRoute(
-                            builder: (_) => const SessionTimerPage()),
-                      );
-                    },
+                            final navigator = Navigator.of(context);
+                            final session =
+                                await runParkingAuth(context, ref, parking);
+                            if (session == null) return;
+                            navigator.pop();
+                            await navigator.push(
+                              MaterialPageRoute(
+                                  builder: (_) => const SessionTimerPage()),
+                            );
+                          },
                     icon: Icon(
                       hasActiveSession
                           ? Icons.directions_bike_rounded

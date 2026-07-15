@@ -3,6 +3,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- ナビ中の位置追従をバックグラウンドでも継続するための前景サービス。
+         常設通知を出す前景サービス方式なので ACCESS_BACKGROUND_LOCATION は不要。
+         geolocator の ForegroundNotificationConfig がこのサービスを起動する。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <application
         android:label="bicycle_go"
         android:name="${applicationName}"

@@ -8,6 +8,7 @@ import '../../../core/domain/store.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/glass_decoration.dart';
 import '../../../core/widgets/app_bottom_sheet.dart';
+import '../../navigation/presentation/navigation_page.dart';
 import '../../stores/presentation/store_preview_sheet.dart';
 import '../../stores/providers/store_providers.dart';
 import '../domain/directions_route.dart';
@@ -426,6 +427,34 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
     setState(() => _showMapControls = true);
   }
 
+  /// プレビュー中の経路をそのまま使ってターンバイターン案内を開始する。
+  void _startNavigation(DirectionsRoute route) {
+    ParkingLot? found;
+    for (final lot in widget.lots) {
+      if (lot.id == route.parkingLotId) {
+        found = lot;
+        break;
+      }
+    }
+    final parking = found;
+    if (parking == null) {
+      // 経路取得後に駐輪場一覧が更新されて対象が消えた場合。経路も畳んでおく。
+      ref.read(activeRouteProvider.notifier).state = null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('この駐輪場は現在表示できません。もう一度選び直してください。')),
+      );
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NavigationPage(
+          parking: parking,
+          initialRoute: route,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final stores = ref.watch(storesProvider).asData?.value ?? const <Store>[];
@@ -581,6 +610,8 @@ class _MapOverlayState extends ConsumerState<_MapOverlay>
                               ref.read(activeRouteProvider.notifier).state =
                                   null;
                             },
+                            onStartNavigation: () =>
+                                _startNavigation(activeRoute),
                           ),
                         ),
                     ],

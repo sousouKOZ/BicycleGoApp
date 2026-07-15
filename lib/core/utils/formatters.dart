@@ -24,6 +24,15 @@ String formatDistanceMeters(double meters) {
   return '${meters.round()}m';
 }
 
+/// 音声読み上げ用の距離表記。単位を漢字仮名で綴り、TTS が「km」を
+/// 「けーえむ」と読んでしまうのを防ぐ（例: `1.2キロメートル` / `350メートル`）。
+String formatDistanceSpeech(double meters) {
+  if (meters >= 1000) {
+    return '${(meters / 1000).toStringAsFixed(1)}キロメートル';
+  }
+  return '${meters.round()}メートル';
+}
+
 /// `2026/06/12` 形式。
 String formatDate(DateTime d) => '${d.year}/${_two(d.month)}/${_two(d.day)}';
 

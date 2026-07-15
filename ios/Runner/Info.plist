@@ -30,6 +30,13 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>現在地を地図に表示するために位置情報を使用します。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ナビ中に画面を消していても案内を続けるため、バックグラウンドでも位置情報を使用します。</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>audio</string>
+	</array>
 	<key>NFCReaderUsageDescription</key>
 	<string>駐輪場のNFCタグを読み取り、駐輪の記録とクーポン発行に利用します。</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
