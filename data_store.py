@@ -31,7 +31,11 @@ class DataStore:
         """
         print("[DataStore] Connecting to database...")
         conn = psycopg2.connect(db_url, connect_timeout=10)
-        
+        # 読み込みのみのためトランザクションを開かない。
+        # 開いたままだと seed_checkins の AccessShareLock を保持し続け、
+        # load_data.py の TRUNCATE がロック待ちでタイムアウトする。
+        conn.autocommit = True
+
         print("[DataStore] Loading checkins (seed_checkins + used coupons)...")
         # 1. 外部データ (seed_checkins) の読み込み
         query_seed = """
