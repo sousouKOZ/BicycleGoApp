@@ -326,3 +326,6 @@ if __name__ == '__main__':
     print("    POST /api/v2/increment_visit")
     print("=" * 50)
     app.run(host=host, port=port, debug=debug)
+
+# Copyright (c) 2026 江藤大晴
+# Released under the MIT License.

@@ -17,3 +17,6 @@ export function handleCorsPreflight(req: Request): Response | null {
   }
   return null;
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

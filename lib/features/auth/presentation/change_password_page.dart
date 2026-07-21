@@ -122,3 +122,6 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

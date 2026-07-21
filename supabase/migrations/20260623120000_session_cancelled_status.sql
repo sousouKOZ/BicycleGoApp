@@ -12,3 +12,6 @@
 -- 注: ALTER TYPE ... ADD VALUE は同一トランザクション内で「追加」のみなら PG12+ で安全
 --     （この値を同じ migration 内では使用しない）。
 ALTER TYPE parking_session_status ADD VALUE IF NOT EXISTS 'cancelled';
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

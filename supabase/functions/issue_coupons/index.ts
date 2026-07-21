@@ -352,3 +352,6 @@ Deno.serve(async (req) => {
 
   return jsonResponse({ issued, total: sessions.length, errors }, 200);
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -47,3 +47,6 @@ SELECT cron.schedule(
   '0 * * * *',
   $$ SELECT call_edge_function('notify_long_parking'); $$
 );
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

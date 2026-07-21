@@ -8,3 +8,6 @@ import 'supabase_api_client.dart';
 final apiClientProvider = Provider<ApiClient>((ref) {
   return SupabaseApiClient(Supabase.instance.client);
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

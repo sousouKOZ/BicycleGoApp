@@ -125,3 +125,6 @@ CREATE POLICY points_select_own ON points
 CREATE POLICY point_transactions_select_own ON point_transactions
   FOR SELECT
   USING (auth.uid() = user_id);
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

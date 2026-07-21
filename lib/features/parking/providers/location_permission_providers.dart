@@ -76,3 +76,6 @@ final locationPermissionProvider =
 /// 許可されれば実質無視されるが、未許可でも地図を閲覧したいユーザーの逃げ道。
 /// セッション内のみ保持（再起動でリセット）。
 final locationGateSkippedProvider = StateProvider<bool>((_) => false);
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

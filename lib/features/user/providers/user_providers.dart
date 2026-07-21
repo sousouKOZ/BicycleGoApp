@@ -123,3 +123,6 @@ final userProfileProvider =
     StateNotifierProvider<UserProfileNotifier, UserProfile>(
   (_) => UserProfileNotifier(),
 );
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

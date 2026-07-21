@@ -74,3 +74,6 @@ final exchangeHistoryProvider =
     StateNotifierProvider<ExchangeHistory, List<ExchangeRecord>>(
   (_) => ExchangeHistory(),
 );
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -22,3 +22,6 @@ CREATE POLICY devices_select_for_own_session ON devices
         AND s.user_id = auth.uid()
     )
   );
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

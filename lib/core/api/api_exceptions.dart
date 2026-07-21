@@ -34,3 +34,6 @@ class SessionNotFoundException extends ApiException {
   const SessionNotFoundException(String message)
       : super('session_not_found', message);
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -271,3 +271,6 @@ class _ParkedBarState extends ConsumerState<_ParkedBar> {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

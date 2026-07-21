@@ -140,3 +140,6 @@ Deno.serve(async (req) => {
     return errorResponse(500, "internal_error", err.message);
   }
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -82,3 +82,6 @@ class SectionLabel extends StatelessWidget {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

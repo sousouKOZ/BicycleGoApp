@@ -32,3 +32,6 @@ export const TIER_FAR_METERS = 800;
 
 /** 推薦時の重み計算で使うベースライン（重み 0 の店舗にも最低限の選択確率） */
 export const RECOMMEND_WEIGHT_FLOOR = 0.05;
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

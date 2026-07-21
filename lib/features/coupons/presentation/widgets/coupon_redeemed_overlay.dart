@@ -231,3 +231,6 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(covariant _RingPainter oldDelegate) =>
       oldDelegate.progress != progress;
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

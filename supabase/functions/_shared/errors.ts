@@ -42,3 +42,6 @@ export function jsonResponse(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

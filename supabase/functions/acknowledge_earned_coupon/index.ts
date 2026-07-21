@@ -99,3 +99,6 @@ Deno.serve(async (req) => {
 
   return jsonResponse(updated, 200);
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

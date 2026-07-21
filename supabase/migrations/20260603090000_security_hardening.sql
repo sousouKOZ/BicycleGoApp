@@ -38,3 +38,6 @@ REVOKE ALL ON FUNCTION issue_exchange_coupon(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION issue_exchange_coupon(uuid, text) FROM anon;
 REVOKE ALL ON FUNCTION issue_exchange_coupon(uuid, text) FROM authenticated;
 GRANT EXECUTE ON FUNCTION issue_exchange_coupon(uuid, text) TO service_role;
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

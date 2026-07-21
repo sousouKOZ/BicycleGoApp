@@ -117,3 +117,6 @@ Deno.serve(async (req) => {
   console.log(`[notify_long_parking] warned ${warned} sessions`);
   return jsonResponse({ warned, total: targets.length, errors }, 200);
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

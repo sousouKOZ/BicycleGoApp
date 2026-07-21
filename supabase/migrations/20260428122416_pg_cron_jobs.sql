@@ -69,3 +69,6 @@ SELECT cron.schedule(
   '* * * * *',
   $$ SELECT call_edge_function('expire_sessions'); $$
 );
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

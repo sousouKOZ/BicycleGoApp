@@ -249,3 +249,6 @@ CREATE TRIGGER on_auth_user_created
 
 ALTER PUBLICATION supabase_realtime ADD TABLE parking_lots;
 ALTER PUBLICATION supabase_realtime ADD TABLE parking_sessions;
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

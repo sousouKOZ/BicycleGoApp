@@ -510,3 +510,6 @@ class _AccountCard extends ConsumerWidget {
     }
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

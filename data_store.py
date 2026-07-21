@@ -289,3 +289,6 @@ class DataStore:
              * math.sin(dlon / 2) ** 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c * 1000  # メートルに変換
+
+# Copyright (c) 2026 江藤大晴
+# Released under the MIT License.

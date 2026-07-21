@@ -44,3 +44,6 @@ extension AppTextColors on BuildContext {
       ? AppColors.onSurfaceSecondaryDark.withValues(alpha: 0.2)
       : AppColors.onSurfaceSecondary.withValues(alpha: 0.12);
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

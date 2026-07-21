@@ -5,3 +5,6 @@ class ActiveParkingInfo {
   final String parkingName;
   const ActiveParkingInfo({required this.parkingId, required this.parkingName});
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -34,3 +34,6 @@ class Geo {
     return (deg + 360.0) % 360.0;
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

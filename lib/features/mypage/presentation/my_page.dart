@@ -878,3 +878,6 @@ class _FavoriteParkingTile extends ConsumerWidget {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

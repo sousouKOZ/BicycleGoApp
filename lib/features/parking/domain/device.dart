@@ -28,3 +28,6 @@ class Device {
         nfcCode: nfcCode,
       );
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

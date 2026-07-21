@@ -32,3 +32,6 @@ Future<void> redeemCouponAndRefresh(
   ref.invalidate(userCouponsProvider);
   ref.invalidate(recommendedStoresProvider);
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

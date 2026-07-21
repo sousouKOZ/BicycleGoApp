@@ -16,3 +16,6 @@ const supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
 /// Supabase Anon キー（クライアント公開可能なキー）。
 const supabaseAnonKey =
     String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

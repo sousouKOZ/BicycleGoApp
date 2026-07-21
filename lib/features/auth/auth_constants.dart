@@ -22,3 +22,6 @@ bool isPasswordPolicyCompliant(String password) {
   final hasDigit = RegExp(r'\d').hasMatch(password);
   return hasLetter && hasDigit;
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

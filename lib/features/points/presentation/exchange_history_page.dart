@@ -113,3 +113,6 @@ String _formatDateTime(DateTime d) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${d.year}/${two(d.month)}/${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

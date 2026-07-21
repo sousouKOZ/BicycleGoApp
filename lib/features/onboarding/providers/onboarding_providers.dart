@@ -26,3 +26,6 @@ final onboardingCompletedProvider =
     StateNotifierProvider<OnboardingCompleted, bool>(
   (_) => OnboardingCompleted(),
 );
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

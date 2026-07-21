@@ -31,3 +31,6 @@ CREATE TABLE category_affinity (
   updated_at        timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (category_a, category_b)
 );
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

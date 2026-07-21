@@ -222,3 +222,6 @@ async function decrementOccupied(
     .update({ occupied: next, updated_at: new Date().toISOString() })
     .eq("id", dev.parking_lot_id);
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

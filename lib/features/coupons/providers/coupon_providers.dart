@@ -9,3 +9,6 @@ final userCouponsProvider = FutureProvider<List<Coupon>>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
   return api.getUserCoupons(userId);
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

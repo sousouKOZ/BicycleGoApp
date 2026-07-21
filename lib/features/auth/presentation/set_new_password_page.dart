@@ -96,3 +96,6 @@ class _SetNewPasswordPageState extends ConsumerState<SetNewPasswordPage> {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -7,3 +7,6 @@ final storesProvider = FutureProvider<List<Store>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return api.getStores();
 });
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

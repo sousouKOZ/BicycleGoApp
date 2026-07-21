@@ -197,3 +197,6 @@ class _EmailSignupPageState extends ConsumerState<EmailSignupPage> {
     );
   }
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

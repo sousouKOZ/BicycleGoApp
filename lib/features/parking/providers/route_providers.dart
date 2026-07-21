@@ -12,3 +12,6 @@ final activeRouteProvider = StateProvider<DirectionsRoute?>((_) => null);
 
 /// ルート取得中のフラグ（UIのローディング表示用）。
 final routeLoadingProvider = StateProvider<bool>((_) => false);
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

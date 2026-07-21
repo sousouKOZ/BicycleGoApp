@@ -348,3 +348,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# Copyright (c) 2026 江藤大晴
+# Released under the MIT License.

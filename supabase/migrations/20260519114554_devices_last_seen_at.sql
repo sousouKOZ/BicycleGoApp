@@ -21,3 +21,6 @@ CREATE INDEX idx_devices_last_seen ON devices (last_seen_at);
 COMMENT ON COLUMN devices.last_seen_at IS
   'マイコンから最後に在席通知（parking_detect / parking_ping）を受けた時刻。'
   'NULL は MCU が一度もアクセスしていない状態。';
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

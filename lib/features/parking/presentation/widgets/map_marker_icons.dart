@@ -132,3 +132,6 @@ Future<BitmapDescriptor> createCouponMarker() async {
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
   return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

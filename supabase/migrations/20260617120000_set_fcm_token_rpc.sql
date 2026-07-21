@@ -31,3 +31,6 @@ $$;
 -- 認証済みユーザー（匿名サインイン含む）のみ実行可能。
 revoke all on function public.set_fcm_token(text) from public, anon;
 grant execute on function public.set_fcm_token(text) to authenticated;
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

@@ -76,3 +76,6 @@ abstract class ApiClient {
   /// 自分のクーポン発行済みセッションを完了時刻降順で返す。
   Future<List<SessionRecord>> getSessionHistory(String userId);
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

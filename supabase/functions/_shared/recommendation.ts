@@ -81,3 +81,6 @@ export function distanceTierFor(
   if (m < TIER_FAR_METERS) return "far";
   return "exchange";
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

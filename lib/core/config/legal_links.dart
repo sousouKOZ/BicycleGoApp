@@ -4,3 +4,6 @@
 /// App Store / Google Play 審査では、これらのページが実在し閲覧できる必要がある。
 const String kTermsOfServiceUrl = 'https://bicyclego.example.com/terms';
 const String kPrivacyPolicyUrl = 'https://bicyclego.example.com/privacy';
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

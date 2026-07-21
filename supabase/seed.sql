@@ -47,3 +47,6 @@ INSERT INTO exchange_items (id, title, description, cost_points, category, valid
   ('item-retail-200',    '雑貨¥300クーポン',           '提携セレクトショップで300円OFFクーポンを発行。',    200, 'retail',   30, true),
   ('item-mobility-500',  'シェアサイクル30分無料',     '提携シェアサイクルの30分利用券。',                  500, 'mobility', 30, true),
   ('item-donation-100',  '街の自転車駐輪場 整備に寄付', '集まったポイントは大阪市の駐輪場整備に活用されます。', 100, 'donation', 30, true);
+
+-- Copyright (c) 2026 小塩颯汰
+-- Released under the MIT License.

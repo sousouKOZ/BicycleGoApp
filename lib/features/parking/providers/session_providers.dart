@@ -15,3 +15,6 @@ final latestEarnedCouponProvider = StateProvider<Coupon?>((ref) => null);
 
 final activeParkingInfoProvider =
     StateProvider<ActiveParkingInfo?>((ref) => null);
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

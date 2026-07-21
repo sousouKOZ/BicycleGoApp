@@ -45,3 +45,6 @@ String formatTimeHm(DateTime d) => '${_two(d.hour)}:${_two(d.minute)}';
 
 /// `6/05` 形式（月はゼロ埋めなし・日はゼロ埋め）。
 String formatMonthDay(DateTime d) => '${d.month}/${_two(d.day)}';
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.

@@ -72,3 +72,6 @@ export function isDeviceIngestRequest(req: Request): boolean {
 export function isLocalInternalBypassEnabled(): boolean {
   return Deno.env.get("ALLOW_UNAUTHENTICATED_INTERNAL_JOBS") === "true";
 }
+
+// Copyright (c) 2026 小塩颯汰
+// Released under the MIT License.
